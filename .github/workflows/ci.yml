@@ -1,0 +1,80 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows and macOS are first-class targets, not afterthoughts. Most of
+        # what breaks on them is path handling and console encoding, which only
+        # a real run catches.
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.12"]
+        exclude:
+          - os: windows-latest
+            python: "3.10"
+          - os: macos-latest
+            python: "3.10"
+    runs-on: ${{ matrix.os }}
+    env:
+      # Transcription on a CI runner has no usable GPU; skip the probe.
+      SOCIAL_VIDEO_FORCE_CPU: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-core
+
+      - name: Install ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+
+      - name: Install ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y --no-progress
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --extra dev --python ${{ matrix.python }}
+
+      - name: Unit tests
+        run: uv run pytest tests/unit -q
+
+      - name: Integration tests
+        run: uv run pytest tests/integration -q -m integration
+
+      - name: Doctor
+        run: uv run social-video doctor --json
+
+  skill-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --extra dev
+      - name: Validate skills and plugin manifests
+        run: uv run pytest tests/unit/test_skills.py -q

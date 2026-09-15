@@ -1,0 +1,134 @@
+---
+name: social-video-editor
+description: Edit video into social clips (Reels, Shorts, TikTok) by reasoning over a transcript and writing an explicit edit plan and EDL that local tools render. Use when the user asks to edit, cut, trim, or clean up a recording, make a Reel or Short, remove mistakes or filler, add captions, or convert horizontal footage to vertical. Do not use for generating video from scratch or for simple one-off format conversions.
+license: Apache-2.0
+compatibility: Requires Python 3.10+, ffmpeg with libass, and the social-video-agent package. Runs fully offline.
+metadata:
+  version: "0.1.0"
+---
+
+# Editing social video
+
+You are the editor. You decide what the piece is about, what to cut, and where
+it opens and closes. The tools handle media mechanics deterministically; they
+make no editorial judgements.
+
+## How this works
+
+```
+source → transcribe → packed transcript → YOUR editorial decisions
+       → edit-plan.json → edl.json → render → QA → revise → final.mp4
+```
+
+Every decision you make is written to an artifact a human can read and change.
+Source files are never modified. All work lands in `edit/` beside the source.
+
+**Read the packed transcript, not the raw JSON.** The packed view is a compact
+phrase-level document built for reasoning. The raw token JSON exists for the
+tools and will flood your context for no benefit.
+
+## Start here
+
+```bash
+social-video doctor                      # once, to confirm the machine is ready
+social-video inspect INPUT               # what the source actually is
+social-video transcribe INPUT            # local, cached, no API key
+social-video pack .                      # the view you reason over
+```
+
+`transcribe` caches on source content plus options, so re-running is free.
+Changing model or language re-transcribes; re-running does not.
+
+## Decide before you cut
+
+Read the packed transcript once, end to end. Then form a view:
+
+- What is this piece actually about? One sentence.
+- Which moment is the strongest opening? It is rarely the literal beginning.
+- What is the payoff, and does the ending land or trail off?
+- Which passages are scaffolding ("so basically what I wanted to say was") that
+  can go without losing meaning?
+- Where did the speaker restart, misspeak, or repeat themselves?
+- Is there a better take of the same point later in the recording?
+
+State your strategy to the user in a few sentences and get agreement before
+rendering anything long. Do not silently produce a finished video from an
+ambiguous request.
+
+## Build the plan
+
+```bash
+social-video plan INPUT --profile talking-head --goal "60s educational Reel"
+```
+
+This writes `edit/edit-plan.json` containing only what can be found from timing:
+dead air, isolated filler, immediately repeated phrases. **It contains no
+judgement about meaning.** That part is yours: edit the file directly.
+
+Each item is an action (`keep`, `drop`, `tighten`, `reorder`), a span, and a
+`reason`. Write the reason for a human reader — it is the record of why the
+edit is the way it is.
+
+To select specific moments rather than trim a whole recording, replace the
+drops with explicit `keep` items; explicit keeps take precedence.
+
+## Compile and render
+
+```bash
+social-video edit INPUT --profile talking-head --brand default
+```
+
+runs the whole chain. Or drive the stages individually and inspect between
+them. Cut boundaries are snapped to word edges automatically — you never need
+to compute frame numbers, and you should not try.
+
+Render `--quality preview` while iterating and `final` once. Preview keeps the
+same aspect and framing, so what you check is what you ship.
+
+## Check your own work
+
+```bash
+social-video qa WORKSPACE
+```
+
+Mechanical checks run first: duration against the EDL, audio presence and
+clipping, black frames, silence at cuts, caption overlap and placement. They
+catch things you cannot see in a still.
+
+Look at the generated stills in `edit/qa/` only where a check flagged something
+or at cut boundaries. Do not inspect the video frame by frame.
+
+If something is wrong, fix the plan or the EDL and re-render. **Stop after three
+attempts** and tell the user what remains wrong rather than looping.
+
+## Default to restraint
+
+In priority order: meaning, clarity, natural rhythm, clean cuts, audio quality,
+framing, captions, then everything else.
+
+- Keep the speaker's rhythm. Do not remove every pause; pauses carry meaning.
+- Do not produce jump-cut-every-two-seconds editing unless asked.
+- No music, sound effects, or punch-ins unless requested or enabled by a profile.
+- A punch-in marks an editorial moment. Constant zooming is not a style.
+
+Assume the user wants their recording to sound like them, only tighter.
+
+## Reference
+
+| Topic | File |
+|---|---|
+| Artifact schemas and how to edit them by hand | [references/artifacts.md](references/artifacts.md) |
+| Profiles, brands, captions, and vertical framing | [references/style.md](references/style.md) |
+| Long recording to several short clips | [references/shorts.md](references/shorts.md) |
+| Troubleshooting and platform notes | [references/troubleshooting.md](references/troubleshooting.md) |
+
+## Do not
+
+- Do not write ffmpeg commands by hand. Everything needed is a CLI command; if
+  something is genuinely missing, say so rather than improvising a filter graph.
+- Do not modify, move, or re-encode the user's source files.
+- Do not paste raw transcript JSON into your context.
+- Do not upload media to any service. Transcription is local by default; a cloud
+  provider must be explicitly requested, and you must tell the user their media
+  is leaving the machine.
+- Do not invent timestamps. Take them from the packed transcript.

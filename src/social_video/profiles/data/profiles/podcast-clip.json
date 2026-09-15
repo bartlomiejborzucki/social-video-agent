@@ -1,0 +1,16 @@
+{
+  "name": "podcast-clip",
+  "description": "An excerpt from a longer conversation, usually two speakers.",
+  "width": 1080,
+  "height": 1920,
+  "duration_range": [
+    30.0,
+    90.0
+  ],
+  "max_pause": 1.0,
+  "min_pause": 0.2,
+  "cut_padding": 0.12,
+  "captions_enabled": true,
+  "default_reframe": "speaker",
+  "schema_version": 1
+}

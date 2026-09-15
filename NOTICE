@@ -1,0 +1,10 @@
+social-video-agent
+Copyright 2026 social-video-agent contributors
+
+This product includes software developed as part of browser-use/video-use
+(https://github.com/browser-use/video-use), Copyright (c) 2026 Browser Use,
+licensed under the MIT License.
+
+Specific functions ported from that project, the extent of modification, and
+attribution for every other adapted source are recorded in
+docs/research/provenance.md and THIRD_PARTY_NOTICES.md.

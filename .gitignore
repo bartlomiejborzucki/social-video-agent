@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Secrets — never commit credentials
+.env
+.env.*
+!.env.example
+
+# User media and derived artifacts. Local media stays local.
+edit/
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.m4v
+*.webm
+*.wav
+*.mp3
+*.m4a
+!tests/**/*.generated.mp4
+
+# Tool caches
+.social-video/
+tools/ffmpeg/
+models/
+
+# OS
+.DS_Store
+Thumbs.db
+upstream-report.json

@@ -1,0 +1,16 @@
+{
+  "name": "storytelling",
+  "description": "A narrative arc. Protects beats and timing.",
+  "width": 1080,
+  "height": 1920,
+  "duration_range": [
+    30.0,
+    90.0
+  ],
+  "max_pause": 1.2,
+  "min_pause": 0.3,
+  "cut_padding": 0.14,
+  "captions_enabled": true,
+  "default_reframe": "face",
+  "schema_version": 1
+}

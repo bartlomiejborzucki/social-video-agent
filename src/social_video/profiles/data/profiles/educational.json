@@ -1,0 +1,18 @@
+{
+  "name": "educational",
+  "description": "Explaining something. Keeps the reasoning, trims the scaffolding.",
+  "width": 1080,
+  "height": 1920,
+  "duration_range": [
+    30.0,
+    90.0
+  ],
+  "remove_filler": true,
+  "remove_false_starts": true,
+  "max_pause": 1.0,
+  "min_pause": 0.22,
+  "cut_padding": 0.12,
+  "captions_enabled": true,
+  "default_reframe": "face",
+  "schema_version": 1
+}

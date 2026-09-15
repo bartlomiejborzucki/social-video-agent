@@ -1,0 +1,19 @@
+{
+  "name": "calm-expert",
+  "description": "Authoritative and unhurried. The most restrained profile.",
+  "width": 1080,
+  "height": 1920,
+  "duration_range": [
+    30.0,
+    120.0
+  ],
+  "remove_filler": false,
+  "remove_false_starts": true,
+  "max_pause": 1.5,
+  "min_pause": 0.35,
+  "cut_padding": 0.18,
+  "captions_enabled": true,
+  "punch_ins_enabled": false,
+  "default_reframe": "face",
+  "schema_version": 1
+}

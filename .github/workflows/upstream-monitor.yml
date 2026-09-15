@@ -1,0 +1,42 @@
+name: upstream monitor
+
+# Detect upstream movement and report it. Never merge automatically:
+#   DETECT -> REVIEW -> ADAPT OR IGNORE
+#
+# The point is not to stay in sync. It is to notice when upstream has fixed
+# something we carry a custom patch for, so we can drop the patch.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"   # Mondays, early
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: python -m pip install --quiet pyyaml
+
+      - name: Compare recorded commits against upstream HEAD
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/check_upstreams.py
+
+      - name: Open or update an issue for each moved upstream
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: python .github/scripts/report_upstreams.py
