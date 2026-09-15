@@ -1,0 +1,166 @@
+# Projects we track.
+#
+# `reviewed_sha` is the commit we actually read. The upstream monitor compares
+# it against HEAD and opens an issue when they differ. It never merges.
+#
+# integration values:
+#   adapted     - code from this project exists here, modified, with attribution
+#   design      - concepts adopted, no code copied
+#   dependency  - consumed as a package, no code copied
+#   reference   - read for current best practice, nothing taken
+#   watch       - not used, but relevant if it changes
+
+version: 1
+
+upstreams:
+  - repository: browser-use/video-use
+    url: https://github.com/browser-use/video-use
+    purpose: Primary architectural ancestor; the transcript-first agent editing pipeline.
+    license: MIT
+    reviewed_sha: 9575612f066aa517354790a645fd90f9f95a743b
+    reviewed_on: 2026-09-15
+    integration: adapted
+    components:
+      - src/social_video/ffmpeg/probe.py
+      - src/social_video/ffmpeg/filters.py
+      - src/social_video/transcript/pack.py
+      - src/social_video/transcribe/audio.py
+      - skills/social-video-editor/SKILL.md
+    watch_for:
+      - Local transcription finally landing upstream
+      - Windows path and encoding fixes we also carry
+      - Any reframing or vertical output capability
+      - Changes to helpers/render.py that affect ported functions
+    notes: >
+      Merges roughly 9 of 87 pull requests ever opened. Treat upstream movement
+      as informative rather than as something to merge from.
+
+  - repository: parleyw/video-use
+    url: https://github.com/parleyw/video-use
+    purpose: Fork claiming pluggable transcription backends.
+    license: MIT (names parleyw as sole holder over Browser Use code; see provenance)
+    reviewed_sha: dbfba03
+    reviewed_on: 2026-09-15
+    integration: design
+    components: []
+    watch_for:
+      - Whether the fabricated word timestamps are ever fixed
+    notes: >
+      Audited and rejected. Four backends fabricate word timestamps; both
+      diarization backends call a pyannote method that does not exist. Only the
+      validate_setup() lifecycle idea was taken, reimplemented from scratch.
+
+  - repository: ClipsAI/clipsai
+    url: https://github.com/ClipsAI/clipsai
+    purpose: Segment-based vertical reframing architecture.
+    license: MIT
+    reviewed_sha: 8e73c8adc112c745b84ec240f11a91457bfd3141
+    reviewed_on: 2026-09-15
+    integration: design
+    components:
+      - src/social_video/reframe/plan.py
+      - src/social_video/reframe/smooth.py
+    notes: Abandoned since January 2024. Architecture adopted, no code copied.
+
+  - repository: AgriciDaniel/claude-shorts
+    url: https://github.com/AgriciDaniel/claude-shorts
+    purpose: Crop-plan JSON contract and keyframe deduplication.
+    license: MIT
+    reviewed_sha: a369fad9d842
+    reviewed_on: 2026-09-15
+    integration: design
+    components:
+      - src/social_video/schemas/edl.py
+      - src/social_video/reframe/smooth.py
+
+  - repository: SYSTRAN/faster-whisper
+    url: https://github.com/SYSTRAN/faster-whisper
+    purpose: Default local transcription backend.
+    license: MIT
+    reviewed_sha: ed9a06cd89a93e47838f564998a6c09b655d7f43
+    reviewed_on: 2026-09-15
+    integration: dependency
+    components:
+      - src/social_video/transcribe/faster_whisper.py
+    watch_for:
+      - Maintenance stalling further (roughly 10 months without a commit)
+      - CTranslate2 compatibility breaks
+
+  - repository: Breakthrough/PySceneDetect
+    url: https://github.com/Breakthrough/PySceneDetect
+    purpose: Scene detection.
+    license: BSD-3-Clause
+    reviewed_sha: 2fa8290de035
+    reviewed_on: 2026-09-15
+    integration: dependency
+    components:
+      - src/social_video/analysis/scenes.py
+
+  - repository: opencv/opencv_zoo
+    url: https://github.com/opencv/opencv_zoo
+    purpose: YuNet face detection model.
+    license: Apache-2.0
+    reviewed_sha: main@2026-09-15
+    reviewed_on: 2026-09-15
+    integration: dependency
+    components:
+      - src/social_video/reframe/detect.py
+
+  - repository: WyattBlue/auto-editor
+    url: https://github.com/WyattBlue/auto-editor
+    purpose: Skill documentation style; v3 timeline as a future export target.
+    license: Unlicense
+    reviewed_sha: 1647365ff14fc60b04b872c8c2d658fc51235aee
+    reviewed_on: 2026-09-15
+    integration: reference
+    components:
+      - skills/social-video-editor/SKILL.md
+
+  - repository: agentskills/agentskills
+    url: https://github.com/agentskills/agentskills
+    purpose: The Agent Skills specification our skill packaging targets.
+    license: Apache-2.0
+    reviewed_sha: main@2026-08-09
+    reviewed_on: 2026-09-15
+    integration: reference
+    components:
+      - skills/
+      - tests/unit/test_skills.py
+    watch_for:
+      - Frontmatter field changes or new constraints
+
+  - repository: openai/plugins
+    url: https://github.com/openai/plugins
+    purpose: Current Codex plugin packaging format.
+    license: not stated at repository root
+    reviewed_sha: main@2026-09-15
+    reviewed_on: 2026-09-15
+    integration: reference
+    components:
+      - .codex-plugin/plugin.json
+      - plugin.json
+    notes: >
+      openai/skills is deprecated in favour of this repository. Shipping plugins
+      use .codex-plugin/plugin.json with a top-level skills/ directory.
+
+  - repository: m-bain/whisperX
+    url: https://github.com/m-bain/whisperX
+    purpose: Optional forced alignment for tighter word timings.
+    license: BSD-2-Clause
+    reviewed_sha: 2cfd7b7c5c7bba144954364db747319b50e8232b
+    reviewed_on: 2026-09-15
+    integration: watch
+    components: []
+    notes: Optional [align] extra. Not yet implemented.
+
+  - repository: Junhua-Liao/LR-ASD
+    url: https://github.com/Junhua-Liao/LR-ASD
+    purpose: Candidate for genuine active-speaker detection.
+    license: MIT
+    reviewed_sha: 1b6dcd2d8fc2
+    reviewed_on: 2026-09-15
+    integration: watch
+    components: []
+    notes: >
+      Roughly 1M parameters, realtime on CPU. The intended basis for speaker-aware
+      reframing beyond the current face-prominence heuristic.

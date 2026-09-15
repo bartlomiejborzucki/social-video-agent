@@ -1,0 +1,16 @@
+{
+  "name": "square",
+  "description": "1:1 for feed placements.",
+  "width": 1080,
+  "height": 1080,
+  "duration_range": [
+    15.0,
+    60.0
+  ],
+  "max_pause": 0.8,
+  "min_pause": 0.15,
+  "cut_padding": 0.08,
+  "captions_enabled": true,
+  "default_reframe": "face",
+  "schema_version": 1
+}

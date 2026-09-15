@@ -1,0 +1,20 @@
+{
+  "name": "social-video-agent",
+  "version": "0.1.0",
+  "description": "Edit video into social clips by reasoning over a transcript and writing an explicit edit plan and EDL that local tools render.",
+  "license": "Apache-2.0",
+  "keywords": ["video", "editing", "reels", "shorts", "tiktok", "captions", "ffmpeg"],
+  "repository": "https://github.com/OWNER/social-video-agent",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Social Video",
+    "shortDescription": "Edit recordings into social clips",
+    "category": "Creativity",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": [
+      "Turn this recording into a 45 second vertical Reel",
+      "Remove the mistakes and long pauses but keep my natural rhythm",
+      "Find the five best standalone moments in this talk"
+    ]
+  }
+}

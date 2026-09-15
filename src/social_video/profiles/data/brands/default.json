@@ -1,0 +1,23 @@
+{
+  "name": "default",
+  "description": "Neutral, readable, no house style imposed.",
+  "captions": {
+    "font_family": "",
+    "font_size_pct": 5.0,
+    "bold": true,
+    "primary_colour": "#FFFFFF",
+    "outline_colour": "#000000",
+    "outline_width": 3.0,
+    "position": "bottom",
+    "margin_pct": 12.0,
+    "case": "as_spoken",
+    "max_words_per_cue": 4,
+    "max_chars_per_cue": 32,
+    "min_cue_duration": 0.6,
+    "schema_version": 1
+  },
+  "accent_colour": "#FFD400",
+  "motion_intensity": 0.25,
+  "punch_in_max": 1.12,
+  "schema_version": 1
+}

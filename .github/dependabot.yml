@@ -1,0 +1,29 @@
+version: 2
+
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      # Tooling can move together; it cannot break a render.
+      dev-tooling:
+        patterns: ["ruff", "mypy", "pytest*", "types-*"]
+    ignore:
+      # These decide whether the output is correct. A version bump here needs a
+      # human to run a real render and look at the result, so they are excluded
+      # from automated updates rather than merged on green CI.
+      - dependency-name: "faster-whisper"
+      - dependency-name: "ctranslate2"
+      - dependency-name: "scenedetect-headless"
+      - dependency-name: "opencv-python-headless"
+      - dependency-name: "whisperx"
+      - dependency-name: "pyannote.audio"
+    labels: ["dependencies"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels: ["dependencies"]

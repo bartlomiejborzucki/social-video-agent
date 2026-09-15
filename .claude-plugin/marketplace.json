@@ -1,0 +1,14 @@
+{
+  "name": "social-video-agent",
+  "owner": {
+    "name": "social-video-agent contributors"
+  },
+  "plugins": [
+    {
+      "name": "social-video-agent",
+      "source": "./",
+      "description": "Agent-native social video editor: transcript-driven editing with inspectable artifacts and local rendering.",
+      "category": "Creativity"
+    }
+  ]
+}

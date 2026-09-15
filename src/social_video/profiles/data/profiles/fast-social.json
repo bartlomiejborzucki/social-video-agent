@@ -1,0 +1,17 @@
+{
+  "name": "fast-social",
+  "description": "Tighter and more energetic. Opt in deliberately; it is not the default.",
+  "width": 1080,
+  "height": 1920,
+  "duration_range": [
+    15.0,
+    45.0
+  ],
+  "max_pause": 0.5,
+  "min_pause": 0.1,
+  "cut_padding": 0.05,
+  "captions_enabled": true,
+  "punch_ins_enabled": true,
+  "default_reframe": "face",
+  "schema_version": 1
+}

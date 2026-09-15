@@ -1,0 +1,17 @@
+{
+  "name": "vertical-short",
+  "description": "Generic 9:16 short for Reels, Shorts and TikTok.",
+  "width": 1080,
+  "height": 1920,
+  "duration_range": [
+    15.0,
+    60.0
+  ],
+  "max_pause": 0.8,
+  "min_pause": 0.15,
+  "cut_padding": 0.08,
+  "captions_enabled": true,
+  "punch_ins_enabled": false,
+  "default_reframe": "face",
+  "schema_version": 1
+}

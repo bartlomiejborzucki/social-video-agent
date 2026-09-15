@@ -1,0 +1,17 @@
+{
+  "name": "technical-tutorial",
+  "description": "Screen or demo led. Pauses carry meaning, so it cuts sparingly.",
+  "width": 1080,
+  "height": 1920,
+  "duration_range": [
+    30.0,
+    120.0
+  ],
+  "remove_filler": false,
+  "max_pause": 1.4,
+  "min_pause": 0.3,
+  "cut_padding": 0.15,
+  "captions_enabled": true,
+  "default_reframe": "center",
+  "schema_version": 1
+}

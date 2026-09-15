@@ -1,0 +1,25 @@
+{
+  "name": "bold-caption",
+  "description": "High-contrast uppercase captions for noisy feeds.",
+  "captions": {
+    "font_family": "",
+    "font_size_pct": 6.0,
+    "bold": true,
+    "primary_colour": "#FFFFFF",
+    "outline_colour": "#000000",
+    "outline_width": 4.0,
+    "position": "bottom",
+    "margin_pct": 14.0,
+    "case": "upper",
+    "max_words_per_cue": 3,
+    "max_chars_per_cue": 24,
+    "min_cue_duration": 0.5,
+    "highlight_active_word": true,
+    "highlight_colour": "#FFD400",
+    "schema_version": 1
+  },
+  "accent_colour": "#FFD400",
+  "motion_intensity": 0.4,
+  "punch_in_max": 1.15,
+  "schema_version": 1
+}

@@ -1,0 +1,23 @@
+{
+  "name": "minimal",
+  "description": "Small, unobtrusive captions. Lets the footage speak.",
+  "captions": {
+    "font_family": "",
+    "font_size_pct": 3.8,
+    "bold": false,
+    "primary_colour": "#FFFFFF",
+    "outline_colour": "#000000",
+    "outline_width": 2.0,
+    "position": "bottom",
+    "margin_pct": 10.0,
+    "case": "as_spoken",
+    "max_words_per_cue": 6,
+    "max_chars_per_cue": 42,
+    "min_cue_duration": 0.8,
+    "schema_version": 1
+  },
+  "accent_colour": "#FFFFFF",
+  "motion_intensity": 0.0,
+  "punch_in_max": 1.0,
+  "schema_version": 1
+}

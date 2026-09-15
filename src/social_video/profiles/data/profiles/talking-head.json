@@ -1,0 +1,17 @@
+{
+  "name": "talking-head",
+  "description": "One person to camera. Calm, meaning-first editing.",
+  "width": 1080,
+  "height": 1920,
+  "duration_range": [
+    20.0,
+    90.0
+  ],
+  "max_pause": 0.9,
+  "min_pause": 0.18,
+  "cut_padding": 0.1,
+  "captions_enabled": true,
+  "punch_ins_enabled": true,
+  "default_reframe": "face",
+  "schema_version": 1
+}
