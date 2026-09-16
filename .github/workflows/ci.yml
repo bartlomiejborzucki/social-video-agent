@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
       - run: uv sync --extra dev
@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg fontconfig fonts-noto-core
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
       - run: uv sync --extra dev --python ${{ matrix.python }}
@@ -57,7 +57,7 @@ jobs:
       PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
       - run: uv sync --extra dev --python 3.12
@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.1.0
       - run: uv build
       - run: ./scripts/build-skill.sh
       - run: uv venv /tmp/social-video-package-test
