@@ -52,6 +52,7 @@ def test_windows_path_uses_wslpath_without_a_shell(monkeypatch):
     assert "shell" not in calls[0][1]
 
 
+@pytest.mark.skipif(os.name == "nt", reason="drive-letter paths are native on Windows")
 def test_windows_path_outside_wsl_has_clear_error(monkeypatch):
     monkeypatch.setattr(paths, "is_wsl", lambda: False)
     with pytest.raises(ValueError, match="inside WSL"):

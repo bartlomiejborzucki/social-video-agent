@@ -51,7 +51,9 @@ def normalize_user_path(value: str | os.PathLike[str], *, must_exist: bool = Fal
     remain ordinary filename characters.
     """
     raw = os.fspath(value)
-    if is_windows_drive_path(raw):
+    # A drive-letter path is already native on Windows. On every POSIX host it
+    # is meaningful only inside WSL, where wslpath performs the conversion.
+    if is_windows_drive_path(raw) and sys.platform != "win32":
         if not is_wsl():
             raise ValueError(
                 f"Windows path {raw!r} can only be translated when running inside WSL."
