@@ -21,6 +21,7 @@ from social_video.editorial.compile import compile_plan
 from social_video.editorial.draft import draft_edit_plan
 from social_video.edl.render import QUALITIES, Quality, render_edl
 from social_video.edl.timeline import Timeline
+from social_video.errors import ValidationError
 from social_video.ffmpeg.fonts import default_caption_font
 from social_video.profiles import load_brand, load_profile
 from social_video.qa.checks import check_render
@@ -79,13 +80,28 @@ def stage_transcribe(
     transcript = transcribe_source(
         source, workspace, options=options, backend_name=backend, force=force
     )
-    pack_transcripts([transcript], output=workspace.packed_transcript)
+    # Pack every transcript in the workspace, not just this one: a project with
+    # several sources would otherwise lose the others from the agent's view
+    # each time a new source was transcribed.
+    _repack(workspace)
     record_stage(
         workspace,
         "transcribe",
         {"provider": transcript.provider, "words": len(transcript.words)},
     )
     return transcript
+
+
+def _repack(workspace: Workspace) -> None:
+    """Rebuild the packed transcript from everything in the workspace."""
+    transcripts = []
+    for path in sorted(workspace.transcripts.glob("*.json")):
+        try:
+            transcripts.append(load_artifact(Transcript, path))
+        except ValidationError as exc:
+            log.warning("skipping unreadable transcript %s: %s", path.name, exc)
+    if transcripts:
+        pack_transcripts(transcripts, output=workspace.packed_transcript)
 
 
 def stage_analyze(source: Path, workspace: Workspace) -> list[float]:
@@ -241,6 +257,7 @@ def run_edit(
     goal: str = "",
     reframe: ReframeMode | None = None,
     skip_captions: bool = False,
+    force: bool = False,
 ) -> tuple[Path, QAReport]:
     """The whole talking-head pipeline, end to end."""
     profile = load_profile(profile_name)
@@ -248,7 +265,11 @@ def run_edit(
 
     manifest = stage_ingest(source, workspace)
     transcript = stage_transcribe(
-        source, workspace, options=options or TranscriptionOptions(), backend=backend
+        source,
+        workspace,
+        options=options or TranscriptionOptions(),
+        backend=backend,
+        force=force,
     )
     scene_cuts = stage_analyze(source, workspace)
     plan = stage_plan(transcript, workspace, profile, goal=goal)

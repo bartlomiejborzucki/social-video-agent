@@ -267,3 +267,99 @@ class TestQA:
         render_edl(edl, manifest, out, quality=DRAFT)
         assert check_render(out, edl, attempt=3, max_attempts=3).exhausted
         assert not check_render(out, edl, attempt=1, max_attempts=3).exhausted
+
+
+class TestDurationAccuracy:
+    """Rendered length must not drift with the number of cuts."""
+
+    def _edl(self, source_id, n, duration=1.5):
+        step = duration / n
+        return EDL(
+            output_width=640,
+            output_height=360,
+            ranges=[
+                EDLRange(
+                    source=source_id,
+                    start=0.2 + i * step,
+                    end=0.2 + i * step + min(0.25, step * 0.7),
+                )
+                for i in range(n)
+            ],
+        )
+
+    @pytest.mark.parametrize("cuts", [1, 4, 12])
+    def test_duration_is_exact_regardless_of_cut_count(self, landscape, tmp_path, cuts):
+        manifest = build_manifest([landscape])
+        edl = self._edl(manifest.ids[0], cuts)
+        out = tmp_path / f"cuts_{cuts}.mp4"
+        render_edl(edl, manifest, out, quality=DRAFT)
+        report = check_render(out, edl)
+        duration_check = next(c for c in report.checks if c.name.startswith("duration"))
+        assert duration_check.passed, duration_check.message
+
+
+class TestQuietMaterial:
+    """A range that happens to be silent must still render."""
+
+    def test_silent_range_renders(self, tmp_path):
+        source = make_silent_video(tmp_path / "quiet_source.mp4", duration=3.0)
+        manifest = build_manifest([source])
+        edl = EDL(
+            output_width=320,
+            output_height=240,
+            ranges=[EDLRange(source=manifest.ids[0], start=0.5, end=1.5)],
+        )
+        out = tmp_path / "quiet.mp4"
+        # loudnorm would produce NaN here and fail the encode outright.
+        result = render_edl(edl, manifest, out, quality=DRAFT)
+        assert out.is_file()
+        assert result.loudness_target_lufs is None
+        assert probe(out).has_audio
+
+
+class TestMultiTrackAudio:
+    """Multi-track recordings must render the track that was transcribed.
+
+    OBS puts desktop audio on track 0 and the microphone on track 1, so a
+    renderer that always maps 0:a:0 produces a silent video with captions
+    describing audio nobody can hear.
+    """
+
+    def test_renders_the_selected_track(self, tmp_path):
+        source = make_multitrack_video(tmp_path / "obs.mp4", duration=3.0)
+        manifest = build_manifest([source])
+        sid = manifest.ids[0]
+
+        # Track 0 is silence, track 1 carries the tone.
+        silent = EDL(
+            output_width=320,
+            output_height=240,
+            ranges=[EDLRange(source=sid, start=0.2, end=1.5, audio_track=0)],
+        )
+        loud = EDL(
+            output_width=320,
+            output_height=240,
+            ranges=[EDLRange(source=sid, start=0.2, end=1.5, audio_track=1)],
+        )
+        a = tmp_path / "track0.mp4"
+        b = tmp_path / "track1.mp4"
+        render_edl(silent, manifest, a, quality=DRAFT)
+        render_edl(loud, manifest, b, quality=DRAFT)
+
+        # The silent track is detected as such and skips normalisation; the
+        # real track does not.
+        assert check_render(b, loud).passed
+        assert any(
+            c.name == "audio present" and not c.passed for c in check_render(a, silent).checks
+        )
+
+    def test_out_of_range_track_falls_back_rather_than_failing(self, landscape, tmp_path):
+        manifest = build_manifest([landscape])
+        edl = EDL(
+            output_width=320,
+            output_height=240,
+            ranges=[EDLRange(source=manifest.ids[0], start=0.0, end=1.0, audio_track=7)],
+        )
+        out = tmp_path / "fallback.mp4"
+        render_edl(edl, manifest, out, quality=DRAFT)
+        assert probe(out).has_audio

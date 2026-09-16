@@ -75,6 +75,9 @@ def compile_plan(
                 source=sid,
                 start=round(snapped.start, 4),
                 end=round(snapped.end, 4),
+                # Carry the transcribed track through, so the render and the
+                # captions describe the same audio.
+                audio_track=transcript.audio_track,
                 quote=quote[:300],
                 reason=because,
             )

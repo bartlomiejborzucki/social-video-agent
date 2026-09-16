@@ -332,6 +332,13 @@ def plan(
     workspace_dir: Path | None = typer.Option(None, "--workspace", "-w"),
     profile: str = typer.Option("talking-head", "--profile", "-p"),
     goal: str = typer.Option("", "--goal", help="What this edit is for."),
+    model: str = typer.Option("small", "--model", help="Transcription model size."),
+    language: str | None = typer.Option(None, "--language"),
+    audio_track: int = typer.Option(
+        0, "--audio-track", help="Zero-based audio track. See `inspect`."
+    ),
+    backend: str | None = typer.Option(None, "--backend"),
+    force: bool = typer.Option(False, "--force", help="Re-transcribe even if cached."),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Write a mechanical first-pass edit plan for the agent to revise.
@@ -346,7 +353,10 @@ def plan(
 
     ws = Workspace.at(workspace_dir) if workspace_dir else Workspace.for_source(source)
     prof = _guard(lambda: load_profile(profile))
-    transcript = _guard(lambda: stage_transcribe(source, ws, options=TranscriptionOptions()))
+    options = TranscriptionOptions(model=model, language=language, audio_track=audio_track)
+    transcript = _guard(
+        lambda: stage_transcribe(source, ws, options=options, backend=backend, force=force)
+    )
     result = _guard(lambda: stage_plan(transcript, ws, prof, goal=goal))
 
     if as_json:
@@ -381,6 +391,15 @@ def edit(
     quality: str = typer.Option("final", "--quality", help="draft, preview or final."),
     model: str = typer.Option("small", "--model", help="Transcription model size."),
     language: str | None = typer.Option(None, "--language"),
+    audio_track: int = typer.Option(
+        0,
+        "--audio-track",
+        help="Zero-based audio track. Multi-track recordings are common: OBS puts "
+        "desktop audio on track 0 and the microphone on track 1. Run `inspect` "
+        "to see what a file actually has.",
+    ),
+    backend: str | None = typer.Option(None, "--backend", help="Transcription backend."),
+    force: bool = typer.Option(False, "--force", help="Re-transcribe even if cached."),
     reframe: str | None = typer.Option(
         None, "--reframe", help="fit, center, face or speaker. Default: the profile's."
     ),
@@ -416,7 +435,9 @@ def edit(
             profile_name=profile,
             brand_name=brand,
             quality=quality,
-            options=TranscriptionOptions(model=model, language=language),
+            options=TranscriptionOptions(model=model, language=language, audio_track=audio_track),
+            backend=backend,
+            force=force,
             goal=goal,
             reframe=mode,
             skip_captions=no_captions,

@@ -65,6 +65,11 @@ Rules that hold:
 
 - `end` must be greater than `start`, and ranges must lie inside the source.
   Both are checked before rendering.
+- `audio_track` selects which audio stream to render. It is set from whichever
+  track was transcribed; changing one without the other gives you captions for
+  audio that is not in the output.
+- Range durations are aligned to whole frames at render time, so the output
+  length does not drift as cuts accumulate.
 - Output dimensions must be even.
 - `output_fps: null` means preserve the source rate. Do not set 24 out of habit.
 - The same EDL renders identically every time.

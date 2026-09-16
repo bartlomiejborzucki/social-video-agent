@@ -93,6 +93,14 @@ class EDLRange(Artifact):
     source: str = Field(description="Source id, resolved against the SourceManifest.")
     start: float = Field(ge=0.0, description="In-point in the source, seconds.")
     end: float = Field(gt=0.0, description="Out-point in the source, seconds.")
+    audio_track: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Zero-based audio track to render from. Must match the track that "
+            "was transcribed, or the captions describe audio nobody can hear."
+        ),
+    )
 
     # Editorial metadata. Carried so the EDL stays readable and reviewable;
     # upstream defines `quote` and `reason` in its example and then never reads

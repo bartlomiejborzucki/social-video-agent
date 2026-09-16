@@ -172,8 +172,8 @@ Full detail, including model licences separated from code licences, in
 Honest list of what this does not do yet:
 
 - **Active-speaker detection.** Face-aware framing picks the most prominent
-  face, not the one currently talking. Two-person `speaker` mode is therefore
-  weaker than `face` mode on a single subject.
+  face, not the one currently talking. `speaker` mode is accepted but resolves
+  to face prominence and says so in the log and in the EDL's stated reason.
 - **The shorts workflow is agent-driven**, not a single command. Candidate
   discovery and scoring exist as schemas and skill guidance; there is no
   `social-video shorts` command yet.

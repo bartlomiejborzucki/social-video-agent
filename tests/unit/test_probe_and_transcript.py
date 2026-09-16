@@ -184,3 +184,48 @@ class TestCropExpression:
     def test_holds_the_final_value_after_the_last_keyframe(self):
         expr = crop_position_expression([(0.0, 0), (1.0, 100)], lo=0, hi=200)
         assert expr.endswith(",100)")
+
+
+class TestFrameAlignment:
+    """ffmpeg rounds `-t` up to a whole frame.
+
+    Unaligned, that adds up to one frame per cut, so the output drifts further
+    from the EDL the more cuts it has. Measured at ~16ms per cut before this.
+    """
+
+    def test_rounds_to_a_whole_number_of_frames(self):
+        from social_video.ffmpeg.probe import frame_aligned_duration
+
+        # 0.35s at 30fps is 10.5 frames; it must become a whole number.
+        aligned = frame_aligned_duration(0.35, "30/1")
+        assert aligned * 30 == pytest.approx(round(aligned * 30))
+
+    def test_already_aligned_duration_is_unchanged(self):
+        from social_video.ffmpeg.probe import frame_aligned_duration
+
+        assert frame_aligned_duration(1.0, "30/1") == pytest.approx(1.0)
+        assert frame_aligned_duration(10 / 30, "30/1") == pytest.approx(10 / 30)
+
+    def test_is_idempotent(self):
+        from social_video.ffmpeg.probe import frame_aligned_duration
+
+        once = frame_aligned_duration(0.35, "30/1")
+        assert frame_aligned_duration(once, "30/1") == pytest.approx(once)
+
+    def test_handles_fractional_rates(self):
+        from social_video.ffmpeg.probe import frame_aligned_duration
+
+        aligned = frame_aligned_duration(1.0, "30000/1001")
+        assert aligned * (30000 / 1001) == pytest.approx(round(aligned * (30000 / 1001)))
+
+    def test_never_collapses_a_range_to_nothing(self):
+        from social_video.ffmpeg.probe import frame_aligned_duration
+
+        # A sub-frame range must still render at least one frame.
+        assert frame_aligned_duration(0.001, "30/1") == pytest.approx(1 / 30)
+
+    def test_error_does_not_accumulate_across_many_cuts(self):
+        from social_video.ffmpeg.probe import frame_aligned_duration
+
+        total = sum(frame_aligned_duration(0.35, "30/1") for _ in range(40))
+        assert total * 30 == pytest.approx(round(total * 30))

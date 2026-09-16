@@ -22,18 +22,22 @@ from datetime import datetime, timezone
 from fractions import Fraction
 from pathlib import Path
 
+from social_video.edl.loudness import loudnorm_filter, measure_loudness
 from social_video.edl.timeline import Timeline
 from social_video.edl.validate import validate_edl
 from social_video.ffmpeg.filters import (
     LOUDNORM_I,
-    LOUDNORM_LRA,
-    LOUDNORM_TP,
     TONEMAP_CHAIN,
     audio_cut_fades,
     crop_position_expression,
     escape_filter_path,
 )
-from social_video.ffmpeg.probe import MediaInfo, probe, resolve_output_fps
+from social_video.ffmpeg.probe import (
+    MediaInfo,
+    frame_aligned_duration,
+    probe,
+    resolve_output_fps,
+)
 from social_video.ffmpeg.run import has_libass, has_libzimg, run_ffmpeg
 from social_video.schemas.edl import EDL, EDLRange, ReframeMode
 from social_video.schemas.qa import RenderManifest
@@ -122,6 +126,47 @@ def _reframe_filter(
     return ",".join(parts)
 
 
+def build_audio_graph(edl: EDL, infos: list[MediaInfo]) -> tuple[str, str]:
+    """Build only the audio half of the graph, for the measurement pass.
+
+    Identical to what the render will do to the audio, so the measurement
+    describes the audio that will actually be produced.
+    """
+    parts: list[str] = []
+    labels: list[str] = []
+    for index, (rng, info) in enumerate(zip(edl.ranges, infos, strict=True)):
+        parts.append(_audio_chain(index, rng, info))
+        labels.append(f"[a{index}]")
+    parts.append(f"{''.join(labels)}concat=n={len(edl.ranges)}:v=0:a=1[ca]")
+    return ";".join(parts), "[ca]"
+
+
+def _audio_chain(index: int, rng: EDLRange, info: MediaInfo) -> str:
+    """The per-range audio chain, shared by the measurement and render passes."""
+    if not info.has_audio:
+        # A silent range still needs an audio stream or concat refuses. The
+        # explicit duration and aformat matter: without them the generated
+        # stream can reach the encoder with an unexpected sample format.
+        return (
+            f"anullsrc=r=48000:cl=stereo:d={rng.output_duration:.4f},"
+            f"aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
+            f"asetpts=PTS-STARTPTS[a{index}]"
+        )
+    # Render the same track that was transcribed. Mapping 0:a:0 unconditionally
+    # is what makes a multi-track recording come out silent: OBS puts desktop
+    # audio on track 0 and the microphone on track 1.
+    track = min(rng.audio_track, max(0, len(info.audio) - 1))
+    chain: list[str] = ["aresample=48000:async=1"]
+    if rng.speed != 1.0:
+        chain.extend(_atempo_chain(rng.speed))
+    if rng.audio_gain_db:
+        chain.append(f"volume={rng.audio_gain_db:.2f}dB")
+    # Short fades at both edges prevent the click that a hard splice makes.
+    chain.append(audio_cut_fades(rng.output_duration))
+    chain.append("asetpts=PTS-STARTPTS")
+    return f"[{index}:a:{track}]{','.join(chain)}[a{index}]"
+
+
 def build_filtergraph(
     edl: EDL,
     infos: list[MediaInfo],
@@ -137,7 +182,7 @@ def build_filtergraph(
     parts: list[str] = []
 
     for index, (rng, info) in enumerate(zip(edl.ranges, infos, strict=True)):
-        vin, ain = f"{index}:v:0", f"{index}:a:0"
+        vin = f"{index}:v:0"
 
         vchain: list[str] = []
         if info.video and info.video.is_hdr and has_libzimg():
@@ -151,26 +196,7 @@ def build_filtergraph(
         parts.append(f"[{vin}]{','.join(vchain)}[v{index}]")
         video_labels.append(f"[v{index}]")
 
-        achain: list[str] = ["aresample=48000:async=1"]
-        if rng.speed != 1.0:
-            achain.extend(_atempo_chain(rng.speed))
-        if rng.audio_gain_db:
-            achain.append(f"volume={rng.audio_gain_db:.2f}dB")
-        # Short fades at both edges prevent the click that a hard splice makes.
-        achain.append(audio_cut_fades(rng.output_duration))
-        achain.append("asetpts=PTS-STARTPTS")
-        if info.has_audio:
-            parts.append(f"[{ain}]{','.join(achain)}[a{index}]")
-        else:
-            # A silent range still needs an audio stream or concat refuses.
-            # The explicit duration and aformat matter: without them the
-            # generated stream can reach the encoder with a sample format the
-            # concat filter did not expect.
-            parts.append(
-                f"anullsrc=r=48000:cl=stereo:d={rng.output_duration:.4f},"
-                f"aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
-                f"asetpts=PTS-STARTPTS[a{index}]"
-            )
+        parts.append(_audio_chain(index, rng, info))
         audio_labels.append(f"[a{index}]")
 
     pairs = "".join(v + a for v, a in zip(video_labels, audio_labels, strict=True))
@@ -247,29 +273,42 @@ def render_edl(
         )
         caption_file = None
 
-    loudnorm = None
-    if edl.normalize_audio:
-        if any(info.has_audio for info in infos):
-            loudnorm = f"loudnorm=I={LOUDNORM_I}:TP={LOUDNORM_TP}:LRA={LOUDNORM_LRA}"
-        else:
-            # loudnorm measures -inf on pure digital silence and the encoder
-            # then fails outright. There is nothing to normalise anyway.
-            log.info("no source has audio; skipping loudness normalisation")
+    measured = None
 
     inputs: list[str] = []
     for rng, info in zip(edl.ranges, infos, strict=True):
         # Fast seek before -i, duration after: seeks by keyframe then decodes to
         # the exact frame, which is both quick and accurate.
+        #
+        # The duration is aligned to a whole frame. ffmpeg rounds `-t` up to the
+        # next frame, so without this every cut adds up to one frame and the
+        # output drifts further from the EDL the more cuts it has.
         inputs += [
             "-ss",
             f"{rng.start:.4f}",
             "-t",
-            f"{rng.duration:.4f}",
+            f"{frame_aligned_duration(rng.duration, fps):.6f}",
             "-i",
             str(info.path),
         ]
     for overlay in edl.overlays:
         inputs += ["-i", str(overlay.file)]
+
+    loudnorm = None
+    if edl.normalize_audio:
+        # Measure before normalising. loudnorm emits NaN on digitally silent
+        # input and the encoder then fails, which would kill any edit whose
+        # selected material happens to be quiet. The measurement decodes audio
+        # only, so it costs a fraction of the render it informs -- and it lets
+        # loudnorm run in its accurate linear mode rather than guessing.
+        audio_graph, audio_label = build_audio_graph(edl, infos)
+        if quality.two_pass_loudness:
+            measured = measure_loudness(inputs, audio_graph, audio_label)
+        else:
+            measured = _quick_silence_check(inputs, audio_graph, audio_label)
+        loudnorm = loudnorm_filter(measured)
+        if loudnorm is None:
+            log.info("selected audio is silent; skipping loudness normalisation")
 
     graph, vlabel, alabel = build_filtergraph(
         edl, infos, canvas=canvas, fps=fps, caption_file=caption_file, loudnorm=loudnorm
@@ -332,9 +371,19 @@ def render_edl(
         frame_rate_converted_from=None if fps == source_fps else source_fps,
         crf=quality.crf,
         preset=quality.preset,
-        loudness_target_lufs=LOUDNORM_I if edl.normalize_audio else None,
+        loudness_target_lufs=LOUDNORM_I if loudnorm else None,
         sources_used=edl.source_ids(),
     )
+
+
+def _quick_silence_check(inputs: list[str], audio_graph: str, audio_label: str):
+    """Cheap measurement used for draft and preview renders.
+
+    Draft and preview do not need an accurate two-pass normalisation, but they
+    do need to know whether the audio is silent, because that is what makes the
+    encoder fail.
+    """
+    return measure_loudness(inputs, audio_graph, audio_label)
 
 
 def expected_duration(edl: EDL) -> float:
