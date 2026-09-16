@@ -15,15 +15,16 @@ from pathlib import Path
 
 from social_video.edl.timeline import Timeline
 from social_video.ffmpeg.filters import LOUDNORM_I
-from social_video.ffmpeg.probe import probe
+from social_video.ffmpeg.probe import frame_aligned_duration, probe
 from social_video.ffmpeg.run import run_ffmpeg
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.edl import EDL
 from social_video.schemas.qa import QACheck, QAReport, QASeverity
 
 #: How far the rendered duration may drift from the EDL before we complain.
-#: One frame at 24 fps is ~42 ms; encoders legitimately round to frame edges.
-DURATION_TOLERANCE = 0.12
+#: Ranges are frame-aligned before rendering, so the only remaining slack is
+#: container timestamp rounding. Two frames at 24 fps is generous.
+DURATION_TOLERANCE = 0.09
 #: True peak above this counts as clipping.
 CLIP_CEILING_DB = -0.5
 #: Loudness this far from target is worth reporting.
@@ -119,7 +120,17 @@ def _check_streams(report: QAReport, info, edl: EDL | None) -> None:
 def _check_duration(report: QAReport, info, edl: EDL | None) -> None:
     if edl is None:
         return
-    expected = Timeline(edl).duration
+    # Compare against what the EDL asks for once each range is aligned to a
+    # whole frame, which is what the renderer actually produces. Comparing
+    # against the raw sum would flag a correct render as drifting.
+    if info.video is not None:
+        # The nominal rate, not the average: our output is constant frame rate,
+        # and avg_frame_rate carries the container's rounding of frame count
+        # over duration, which would make a correct render look like a drift.
+        rate = info.video.nominal_frame_rate
+        expected = sum(frame_aligned_duration(r.duration, rate) / r.speed for r in edl.ranges)
+    else:
+        expected = Timeline(edl).duration
     drift = abs(info.duration - expected)
     ok = drift <= DURATION_TOLERANCE
     report.checks.append(

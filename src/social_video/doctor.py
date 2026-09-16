@@ -196,10 +196,19 @@ def _check_packages(report: DoctorReport) -> None:
             )
         )
 
+    # Reported so the environment is described accurately, but note these are
+    # for capabilities that are declared and not yet wired up. Saying "ok" for
+    # a package we do not call would be misleading.
     optional = {
-        "whisperx": ("tighter word alignment", "pip install 'social-video-agent[align]'"),
-        "pyannote": ("speaker diarization", "pip install 'social-video-agent[diarize]'"),
-        "requests": ("cloud transcription providers", "pip install 'social-video-agent[cloud]'"),
+        "whisperx": (
+            "tighter word alignment (declared; not yet implemented)",
+            "pip install 'social-video-agent[align]'",
+        ),
+        "pyannote": (
+            "speaker diarization (declared; not yet implemented, and the model "
+            "weights are gated behind your own Hugging Face token)",
+            "pip install 'social-video-agent[diarize]'",
+        ),
     }
     for module, (purpose, how) in optional.items():
         found = importlib.util.find_spec(module) is not None

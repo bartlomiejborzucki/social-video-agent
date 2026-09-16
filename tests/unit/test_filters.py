@@ -152,3 +152,49 @@ class TestGeometry:
     def test_crop_rejects_non_positive(self):
         with pytest.raises(ValueError, match="crop_w must be positive"):
             crop_then_scale(0, 1080, 0, 0, 1080, 1920)
+
+
+class TestLoudnessDecision:
+    """loudnorm emits NaN on digital silence and the encoder then fails.
+
+    That would kill any edit whose selected material happens to be quiet, so
+    the decision to normalise is made from a measurement.
+    """
+
+    def _measurement(self, input_i: float):
+        from social_video.edl.loudness import LoudnessMeasurement
+
+        return LoudnessMeasurement(
+            input_i=input_i,
+            input_tp=-3.0,
+            input_lra=5.0,
+            input_thresh=-30.0,
+            target_offset=0.0,
+        )
+
+    def test_silence_is_detected(self):
+        assert self._measurement(-90.0).is_silent
+        assert self._measurement(float("-inf")).is_silent
+        assert self._measurement(float("nan")).is_silent
+
+    def test_normal_speech_is_not_silent(self):
+        assert not self._measurement(-18.0).is_silent
+
+    def test_silent_material_skips_normalisation(self):
+        from social_video.edl.loudness import loudnorm_filter
+
+        assert loudnorm_filter(self._measurement(-90.0)) is None
+
+    def test_measured_values_enable_linear_mode(self):
+        from social_video.edl.loudness import loudnorm_filter
+
+        built = loudnorm_filter(self._measurement(-18.0))
+        assert "measured_I=-18.00" in built
+        assert "linear=true" in built
+
+    def test_without_a_measurement_it_still_normalises(self):
+        from social_video.edl.loudness import loudnorm_filter
+
+        built = loudnorm_filter(None)
+        assert built is not None
+        assert "measured_I" not in built

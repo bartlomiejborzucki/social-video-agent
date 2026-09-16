@@ -36,6 +36,9 @@ log = logging.getLogger(__name__)
 #: Fragments that identify a GPU-stack problem rather than a genuine bug.
 _CUDA_FAILURE_MARKERS = ("cublas", "cudnn", "cuda", "libcu", "gpu")
 
+#: How often to report progress, as a fraction of the recording.
+_PROGRESS_STEP = 0.1
+
 
 class FasterWhisperBackend:
     name = "faster-whisper"
@@ -132,7 +135,26 @@ class FasterWhisperBackend:
             hotwords=" ".join(options.hotwords) or None,
             beam_size=5,
         )
-        return list(segments_iter), info
+
+        # Report progress while draining. Transcribing a long recording on CPU
+        # takes minutes, and without this the command looks hung.
+        total = float(getattr(info, "duration", 0.0) or 0.0)
+        segments = []
+        next_report = _PROGRESS_STEP
+        for segment in segments_iter:
+            segments.append(segment)
+            if total > 0:
+                done = float(segment.end) / total
+                if done >= next_report:
+                    log.info(
+                        "transcribing: %d%% (%s of %s)",
+                        min(100, int(done * 100)),
+                        _clock(float(segment.end)),
+                        _clock(total),
+                    )
+                    while next_report <= done:
+                        next_report += _PROGRESS_STEP
+        return segments, info
 
     # -- transcription -----------------------------------------------------
 
@@ -208,6 +230,12 @@ class FasterWhisperBackend:
             language_confidence=_clamp_probability(getattr(info, "language_probability", None)),
             audio_track=options.audio_track,
         )
+
+
+def _clock(seconds: float) -> str:
+    """mm:ss, for progress messages."""
+    minutes, secs = divmod(int(seconds), 60)
+    return f"{minutes:d}:{secs:02d}"
 
 
 def _probability(word: object) -> float | None:

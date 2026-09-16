@@ -80,6 +80,17 @@ def plan_reframe(
             reason="centre crop",
         )
 
+    if mode is ReframeMode.SPEAKER:
+        # Say so rather than quietly doing something else. Choosing the active
+        # speaker needs audio-visual speaker detection, which is not built yet;
+        # until it is, this picks the most prominent face, which is right for a
+        # single subject and a guess for a conversation.
+        log.warning(
+            "speaker-aware framing is not implemented yet; falling back to "
+            "face-prominence framing, which picks the largest face rather than "
+            "the one currently talking"
+        )
+
     try:
         samples = detect_faces(source, start=start, end=end)
     except Exception as exc:  # detection is best-effort; framing must still happen
@@ -145,7 +156,12 @@ def plan_reframe(
         crop_height=crop_h,
         keyframes=keyframes,
         reason=(
-            f"face-aware crop from {src_w}x{src_h}; faces found in "
+            (
+                "speaker mode requested, resolved by face prominence; "
+                if mode is ReframeMode.SPEAKER
+                else ""
+            )
+            + f"face-aware crop from {src_w}x{src_h}; faces found in "
             f"{coverage:.0%} of {len(samples)} sampled frames; "
             f"{len(keyframes)} keyframe(s) after smoothing and dead zone"
         ),

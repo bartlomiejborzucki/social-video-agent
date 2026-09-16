@@ -29,7 +29,13 @@ class VideoStream:
     #: Rotation in degrees from the display matrix, normalised to [0, 360).
     rotation: int
     #: Frame rate as an exact rational string, e.g. ``"30000/1001"``.
+    #: Derived from ``avg_frame_rate``, which is the honest figure for a
+    #: variable-frame-rate source.
     frame_rate: str
+    #: The container's declared rate (``r_frame_rate``). For constant-frame-rate
+    #: material this is exact, where ``avg_frame_rate`` carries the rounding of
+    #: frame count over duration. Use this when checking our own output.
+    nominal_frame_rate: str
     pix_fmt: str
     color_transfer: str
     nb_frames: int | None
@@ -140,6 +146,18 @@ def _normalise_rotation(stream: dict[str, Any]) -> int:
     return round(rotation) % 360
 
 
+def _nominal_frame_rate(stream: dict[str, Any]) -> str:
+    """The container's declared rate, preferring ``r_frame_rate``."""
+    for key in ("r_frame_rate", "avg_frame_rate"):
+        raw = stream.get(key) or ""
+        if raw and raw != "0/0":
+            try:
+                return parse_fps(raw)
+            except ValueError:
+                continue
+    return "30/1"
+
+
 def _pick_frame_rate(stream: dict[str, Any]) -> str:
     """Prefer ``avg_frame_rate`` over ``r_frame_rate``.
 
@@ -188,6 +206,7 @@ def _probe_cached(resolved: str, mtime_ns: int, size: int) -> MediaInfo:
                 height=int(stream.get("height") or 0),
                 rotation=_normalise_rotation(stream),
                 frame_rate=_pick_frame_rate(stream),
+                nominal_frame_rate=_nominal_frame_rate(stream),
                 pix_fmt=str(stream.get("pix_fmt") or "unknown"),
                 color_transfer=str(stream.get("color_transfer") or ""),
                 nb_frames=int(nb) if nb and str(nb).isdigit() else None,
@@ -261,3 +280,21 @@ def probe_audio_track_count(path: str | Path) -> int:
         return len(probe(path).audio)
     except (FFmpegError, FileNotFoundError):
         return 0
+
+
+def frame_aligned_duration(duration: float, frame_rate: str) -> float:
+    """Round a duration to a whole number of frames.
+
+    ffmpeg's ``-t`` takes the ceiling of the requested duration in frames, so a
+    range of 0.35s at 30 fps yields 11 frames rather than 10.5. Unaligned, that
+    adds up to one frame per cut: a 20-cut edit drifts about a third of a
+    second, and a long one drifts enough to be audible against its captions.
+
+    Aligning each range first makes the rendered length exact and independent
+    of how many cuts there are.
+    """
+    rate = float(Fraction(frame_rate))
+    if rate <= 0:
+        return duration
+    frames = max(1, round(duration * rate))
+    return frames / rate
