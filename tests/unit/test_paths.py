@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -28,6 +29,7 @@ def test_preserves_linux_unicode_path(tmp_path):
     assert paths.normalize_user_path(source, must_exist=True) == source.resolve()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="WSL uses POSIX pathlib semantics")
 def test_windows_path_uses_wslpath_without_a_shell(monkeypatch):
     calls = []
     monkeypatch.setattr(paths, "is_wsl", lambda: True)

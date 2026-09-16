@@ -51,7 +51,7 @@ def normalize_user_path(value: str | os.PathLike[str], *, must_exist: bool = Fal
     remain ordinary filename characters.
     """
     raw = os.fspath(value)
-    if is_windows_drive_path(raw) and sys.platform == "linux":
+    if is_windows_drive_path(raw):
         if not is_wsl():
             raise ValueError(
                 f"Windows path {raw!r} can only be translated when running inside WSL."

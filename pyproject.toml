@@ -27,6 +27,9 @@ dependencies = [
     "fonttools>=4.50",
     # Default transcription backend. MIT, no PyTorch, ungated models, CPU-viable.
     "faster-whisper>=1.1",
+    # onnxruntime 1.24+ stopped publishing CPython 3.10 wheels. Keep the
+    # declared 3.10 support installable while newer Pythons use current builds.
+    "onnxruntime<1.24; python_version < '3.11'",
     # Scene detection. Use the -headless distribution so servers/containers do not
     # pull a GUI OpenCV. Do NOT depend on `scenedetect-core`: 0.7.1 was yanked.
     "scenedetect-headless>=0.7",

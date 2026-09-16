@@ -62,9 +62,9 @@ class TestEscapeFilterPath:
         assert "zażółć gęślą" in out
 
     def test_accepts_pathlib(self):
-        from pathlib import Path
+        from pathlib import PurePosixPath
 
-        assert escape_filter_path(Path("/tmp/a.srt")) == "'/tmp/a.srt'"
+        assert escape_filter_path(PurePosixPath("/tmp/a.srt")) == "'/tmp/a.srt'"
 
 
 @pytest.mark.integration
