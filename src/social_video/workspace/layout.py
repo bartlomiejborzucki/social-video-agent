@@ -7,8 +7,12 @@ version-controlled, deleted, or handed to someone else as one unit.
 
 from __future__ import annotations
 
+import hashlib
+import re
 from dataclasses import dataclass
 from pathlib import Path
+
+from social_video.paths import app_home, is_wsl_mount_path, normalize_user_path
 
 
 @dataclass(frozen=True)
@@ -19,8 +23,16 @@ class Workspace:
 
     @classmethod
     def for_source(cls, source: str | Path, *, name: str = "edit") -> Workspace:
-        """Workspace beside a source file."""
-        p = Path(source).expanduser().resolve()
+        """Choose a fast workspace without ever modifying the source.
+
+        A Windows-drive source under ``/mnt/<drive>`` gets a workspace in the
+        WSL cache. This keeps high-I/O intermediate files off mounted NTFS.
+        """
+        p = normalize_user_path(source, must_exist=True)
+        if is_wsl_mount_path(p):
+            safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", p.stem).strip("-.") or "media"
+            digest = hashlib.sha256(str(p).encode("utf-8")).hexdigest()[:12]
+            return cls(root=app_home() / "workspaces" / f"{safe_stem}-{digest}" / name)
         base = p.parent if p.is_file() else p
         return cls(root=base / name)
 
@@ -29,9 +41,9 @@ class Workspace:
         """Workspace at an explicit path.
 
         Accepts either the workspace directory itself or its parent, so
-        ``social-video render .`` and ``social-video render ./edit`` both work.
+        ``social-video-agent render .`` and ``social-video-agent render ./edit`` both work.
         """
-        p = Path(path).expanduser().resolve()
+        p = normalize_user_path(path)
         if p.name != "edit" and (p / "edit").is_dir():
             p = p / "edit"
         return cls(root=p)

@@ -106,9 +106,9 @@ def main() -> int:
     if installed_any:
         print()
         print("Restart your agent so it picks up the new skill.")
-        if not shutil.which("social-video"):
+        if not shutil.which("social-video-agent"):
             print(
-                "Note: the `social-video` command is not on PATH. Install the package "
+                "Note: the `social-video-agent` command is not on PATH. Install the package "
                 "with `uv sync` or `pip install -e .` and make sure its bin directory "
                 "is on PATH, or the skill's commands will not run.",
                 file=sys.stderr,

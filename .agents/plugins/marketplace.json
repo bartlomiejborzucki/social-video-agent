@@ -1,0 +1,20 @@
+{
+  "name": "social-video-agent",
+  "interface": {
+    "displayName": "Social Video Agent"
+  },
+  "plugins": [
+    {
+      "name": "social-video-agent",
+      "source": {
+        "source": "local",
+        "path": "./plugins/social-video-agent"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Creativity"
+    }
+  ]
+}

@@ -8,6 +8,7 @@ licensing mistake.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import platform
 import shutil
@@ -68,6 +69,9 @@ def install_static_ffmpeg(*, progress: bool = True, force: bool = False) -> Path
     with tempfile.TemporaryDirectory() as tmp:
         archive = Path(tmp) / asset
         _download(url, archive, progress=progress)
+        checksums = Path(tmp) / "checksums.sha256"
+        _download(f"{_BASE}/checksums.sha256", checksums, progress=False)
+        _verify_checksum(archive, checksums)
         extracted = Path(tmp) / "x"
         extracted.mkdir()
         _extract(archive, extracted)
@@ -116,8 +120,30 @@ def _extract(archive: Path, dest: Path) -> None:
             zf.extractall(dest)
     else:
         with tarfile.open(archive) as tf:
-            _guard_members(tf.getnames())
+            members = tf.getmembers()
+            _guard_members([member.name for member in members])
+            _guard_members(
+                [member.linkname for member in members if member.issym() or member.islnk()]
+            )
             tf.extractall(dest)
+
+
+def _verify_checksum(archive: Path, checksums: Path) -> None:
+    """Match the downloaded asset against the publisher's SHA-256 manifest."""
+    expected = None
+    for line in checksums.read_text(encoding="utf-8").splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[-1].lstrip("*") == archive.name:
+            expected = parts[0].lower()
+            break
+    if not expected or len(expected) != 64:
+        raise SocialVideoError(f"no SHA-256 entry found for {archive.name}")
+    digest = hashlib.sha256()
+    with archive.open("rb") as source:
+        while chunk := source.read(1 << 20):
+            digest.update(chunk)
+    if digest.hexdigest() != expected:
+        raise SocialVideoError(f"SHA-256 verification failed for {archive.name}")
 
 
 def _guard_members(names: list[str]) -> None:

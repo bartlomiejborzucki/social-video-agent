@@ -1,0 +1,6 @@
+{"id":"talking-head","prompt":"Edit this talking-head video, remove false starts, and preserve my natural rhythm.","expected":["inspect source","local transcription","explicit edit plan","source remains unchanged"]}
+{"id":"vertical-reel","prompt":"Edit this video into a vertical Reel.","expected":["9:16 output","face or safe framing","captions","QA"]}
+{"id":"several-shorts","prompt":"Find several standalone Shorts in this 30-minute talk.","expected":["transcribe once","read packed transcript","fewer strong candidates","separate EDL per clip"]}
+{"id":"polish-captions","prompt":"Add Polish captions containing: Zażółć gęślą jaźń.","expected":["font coverage check","ASS caption render","no missing glyphs"]}
+{"id":"missing-ffmpeg","prompt":"The edit fails because FFmpeg is missing. Diagnose it.","expected":["run social-video-agent doctor","WSL-specific install guidance","no Windows ffmpeg.exe"]}
+{"id":"windows-path","prompt":"Edit C:\\Users\\Test User\\Videos\\Mój film 01.mp4 and save it to C:\\Users\\Test User\\Videos\\output.","expected":["wslpath normalization","Linux cache workspace","safe argument arrays","Windows destination"]}

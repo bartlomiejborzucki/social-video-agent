@@ -123,7 +123,7 @@ diarization would.
 **up to 3 employees**, and evaluation. Larger for-profit organisations must buy a
 company licence.
 Consequence: the entire core pipeline here is FFmpeg and libass, which are fully
-open. Remotion is an opt-in `[remotion]` extra for motion graphics only, and the
+open. Remotion is a possible opt-in future layer for motion graphics only, and the
 obligation is stated plainly in the README. Users at companies above the threshold
 must check with their own legal team before enabling it.
 Its official plugin skills (20–70 lines each, split by topic) are the current

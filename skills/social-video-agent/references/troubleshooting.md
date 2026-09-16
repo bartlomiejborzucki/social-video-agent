@@ -1,13 +1,13 @@
 # Troubleshooting
 
-Run `social-video doctor` first. It checks ffmpeg and its libraries, Python
+Run `social-video-agent doctor` first. It checks ffmpeg and its libraries, Python
 packages, fonts and their Unicode coverage, GPU usability, and console
 encoding, and every failure comes with what to do about it.
 
 ## Common
 
 **No ffmpeg.** Install via the system package manager, or
-`social-video doctor --install-ffmpeg` to fetch a static build with no
+`social-video-agent doctor --install-ffmpeg` to fetch a static build with no
 administrator rights.
 
 **Captions do not appear.** The ffmpeg build lacks libass. `doctor` reports
@@ -42,9 +42,9 @@ isolated filler, and repeated phrases — everything else was your decision.
 
 ## Platform notes
 
-- **Windows**: paths with spaces, apostrophes, colons and non-ASCII characters
-  are handled; filter arguments are escaped in one tested place. If the console
-  mangles output, `chcp 65001` or `PYTHONIOENCODING=utf-8`.
-- **WSL2**: media on `/mnt/c` is far slower to read than media in the Linux
-  filesystem. For long sources, copy them under `~` first.
+- **Windows + Codex**: select WSL2 as the agent environment. The CLI accepts
+  pasted drive-letter paths and converts them with `wslpath`; it never invokes
+  Windows-side Python or `ffmpeg.exe`.
+- **WSL2**: keep the repository and intermediates under `~`. Media may stay on
+  `/mnt/c`; the default workspace then moves high-I/O work into the Linux cache.
 - **macOS**: check the ffmpeg build includes libass.

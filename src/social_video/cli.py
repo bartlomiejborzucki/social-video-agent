@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import sys
 from pathlib import Path
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -20,7 +22,7 @@ from social_video import __version__
 from social_video.errors import SocialVideoError
 
 app = typer.Typer(
-    name="social-video",
+    name="social-video-agent",
     help="Agent-native social video editor. Source media is never modified.",
     no_args_is_help=True,
     add_completion=False,
@@ -75,7 +77,13 @@ def doctor(
     table.add_column("")
     table.add_column("check")
     table.add_column("detail", overflow="fold")
-    marks = {"ok": "[green]OK[/green]", "warn": "[yellow]WARN[/yellow]", "fail": "[red]FAIL[/red]"}
+    marks = {
+        "OK": "[green]OK[/green]",
+        "OPTIONAL": "[blue]OPTIONAL[/blue]",
+        "WARNING": "[yellow]WARNING[/yellow]",
+        "MISSING": "[red]MISSING[/red]",
+        "ERROR": "[red]ERROR[/red]",
+    }
     for check in report.checks:
         # Detail text contains things like "[align]" which rich would eat as markup.
         table.add_row(marks[check.status], escape(check.name), escape(check.detail))
@@ -89,9 +97,9 @@ def doctor(
             console.print(f"  [{colour}]{escape(check.name)}[/{colour}]: {escape(check.remedy)}")
 
     if report.ok:
-        console.print("\n[green]Ready to edit.[/green]")
+        console.print("\n[green]READY[/green]")
     else:
-        console.print(f"\n[red]{len(report.failures)} blocking problem(s).[/red]")
+        console.print(f"\n[red]NOT READY: {len(report.failures)} blocking problem(s).[/red]")
     raise typer.Exit(0 if report.ok else 1)
 
 
@@ -253,7 +261,7 @@ def pack(
     if not files:
         err_console.print(
             f"[red]no transcripts in {ws.transcripts}[/red]\n"
-            f"Run `social-video transcribe <source>` first."
+            f"Run `social-video-agent transcribe <source>` first."
         )
         raise typer.Exit(1)
 
@@ -286,7 +294,7 @@ def profiles(
         load_profile,
     )
 
-    out = {
+    out: dict[str, Any] = {
         "profiles": [
             {
                 "name": n,
@@ -405,6 +413,12 @@ def edit(
     ),
     goal: str = typer.Option("", "--goal"),
     no_captions: bool = typer.Option(False, "--no-captions"),
+    output_dir: Path | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Copy the finished video to a file or directory (Windows paths work in WSL).",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Run the whole pipeline: transcribe, plan, cut, reframe, caption, QA."""
@@ -427,6 +441,23 @@ def edit(
             )
             raise typer.Exit(1) from None
 
+    copy_destination: Path | None = None
+    if output_dir is not None:
+        from social_video.paths import normalize_user_path
+
+        requested = _guard(lambda: normalize_user_path(output_dir))
+        source_path = _guard(lambda: normalize_user_path(source, must_exist=True))
+        copy_destination = (
+            requested / f"{source_path.stem or 'final'}.mp4"
+            if requested.suffix.lower() != ".mp4"
+            else requested
+        )
+        same_path = copy_destination.resolve(strict=False) == source_path
+        same_file = copy_destination.exists() and copy_destination.samefile(source_path)
+        if same_path or same_file:
+            err_console.print("[red]error:[/red] output must not overwrite the source video")
+            raise typer.Exit(1)
+
     ws = Workspace.at(workspace_dir) if workspace_dir else Workspace.for_source(source)
     output, report = _guard(
         lambda: run_edit(
@@ -443,6 +474,9 @@ def edit(
             skip_captions=no_captions,
         )
     )
+
+    if copy_destination is not None:
+        output = _guard(lambda: _copy_output(output, copy_destination))
 
     if as_json:
         console.print_json(
@@ -543,12 +577,23 @@ def _guard(fn):
     """
     try:
         return fn()
-    except SocialVideoError as exc:
+    except (SocialVideoError, ValueError, RuntimeError) as exc:
         err_console.print(f"[red]error:[/red] {exc}")
         raise typer.Exit(1) from exc
     except FileNotFoundError as exc:
         err_console.print(f"[red]error:[/red] {exc}")
         raise typer.Exit(1) from exc
+    except OSError as exc:
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            raise
+        err_console.print(f"[red]error:[/red] file operation failed: {exc}")
+        raise typer.Exit(1) from exc
+
+
+def _copy_output(source: Path, destination: Path) -> Path:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+    return destination
 
 
 if __name__ == "__main__":

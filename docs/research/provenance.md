@@ -39,7 +39,7 @@ persistent project memory.
 | `transcript/pack.py` | `helpers/pack_transcripts.py` | **Grouping rule kept** (flush on a long gap or a speaker change). Modified: phrase length cap, interior word offsets for long phrases, media duration rather than speech span. |
 | `transcribe/audio.py::guard_not_silent` | `helpers/transcribe.py:62-71` | **Concept kept.** Reimplemented with ffmpeg `volumedetect` rather than parsing samples in Python, which removes an endianness assumption. |
 | `schemas/brand.py` caption margin default | `helpers/render.py:44-51` | **Domain knowledge kept** — the rationale for clearing the platform UI dead zone. Expressed as a percentage of output height rather than a fixed value. |
-| `skills/social-video-editor/SKILL.md` | `SKILL.md` | **Editorial doctrine adapted** — restraint, meaning first, natural rhythm, the anti-patterns list. Rewritten and restructured; `MarginV` corrected from the stale documented value. |
+| `skills/social-video-agent/SKILL.md` | `SKILL.md` | **Editorial doctrine adapted** — restraint, meaning first, natural rhythm, the anti-patterns list. Rewritten and restructured; `MarginV` corrected from the stale documented value. |
 
 ### Deliberately not carried over
 

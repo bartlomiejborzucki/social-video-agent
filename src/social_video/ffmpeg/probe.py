@@ -18,6 +18,7 @@ from typing import Any
 from social_video.errors import FFmpegError
 from social_video.ffmpeg.filters import HDR_TRANSFERS
 from social_video.ffmpeg.run import run_ffprobe_json
+from social_video.paths import normalize_user_path
 
 
 @dataclass(frozen=True)
@@ -240,10 +241,10 @@ def _probe_cached(resolved: str, mtime_ns: int, size: int) -> MediaInfo:
 
 def probe(path: str | Path) -> MediaInfo:
     """Inspect a media file. Raises rather than guessing when probing fails."""
-    p = Path(path).expanduser()
+    p = normalize_user_path(path, must_exist=True)
     if not p.is_file():
-        raise FileNotFoundError(f"source not found: {p}")
-    resolved = str(p.resolve())
+        raise FileNotFoundError(f"source is not a file: {p}")
+    resolved = str(p)
     stat = p.stat()
     return _probe_cached(resolved, stat.st_mtime_ns, stat.st_size)
 

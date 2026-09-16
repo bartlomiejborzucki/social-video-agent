@@ -149,7 +149,7 @@ def dedupe_keyframes(
 
 
 def choose_with_hysteresis(
-    scores: list[float], *, hysteresis: float = DEFAULT_HYSTERESIS
+    scores: list[list[float]], *, hysteresis: float = DEFAULT_HYSTERESIS
 ) -> list[int]:
     """Pick a winner per step, resisting a switch until it is clearly warranted.
 

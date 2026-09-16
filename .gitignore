@@ -31,8 +31,26 @@ edit/
 
 # Tool caches
 .social-video/
+.work/
 tools/ffmpeg/
 models/
+model-cache/
+node_modules/
+.remotion/
+.cache/remotion/
+.plugin-eval/runs/
+frames/
+proxies/
+waveforms/
+thumbnails/
+renders/
+temp/
+tmp/
+
+# Editors
+.idea/
+.vscode/
+*.swp
 
 # OS
 .DS_Store

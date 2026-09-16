@@ -7,9 +7,9 @@
     "url": "https://github.com/bartlomiejborzucki"
   },
   "homepage": "https://github.com/bartlomiejborzucki/social-video-agent#readme",
+  "repository": "https://github.com/bartlomiejborzucki/social-video-agent",
   "license": "Apache-2.0",
   "keywords": ["video", "editing", "reels", "shorts", "captions", "ffmpeg", "wsl2"],
-  "repository": "https://github.com/bartlomiejborzucki/social-video-agent",
   "skills": "./skills/",
   "interface": {
     "displayName": "Social Video Agent",

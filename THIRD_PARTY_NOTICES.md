@@ -101,7 +101,7 @@ audio to a third party.
 ## External tools
 
 **FFmpeg** is required and is not bundled. Depending on how it is built, FFmpeg
-is licensed under LGPL-2.1+ or GPL-2.0+. `social-video doctor --install-ffmpeg`
+is licensed under LGPL-2.1+ or GPL-2.0+. `social-video-agent doctor --install-ffmpeg`
 downloads a build from BtbN/FFmpeg-Builds **into a user cache directory at the
 user's request**; no FFmpeg binary is redistributed in this repository or in any
 package we publish.
@@ -117,9 +117,9 @@ company licence from https://remotion.pro.
 
 No Remotion code is vendored here, and nothing in the core pipeline requires it:
 cutting, captions, vertical reframing, audio and QA are all FFmpeg and libass.
-Remotion is reached only through the opt-in `[remotion]` extra. **If you work at
-an organisation above that threshold, confirm your licence position before
-enabling it.**
+Remotion is not integrated in v0.1.0; it remains a possible optional future
+layer. **If you work at an organisation above that threshold, confirm your
+licence position before enabling it.**
 
 ---
 

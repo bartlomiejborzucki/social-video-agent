@@ -25,7 +25,7 @@ upstreams:
       - src/social_video/ffmpeg/filters.py
       - src/social_video/transcript/pack.py
       - src/social_video/transcribe/audio.py
-      - skills/social-video-editor/SKILL.md
+      - skills/social-video-agent/SKILL.md
     watch_for:
       - Local transcription finally landing upstream
       - Windows path and encoding fixes we also carry
@@ -114,7 +114,7 @@ upstreams:
     reviewed_on: 2026-09-15
     integration: reference
     components:
-      - skills/social-video-editor/SKILL.md
+      - skills/social-video-agent/SKILL.md
 
   - repository: agentskills/agentskills
     url: https://github.com/agentskills/agentskills

@@ -9,6 +9,7 @@ from pathlib import Path
 from social_video.errors import ValidationError
 from social_video.ffmpeg.probe import probe
 from social_video.fingerprint import file_fingerprint, options_fingerprint
+from social_video.paths import normalize_user_path
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.transcript import Transcript
 from social_video.transcribe.audio import extract_audio, guard_not_silent
@@ -41,7 +42,7 @@ def transcribe_source(
     that could change the result, so changing the model, the language, or the
     audio track re-transcribes, while merely re-running does not.
     """
-    src = Path(source).expanduser().resolve()
+    src = normalize_user_path(source, must_exist=True)
     opts = options or TranscriptionOptions()
     workspace.ensure()
 

@@ -1,0 +1,27 @@
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fontconfig fonts-noto-core
+      - run: uv sync --extra dev
+      - run: ./scripts/release-check.sh
+      - name: Checksums
+        run: cd dist && sha256sum *.whl *.tar.gz *.zip > SHA256SUMS
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/social-video-agent-skill.zip
+            dist/SHA256SUMS

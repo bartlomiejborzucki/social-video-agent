@@ -1,8 +1,7 @@
 ---
-name: social-video-editor
+name: social-video-agent
 description: Edit video into social clips (Reels, Shorts, TikTok) by reasoning over a transcript and writing an explicit edit plan and EDL that local tools render. Use when the user asks to edit, cut, trim, or clean up a recording, make a Reel or Short, remove mistakes or filler, add captions, or convert horizontal footage to vertical. Do not use for generating video from scratch or for simple one-off format conversions.
 license: Apache-2.0
-compatibility: Requires Python 3.10+, ffmpeg with libass, and the social-video-agent package. Runs fully offline.
 metadata:
   version: "0.1.0"
 ---
@@ -21,7 +20,9 @@ source → transcribe → packed transcript → YOUR editorial decisions
 ```
 
 Every decision you make is written to an artifact a human can read and change.
-Source files are never modified. All work lands in `edit/` beside the source.
+Source files are never modified. Linux sources default to `edit/` beside the
+source. Sources on `/mnt/<drive>` use a Linux-cache workspace; report that path
+from the CLI and use `--output` when the final file belongs on a Windows drive.
 
 **Read the packed transcript, not the raw JSON.** The packed view is a compact
 phrase-level document built for reasoning. The raw token JSON exists for the
@@ -30,11 +31,16 @@ tools and will flood your context for no benefit.
 ## Start here
 
 ```bash
-social-video doctor                      # once, to confirm the machine is ready
-social-video inspect INPUT               # what the source actually is
-social-video transcribe INPUT            # local, cached, no API key
-social-video pack .                      # the view you reason over
+social-video-agent doctor                      # once, to confirm the machine is ready
+social-video-agent inspect INPUT               # what the source actually is
+social-video-agent transcribe INPUT            # local, cached, no API key
+social-video-agent pack .                      # the view you reason over
 ```
+
+On Windows, Codex must run inside WSL2. Accept either `/mnt/c/...` or a pasted
+`C:\...` path; the CLI normalizes it safely. Keep the repository, cache, model
+files, and intermediates in the Linux filesystem. Never invoke `ffmpeg.exe` or
+build a PowerShell/`wsl.exe` bridge.
 
 `transcribe` caches on source content plus options, so re-running is free.
 Changing model or language re-transcribes; re-running does not.
@@ -58,7 +64,7 @@ ambiguous request.
 ## Build the plan
 
 ```bash
-social-video plan INPUT --profile talking-head --goal "60s educational Reel"
+social-video-agent plan INPUT --profile talking-head --goal "60s educational Reel"
 ```
 
 This writes `edit/edit-plan.json` containing only what can be found from timing:
@@ -75,7 +81,7 @@ drops with explicit `keep` items; explicit keeps take precedence.
 ## Compile and render
 
 ```bash
-social-video edit INPUT --profile talking-head --brand default
+social-video-agent edit INPUT --profile talking-head --brand default
 ```
 
 runs the whole chain. Or drive the stages individually and inspect between
@@ -88,7 +94,7 @@ same aspect and framing, so what you check is what you ship.
 ## Check your own work
 
 ```bash
-social-video qa WORKSPACE
+social-video-agent qa WORKSPACE
 ```
 
 Mechanical checks run first: duration against the EDL, audio presence and

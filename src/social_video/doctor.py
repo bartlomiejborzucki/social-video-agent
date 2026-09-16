@@ -25,7 +25,8 @@ from social_video.ffmpeg.run import (
     has_libass,
     has_libzimg,
 )
-from social_video.paths import app_home
+from social_video.paths import app_home, is_wsl
+from social_video.project_validation import validate_marketplace, validate_plugin, validate_skill
 
 
 @dataclass
@@ -41,8 +42,11 @@ class Check:
     @property
     def status(self) -> str:
         if self.ok:
-            return "ok"
-        return "fail" if self.required else "warn"
+            return "OK"
+        if not self.required:
+            return "OPTIONAL" if self.name.startswith("optional:") else "WARNING"
+        detail = self.detail.lower()
+        return "MISSING" if "missing" in detail or "not found" in detail else "ERROR"
 
 
 @dataclass
@@ -67,6 +71,7 @@ class DoctorReport:
     def to_dict(self) -> dict[str, object]:
         return {
             "ok": self.ok,
+            "summary": "READY" if self.ok else "NOT READY",
             "checks": [
                 {
                     "name": c.name,
@@ -85,7 +90,7 @@ def _check_platform(report: DoctorReport) -> None:
     detail = (
         f"{system} {platform.release()} ({platform.machine()}), Python {platform.python_version()}"
     )
-    if _is_wsl():
+    if is_wsl():
         detail += " [WSL]"
     report.add(Check("platform", True, False, detail))
 
@@ -100,26 +105,28 @@ def _check_platform(report: DoctorReport) -> None:
         )
     )
 
-    if _is_wsl():
+    if is_wsl():
+        distro = os.environ.get("WSL_DISTRO_NAME") or _linux_distribution()
         report.add(
             Check(
-                "wsl-media-path",
+                "wsl",
                 True,
                 False,
-                "Running under WSL",
-                "Media on /mnt/c is many times slower to read than media in the Linux "
-                "filesystem. For long sources, copy them under ~ first.",
+                f"WSL detected ({distro})",
             )
         )
+    elif system == "Linux":
+        report.add(Check("wsl", False, False, "not detected; ordinary Linux is supported"))
 
 
-def _is_wsl() -> bool:
-    if sys.platform != "linux":
-        return False
+def _linux_distribution() -> str:
     try:
-        return "microsoft" in Path("/proc/version").read_text(encoding="utf-8").lower()
+        for line in Path("/etc/os-release").read_text(encoding="utf-8").splitlines():
+            if line.startswith("PRETTY_NAME="):
+                return line.partition("=")[2].strip('"')
     except OSError:
-        return False
+        pass
+    return "unknown distribution"
 
 
 def _check_ffmpeg(report: DoctorReport) -> None:
@@ -146,7 +153,7 @@ def _check_ffmpeg(report: DoctorReport) -> None:
             if has_libass()
             else "This ffmpeg cannot burn in captions. On macOS, Homebrew's formula has "
             "shipped without libass: try `brew install ffmpeg --with-libass` or use "
-            "`social-video doctor --install-ffmpeg`.",
+            "`social-video-agent doctor --install-ffmpeg`.",
         )
     )
     report.add(
@@ -244,7 +251,7 @@ def _check_fonts(report: DoctorReport) -> None:
         Check(
             "unicode caption coverage",
             not missing,
-            False,
+            True,
             "covers "
             + ", ".join(k for k, v in coverage.items() if v)
             + (f"; MISSING {', '.join(missing)}" if missing else ""),
@@ -258,7 +265,7 @@ def _check_fonts(report: DoctorReport) -> None:
 
 def _check_gpu(report: DoctorReport) -> None:
     if os.environ.get("SOCIAL_VIDEO_FORCE_CPU"):
-        report.add(Check("gpu", True, False, "disabled by SOCIAL_VIDEO_FORCE_CPU"))
+        report.add(Check("gpu", True, False, "CPU MODE (set by SOCIAL_VIDEO_FORCE_CPU)"))
         return
     try:
         import ctranslate2
@@ -268,7 +275,7 @@ def _check_gpu(report: DoctorReport) -> None:
         count = 0
 
     if count == 0:
-        report.add(Check("gpu", True, False, "none detected; transcription will run on CPU"))
+        report.add(Check("gpu", True, False, "CPU MODE: no CUDA device detected"))
         return
 
     # A visible CUDA device is not the same as a working one: CTranslate2 needs a
@@ -279,7 +286,9 @@ def _check_gpu(report: DoctorReport) -> None:
             "gpu",
             usable,
             False,
-            f"{count} CUDA device(s); {'usable' if usable else 'NOT usable: ' + why}",
+            "GPU AVAILABLE"
+            if usable
+            else f"CPU MODE: {count} CUDA device(s) visible but not usable: {why}",
             ""
             if usable
             else "Transcription falls back to CPU automatically. To use the GPU, install "
@@ -323,14 +332,113 @@ def _check_node(report: DoctorReport) -> None:
                 "Install Node.js 20+ only if you want the optional Remotion visuals.",
             )
         )
+    else:
+        try:
+            version = subprocess.run(
+                [node, "--version"], capture_output=True, text=True, timeout=15, check=False
+            ).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            version = "unknown"
+        report.add(Check("optional: node", True, False, f"{version} ({node})"))
+    manager = next((name for name in ("npm", "pnpm", "yarn") if shutil.which(name)), None)
+    report.add(
+        Check(
+            "optional: node package manager",
+            manager is not None,
+            False,
+            manager or "not found; only needed when Remotion is enabled",
+        )
+    )
+    root = _repository_root()
+    remotion = bool(root and (root / "package.json").is_file())
+    report.add(
+        Check(
+            "optional: remotion",
+            remotion,
+            False,
+            "enabled in this checkout"
+            if remotion
+            else "not enabled; core FFmpeg editing is unaffected",
+        )
+    )
+
+
+def _check_python_environment(report: DoctorReport) -> None:
+    in_venv = sys.prefix != getattr(sys, "base_prefix", sys.prefix)
+    report.add(
+        Check(
+            "project Python environment",
+            in_venv,
+            False,
+            sys.prefix if in_venv else "not running from a virtual environment",
+            "Run through `uv run` or rerun `scripts/wsl/bootstrap.sh`." if not in_venv else "",
+        )
+    )
+    uv = shutil.which("uv")
+    report.add(
+        Check(
+            "uv",
+            uv is not None,
+            False,
+            uv or "not found; uv is recommended for installs and development",
+            "Install uv from https://docs.astral.sh/uv/getting-started/installation/."
+            if not uv
+            else "",
+        )
+    )
+
+
+def _repository_root() -> Path | None:
+    candidates = [Path.cwd(), *Path(__file__).resolve().parents]
+    for path in candidates:
+        pyproject = path / "pyproject.toml"
+        try:
+            text = pyproject.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if 'name = "social-video-agent"' in text:
+            return path
+    return None
+
+
+def _check_distribution(report: DoctorReport) -> None:
+    root = _repository_root()
+    if root is None:
+        report.add(
+            Check(
+                "optional: repository metadata",
+                False,
+                False,
+                "installed package; repository files are not available",
+            )
+        )
         return
-    try:
-        version = subprocess.run(
-            [node, "--version"], capture_output=True, text=True, timeout=15, check=False
-        ).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        version = "unknown"
-    report.add(Check("optional: node", True, False, f"{version} ({node})"))
+    required = ("README.md", "LICENSE", "pyproject.toml", "AGENTS.md")
+    missing = [name for name in required if not (root / name).is_file()]
+    report.add(
+        Check(
+            "required project files",
+            not missing,
+            True,
+            "present" if not missing else "missing: " + ", ".join(missing),
+        )
+    )
+    validations = (
+        validate_plugin(root),
+        validate_plugin(root / "plugins" / "social-video-agent"),
+        validate_skill(root / "skills" / "social-video-agent"),
+        validate_marketplace(root / ".agents" / "plugins" / "marketplace.json"),
+    )
+    for index, result in enumerate(validations):
+        label = result.name if index == 0 else f"{result.name} ({index + 1})"
+        report.add(
+            Check(
+                label,
+                result.ok,
+                True,
+                "valid" if result.ok else "; ".join(result.errors[:2]),
+            )
+        )
 
 
 def _check_workspace(report: DoctorReport) -> None:
@@ -351,6 +459,16 @@ def _check_workspace(report: DoctorReport) -> None:
                 "Set SOCIAL_VIDEO_HOME to a writable location.",
             )
         )
+
+    cwd = Path.cwd()
+    report.add(
+        Check(
+            "writable workspace",
+            os.access(cwd, os.W_OK),
+            True,
+            str(cwd) if os.access(cwd, os.W_OK) else f"not writable: {cwd}",
+        )
+    )
 
 
 def _check_encoding(report: DoctorReport) -> None:
@@ -375,6 +493,7 @@ def run_doctor() -> DoctorReport:
     """Run every diagnostic."""
     report = DoctorReport()
     _check_platform(report)
+    _check_python_environment(report)
     _check_encoding(report)
     _check_ffmpeg(report)
     _check_packages(report)
@@ -382,4 +501,5 @@ def run_doctor() -> DoctorReport:
     _check_gpu(report)
     _check_node(report)
     _check_workspace(report)
+    _check_distribution(report)
     return report

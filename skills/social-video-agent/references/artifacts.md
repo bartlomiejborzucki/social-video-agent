@@ -74,7 +74,7 @@ Rules that hold:
 - `output_fps: null` means preserve the source rate. Do not set 24 out of habit.
 - The same EDL renders identically every time.
 
-Edit it by hand freely. Re-render with `social-video render WORKSPACE`.
+Edit it by hand freely. Re-render with `social-video-agent render WORKSPACE`.
 
 ## Canonical transcript
 

@@ -2,7 +2,7 @@
 
 ## Output profiles
 
-Editorial posture plus canvas. `social-video profiles` lists them.
+Editorial posture plus canvas. `social-video-agent profiles` lists them.
 
 | profile | for | posture |
 |---|---|---|

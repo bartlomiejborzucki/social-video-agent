@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from social_video.errors import FFmpegError, ToolNotFoundError
-from social_video.paths import tools_dir
+from social_video.paths import is_wsl, tools_dir
 
 log = logging.getLogger(__name__)
 
@@ -58,12 +58,28 @@ def find_binary(name: str) -> str:
     if found:
         return found
 
+    if is_wsl():
+        where = "the WSL environment used by Codex"
+        install = (
+            "On Ubuntu/Debian WSL run:\n\n"
+            "  sudo apt update\n"
+            "  sudo apt install ffmpeg\n\n"
+            "Then rerun:\n\n"
+            "  social-video-agent doctor"
+        )
+    elif sys.platform == "win32":
+        where = "native Windows"
+        install = (
+            "Native Windows is not the primary supported runtime. Configure the Codex "
+            "Agent environment to Windows Subsystem for Linux and run the WSL bootstrap."
+        )
+    else:
+        where = "this environment"
+        install = "Install FFmpeg with the system package manager, then rerun the doctor."
     raise ToolNotFoundError(
-        f"{name} was not found on PATH.\n"
-        f"Install it with your package manager (e.g. `sudo apt install ffmpeg`,\n"
-        f"`brew install ffmpeg`, `winget install Gyan.FFmpeg`), or let us fetch a\n"
-        f"static build with `social-video doctor --install-ffmpeg`, or point\n"
-        f"{_ENV_OVERRIDE.get(name, 'the override variable')} at an existing binary."
+        f"{name} was not found inside {where}.\n\n{install}\n\n"
+        f"Alternatively, point {_ENV_OVERRIDE.get(name, 'the override variable')} "
+        "at an existing Linux binary."
     )
 
 
