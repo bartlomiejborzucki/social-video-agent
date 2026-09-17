@@ -26,14 +26,18 @@ class TimelineSlice:
 
     def to_output(self, source_time: float) -> float | None:
         """Map a source timestamp into output time, or None if not in this slice."""
-        if not (self.range.start <= source_time <= self.range.end):
+        if not (self.range.effective_audio_start <= source_time <= self.range.effective_audio_end):
             return None
-        return self.output_start + (source_time - self.range.start) / self.range.speed
+        return (
+            self.output_start + (source_time - self.range.effective_audio_start) / self.range.speed
+        )
 
     def to_source(self, output_time: float) -> float | None:
         if not (self.output_start <= output_time <= self.output_end):
             return None
-        return self.range.start + (output_time - self.output_start) * self.range.speed
+        return (
+            self.range.effective_audio_start + (output_time - self.output_start) * self.range.speed
+        )
 
 
 class Timeline:
@@ -49,7 +53,7 @@ class Timeline:
         self.duration = cursor
 
     def slices_for_source(self, source_id: str) -> list[TimelineSlice]:
-        return [s for s in self.slices if s.range.source == source_id]
+        return [s for s in self.slices if s.range.effective_audio_source == source_id]
 
     def map_to_output(self, source_id: str, source_time: float) -> list[float]:
         """Every output time a source instant appears at.
@@ -59,7 +63,7 @@ class Timeline:
         """
         out: list[float] = []
         for sl in self.slices:
-            if sl.range.source != source_id:
+            if sl.range.effective_audio_source != source_id:
                 continue
             mapped = sl.to_output(source_time)
             if mapped is not None:
@@ -75,10 +79,10 @@ class Timeline:
         """
         pieces: list[tuple[float, float]] = []
         for sl in self.slices:
-            if sl.range.source != source_id:
+            if sl.range.effective_audio_source != source_id:
                 continue
-            lo = max(start, sl.range.start)
-            hi = min(end, sl.range.end)
+            lo = max(start, sl.range.effective_audio_start)
+            hi = min(end, sl.range.effective_audio_end)
             if hi <= lo:
                 continue
             out_lo = sl.to_output(lo)

@@ -40,6 +40,8 @@ class VideoStream:
     pix_fmt: str
     color_transfer: str
     nb_frames: int | None
+    duration: float | None = None
+    time_base: str = ""
 
     @property
     def display_size(self) -> tuple[int, int]:
@@ -69,6 +71,11 @@ class AudioStream:
     channels: int
     sample_rate: int
     language: str | None
+    channel_layout: str = ""
+    profile: str = ""
+    duration: float | None = None
+    time_base: str = ""
+    nb_frames: int | None = None
 
 
 @dataclass(frozen=True)
@@ -200,6 +207,10 @@ def _probe_cached(resolved: str, mtime_ns: int, size: int) -> MediaInfo:
             if (stream.get("disposition") or {}).get("attached_pic"):
                 continue
             nb = stream.get("nb_frames")
+            try:
+                stream_duration = float(stream["duration"]) if stream.get("duration") else None
+            except (TypeError, ValueError):
+                stream_duration = None
             video = VideoStream(
                 index=int(stream.get("index", 0)),
                 codec=str(stream.get("codec_name") or "unknown"),
@@ -211,9 +222,16 @@ def _probe_cached(resolved: str, mtime_ns: int, size: int) -> MediaInfo:
                 pix_fmt=str(stream.get("pix_fmt") or "unknown"),
                 color_transfer=str(stream.get("color_transfer") or ""),
                 nb_frames=int(nb) if nb and str(nb).isdigit() else None,
+                duration=stream_duration,
+                time_base=str(stream.get("time_base") or ""),
             )
         elif kind == "audio":
             tags = stream.get("tags") or {}
+            nb = stream.get("nb_frames")
+            try:
+                stream_duration = float(stream["duration"]) if stream.get("duration") else None
+            except (TypeError, ValueError):
+                stream_duration = None
             audio.append(
                 AudioStream(
                     index=int(stream.get("index", 0)),
@@ -221,6 +239,11 @@ def _probe_cached(resolved: str, mtime_ns: int, size: int) -> MediaInfo:
                     channels=int(stream.get("channels") or 0),
                     sample_rate=int(stream.get("sample_rate") or 0),
                     language=tags.get("language"),
+                    channel_layout=str(stream.get("channel_layout") or ""),
+                    profile=str(stream.get("profile") or ""),
+                    duration=stream_duration,
+                    time_base=str(stream.get("time_base") or ""),
+                    nb_frames=int(nb) if nb and str(nb).isdigit() else None,
                 )
             )
 
@@ -257,17 +280,22 @@ def clear_probe_cache() -> None:
 def resolve_output_fps(sources: list[MediaInfo], override: str | None = None) -> str:
     """Decide one frame rate for the whole render.
 
-    Every segment must share a frame rate or the stream-copy concat drifts out
-    of sync. Default behaviour preserves the source rate rather than forcing
-    24 fps; where sources disagree, the highest rate wins so nothing is
-    decimated. An explicit override always takes precedence.
+    Social exports use a small compatibility set. Phone VFR averages such as
+    375000/12493 must never leak into the output; the nominal r_frame_rate is
+    the signal for whether a source is 30, 29.97, 60, or 59.94.
     """
     if override:
         return parse_fps(override)
-    rates = [s.video.frame_rate for s in sources if s.video]
+    rates = [s.video.nominal_frame_rate for s in sources if s.video]
     if not rates:
         return "30/1"
-    return max(rates, key=lambda r: Fraction(r))
+    parsed = [Fraction(rate) for rate in rates]
+    high = [rate for rate in parsed if float(rate) >= 45.0]
+    if high:
+        ntsc60 = Fraction(60000, 1001)
+        return "60000/1001" if all(abs(float(rate - ntsc60)) < 0.02 for rate in high) else "60/1"
+    ntsc30 = Fraction(30000, 1001)
+    return "30000/1001" if all(abs(float(rate - ntsc30)) < 0.02 for rate in parsed) else "30/1"
 
 
 def probe_audio_track_count(path: str | Path) -> int:

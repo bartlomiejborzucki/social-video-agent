@@ -18,6 +18,7 @@ from social_video.schemas.brand import (
     OutputProfile,
 )
 from social_video.schemas.captions import CaptionCue, CaptionTrack, CaptionWord
+from social_video.schemas.editorial_qa import EditorialFix, EditorialQA, EditorialQAStatus
 from social_video.schemas.edl import (
     EDL,
     CropKeyframe,
@@ -25,6 +26,7 @@ from social_video.schemas.edl import (
     Overlay,
     ReframeMode,
     ReframePlan,
+    VisualFillStrategy,
 )
 from social_video.schemas.plan import (
     CandidateScores,
@@ -60,6 +62,9 @@ __all__ = [
     "CropKeyframe",
     "EDLRange",
     "EditPlan",
+    "EditorialFix",
+    "EditorialQA",
+    "EditorialQAStatus",
     "OutputProfile",
     "Overlay",
     "PlanAction",
@@ -76,6 +81,7 @@ __all__ = [
     "Transcript",
     "TranscriptSegment",
     "TranscriptToken",
+    "VisualFillStrategy",
     "load_artifact",
     "save_artifact",
 ]

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import Field
+from pydantic import Field, computed_field
 
 from social_video.schemas.base import Artifact
 
@@ -41,6 +41,7 @@ class QACheck(Artifact):
     expected: float | None = None
     #: Diagnostic image generated for this finding, if any.
     artifact: str | None = None
+    accepted: bool = False
 
 
 class QAReport(Artifact):
@@ -52,6 +53,7 @@ class QAReport(Artifact):
     attempt: int = Field(default=1, ge=1)
     max_attempts: int = Field(default=3, ge=1)
     checks: list[QACheck] = Field(default_factory=list)
+    artifacts: list[str] = Field(default_factory=list)
 
     @property
     def errors(self) -> list[QACheck]:
@@ -59,11 +61,23 @@ class QAReport(Artifact):
 
     @property
     def warnings(self) -> list[QACheck]:
-        return [c for c in self.checks if not c.passed and c.severity is QASeverity.WARNING]
+        return [
+            c
+            for c in self.checks
+            if not c.passed and c.severity is QASeverity.WARNING and not c.accepted
+        ]
 
     @property
     def passed(self) -> bool:
         return not self.errors
+
+    @computed_field
+    def status(self) -> str:
+        if self.errors:
+            return "failed"
+        if self.warnings:
+            return "passed_with_warnings"
+        return "passed"
 
     @property
     def exhausted(self) -> bool:

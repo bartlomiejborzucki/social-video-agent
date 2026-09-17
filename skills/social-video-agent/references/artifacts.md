@@ -15,9 +15,12 @@ edit/
   analysis/               scene detection
   edit-plan.json          editorial intent
   edl.json                exact ranges and render instructions
+  qa-editorial.json       mandatory supervising-editor decision
   captions/               caption data, .srt, and .ass
-  previews/  final/       rendered output
-  qa/                     QA reports and diagnostic stills
+  previews/preview.mp4    stable preview artifact
+  final/final.mp4         stable delivery artifact
+  qa/qa-report.json       canonical technical QA report
+  qa/ending-contact-sheet.png
   cache/                  content-addressed; safe to delete
 ```
 
@@ -71,8 +74,41 @@ Rules that hold:
 - Range durations are aligned to whole frames at render time, so the output
   length does not drift as cuts accumulate.
 - Output dimensions must be even.
-- `output_fps: null` means preserve the source rate. Do not set 24 out of habit.
+- `output_fps: null` selects a compatible social CFR (30, 29.97, 60, or 59.94)
+  from the nominal source rate. Phone VFR averages are never copied to output.
 - The same EDL renders identically every time.
+
+### Separate audio and privacy-safe visual endings
+
+Legacy `source`/`start`/`end` remains valid. A range may instead override
+`video_source`, `audio_source`, and their independent start/end values. A hard
+`max_visual_source_time` is the privacy stop: the renderer cannot emit a source
+frame after it.
+
+When audio outlasts the primary safe image, the EDL must fill the exact gap:
+
+```json
+{
+  "source": "justyna",
+  "start": 0.0,
+  "end": 10.86,
+  "video_end": 7.10,
+  "audio_source": "5",
+  "audio_end": 10.86,
+  "max_visual_source_time": 7.10,
+  "visual_fill_strategy": "secondary_video",
+  "secondary_video_source": "safe-broll-2",
+  "secondary_video_start": 2.0,
+  "secondary_video_end": 5.76,
+  "visual_fill_reason": "Continue with approved B-roll after the privacy stop."
+}
+```
+
+Other explicit values are `end_card` (with `end_card_source/start/end`) and
+`intentional_hold` (with `freeze_at` and `freeze_duration`). An unapproved hold
+may not exceed `max_static_hold`, which defaults to 0.75 seconds. A longer hold
+requires `intentional_hold: true` and a written reason; QA still reports it.
+Without a strategy the EDL fails validation instead of extending the last frame.
 
 Edit it by hand freely. Re-render with `social-video-agent render WORKSPACE`.
 
@@ -96,3 +132,15 @@ re-cut. Captions are burned last so nothing composites over them.
 Checks carry a severity. `error` blocks delivery, `warning` is worth a look,
 `info` is a measurement. `attempt` and `max_attempts` bound the repair loop:
 when it is exhausted, report what remains rather than continuing.
+
+`qa/qa-report.json` always records one of `passed`, `passed_with_warnings`, or
+`failed`, artifact paths, audio/video timing, full decode, and `ending visual
+continuity`. The ending check reports the longest near-identical-frame span,
+its start/end, and whether the EDL explicitly approved it.
+
+## qa-editorial.json — supervising handoff
+
+Absence is not approval. Write either `{"status":"approved","fixes":[]}` or
+`{"status":"changes_requested","fixes":[...]}`. Each fix contains only an
+exact EDL `path`, replacement `value`, and `reason`. Unknown status, unknown
+fields, empty requested changes, or an approval containing fixes are rejected.

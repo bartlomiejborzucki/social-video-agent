@@ -62,7 +62,8 @@ Native Windows is not the primary supported runtime. There is no PowerShell laun
 ## What works
 
 - Local transcription with faster-whisper, downloaded on first transcription and cached under `~/.cache/social-video-agent/models/`.
-- Horizontal, vertical, 30 fps, 60 fps, rotation metadata, multiple audio tracks, and deterministic EDL rendering.
+- Horizontal and vertical sources, compatible CFR 30/29.97/60/59.94 exports,
+  multiple audio tracks, sample-derived AAC timestamps, and deterministic EDL rendering.
 - Face-aware 9:16 framing with restrained movement.
 - ASS captions with preflight glyph checks, including `Zażółć gęślą jaźń`.
 - Profiles for talking heads, education, podcasts, stories, landscape, square, and faster social editing.
@@ -80,8 +81,9 @@ social-video-agent transcribe INPUT
 social-video-agent pack WORKSPACE
 social-video-agent plan INPUT --profile talking-head --goal '45 second Reel'
 social-video-agent edit INPUT --profile talking-head
-social-video-agent render WORKSPACE
+social-video-agent render WORKSPACE --quality preview --output /path/to/preview.mp4
 social-video-agent qa WORKSPACE
+social-video-agent apply-editorial-qa WORKSPACE
 ```
 
 `social-video-agent doctor` checks this project's WSL/Linux environment, FFmpeg, Python dependencies, ASR, fonts, plugin files, and workspace. OpenAI's separate `codex doctor` checks Codex itself; the commands are complementary.
@@ -140,6 +142,17 @@ social-video-agent doctor
 ```
 
 Tiny media fixtures are generated deterministically with FFmpeg. Automated Linux CI covers unit tests, plugin/skill/package validation, 30/60 fps rendering, paths with spaces and Polish Unicode, caption burn-in, and source immutability. GitHub-hosted Linux is not WSL: actual `/mnt/c` behavior and WSL detection remain a manual release gate in [docs/testing/windows-wsl2-acceptance.md](docs/testing/windows-wsl2-acceptance.md).
+
+The social delivery contract is MP4 with H.264/`avc1`, `yuv420p`, BT.709,
+compatible constant frame rate, AAC-LC stereo at 48 kHz with continuous sample
+timestamps, `faststart`, 720×1280 preview, and 1080×1920 final. Rendering first
+finishes and fully decodes a private file in Linux cache, then atomically
+publishes `preview.mp4` or `final.mp4`; a partial MP4 never appears under the
+destination name. Technical QA always writes `qa-report.json`.
+
+If a privacy-safe picture ends before its audio, validation requires an
+explicit EDL ending strategy. It will not silently create a multi-second still.
+See [the artifact contract](skills/social-video-agent/references/artifacts.md).
 
 ## Privacy and licenses
 

@@ -23,9 +23,10 @@ from social_video.edl.render import QUALITIES, Quality, render_edl
 from social_video.edl.timeline import Timeline
 from social_video.errors import ValidationError
 from social_video.ffmpeg.fonts import default_caption_font
+from social_video.ffmpeg.probe import probe
 from social_video.profiles import load_brand, load_profile
 from social_video.qa.checks import check_render
-from social_video.qa.contact_sheet import boundary_sheets
+from social_video.qa.contact_sheet import boundary_sheets, contact_sheet
 from social_video.reframe.plan import plan_reframe
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.brand import BrandProfile, OutputProfile
@@ -160,11 +161,11 @@ def stage_reframe(
     for rng in edl.ranges:
         if rng.reframe is not None:
             continue
-        source = manifest.by_id(rng.source).resolved_path()
+        source = manifest.by_id(rng.effective_video_source).resolved_path()
         rng.reframe = plan_reframe(
             source,
-            start=rng.start,
-            end=rng.end,
+            start=rng.effective_video_start,
+            end=rng.visual_content_end,
             out_width=edl.output_width,
             out_height=edl.output_height,
             mode=edl.default_reframe,
@@ -211,10 +212,11 @@ def stage_render(
     *,
     quality: str = "final",
     captions: Path | None = None,
+    output: Path | None = None,
 ) -> Path:
     q: Quality = QUALITIES[quality]
     out_dir = workspace.previews if quality != "final" else workspace.final
-    output = out_dir / f"{edl.name}{'' if quality == 'final' else '_' + quality}.mp4"
+    output = output or out_dir / ("final.mp4" if quality == "final" else "preview.mp4")
     manifest_obj = render_edl(edl, manifest, output, quality=q, caption_file=captions)
     save_artifact(manifest_obj, workspace.renders / f"{output.stem}.manifest.json")
     record_stage(workspace, f"render:{quality}", {"output": str(output)})
@@ -236,12 +238,42 @@ def stage_qa(
         # Only generate stills where a check actually flagged something, or at
         # the cuts, rather than sampling the whole timeline.
         flagged = [c.at for c in report.checks if not c.passed and c.at is not None]
-        targets = sorted({round(t, 2) for t in (*boundaries, *flagged)})[:12]
+        ending_starts = [
+            c.at for c in report.checks if c.name == "ending visual continuity" and c.at is not None
+        ]
+        targets = sorted({round(t, 2) for t in (*boundaries, *flagged, *ending_starts)})[:12]
         if targets:
             made = boundary_sheets(output, targets, workspace.qa)
+            report.artifacts.extend(str(path) for path in made)
             log.info("wrote %d diagnostic sheet(s) to %s", len(made), workspace.qa)
-    save_artifact(report, workspace.qa / f"{output.stem}.qa.json")
-    record_stage(workspace, "qa", {"passed": report.passed, "attempt": attempt})
+        privacy_targets: set[float] = set()
+        timeline = Timeline(edl)
+        for sl in timeline.slices:
+            limit = sl.range.max_visual_source_time
+            if limit is None:
+                continue
+            at = sl.output_start + max(
+                0.0, (limit - sl.range.effective_video_start) / sl.range.speed
+            )
+            privacy_targets.update({max(0.0, at - 0.04), at, at + 0.04, timeline.duration})
+        if privacy_targets:
+            made = boundary_sheets(output, sorted(privacy_targets), workspace.qa, window=0.04)
+            report.artifacts.extend(str(path) for path in made)
+        ending_sheet = contact_sheet(
+            output,
+            workspace.qa / "ending-contact-sheet.png",
+            start=max(0.0, probe(output).duration - 10.0),
+            columns=5,
+            rows=4,
+            tile_width=240,
+        )
+        report.artifacts.append(str(ending_sheet))
+    save_artifact(report, workspace.qa / "qa-report.json")
+    record_stage(
+        workspace,
+        "qa",
+        {"passed": report.passed, "status": report.status, "attempt": attempt},
+    )
     return report
 
 

@@ -33,6 +33,7 @@ def make_video(
     fps: int = 30,
     duration: float = 3.0,
     audio: bool = True,
+    audio_channels: int = 1,
     rotation: int | None = None,
 ) -> Path:
     """Generate a test video with a colour pattern and a tone."""
@@ -47,7 +48,7 @@ def make_video(
         args += ["-f", "lavfi", "-i", f"sine=frequency=440:duration={duration}"]
     args += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "ultrafast"]
     if audio:
-        args += ["-c:a", "aac", "-shortest"]
+        args += ["-c:a", "aac", "-ac", str(audio_channels), "-shortest"]
     else:
         args += ["-an"]
     if rotation is not None:

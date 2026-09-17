@@ -16,7 +16,8 @@ make no editorial judgements.
 
 ```
 source → transcribe → packed transcript → YOUR editorial decisions
-       → edit-plan.json → edl.json → render → QA → revise → final.mp4
+       → edit-plan.json → edl.json → render → technical QA
+       → qa-editorial.json → apply only approved fixes → final.mp4
 ```
 
 Every decision you make is written to an artifact a human can read and change.
@@ -91,18 +92,47 @@ to compute frame numbers, and you should not try.
 Render `--quality preview` while iterating and `final` once. Preview keeps the
 same aspect and framing, so what you check is what you ship.
 
+If audio continues after the last privacy-safe moving frame, do not let the
+renderer invent a multi-second freeze. Record one explicit ending strategy in
+the EDL: a second safe B-roll shot, a later B-roll start, an editorially valid
+return shot, an edit-plan-approved sentence trim, a designed end card, or an
+intentional hold. A hold must state `freeze_at`, `freeze_duration`, and its
+reason. More than the default `max_static_hold` of 0.75 seconds additionally
+requires `intentional_hold: true`. If none is appropriate, stop and ask for
+more B-roll.
+
 ## Check your own work
 
 ```bash
 social-video-agent qa WORKSPACE
 ```
 
-Mechanical checks run first: duration against the EDL, audio presence and
-clipping, black frames, silence at cuts, caption overlap and placement. They
-catch things you cannot see in a still.
+Mechanical checks run first: exact video/audio timelines and AAC cadence,
+standard CFR, full decoding, clipping, black frames, silence at cuts, caption
+placement, and repeated-frame runs in the final ten seconds. They catch things
+you cannot see in a single still.
 
-Look at the generated stills in `edit/qa/` only where a check flagged something
-or at cut boundaries. Do not inspect the video frame by frame.
+The supervising editor must inspect the final ten seconds, the dense ending
+contact sheet, the final five seconds frame by frame (or equivalently densely
+sampled), the last frame, and the relationship between the end of motion and
+the end of audio. Ask whether the picture remains intentional through the last
+second, not only whether the spoken payoff is good. Correct captions, a safe
+privacy boundary, and successful decoding do not justify a multi-second dead
+frame.
+
+Always write `qa-editorial.json` as exactly one of these contracts:
+
+```json
+{"status":"approved","fixes":[]}
+```
+
+```json
+{"status":"changes_requested","fixes":[{"path":"ranges[2].end","value":4.2,"reason":"..."}]}
+```
+
+Apply it with `social-video-agent apply-editorial-qa WORKSPACE`. Approval is a
+no-op. Changes apply only the listed paths; the command does not perform a new
+editorial analysis and rejects unknown paths or schema fields.
 
 If something is wrong, fix the plan or the EDL and re-render. **Stop after three
 attempts** and tell the user what remains wrong rather than looping.
@@ -138,3 +168,6 @@ Assume the user wants their recording to sound like them, only tighter.
   provider must be explicitly requested, and you must tell the user their media
   is leaving the machine.
 - Do not invent timestamps. Take them from the packed transcript.
+- Do not accept a Reel because the verbal ending works while the picture is
+  visibly frozen. Do not disguise missing footage with automatic zoom, loops,
+  random transitions, or synthetic motion.

@@ -17,10 +17,14 @@ produces an undecodable file in that case.
 from __future__ import annotations
 
 import logging
+import os
+import shutil
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from fractions import Fraction
 from pathlib import Path
+from uuid import uuid4
 
 from social_video.edl.loudness import loudnorm_filter, measure_loudness
 from social_video.edl.timeline import Timeline
@@ -34,12 +38,12 @@ from social_video.ffmpeg.filters import (
 )
 from social_video.ffmpeg.probe import (
     MediaInfo,
-    frame_aligned_duration,
     probe,
     resolve_output_fps,
 )
 from social_video.ffmpeg.run import has_libass, has_libzimg, run_ffmpeg
-from social_video.schemas.edl import EDL, EDLRange, ReframeMode
+from social_video.paths import app_home
+from social_video.schemas.edl import EDL, EDLRange, ReframeMode, VisualFillStrategy
 from social_video.schemas.qa import RenderManifest
 from social_video.schemas.source import SourceManifest
 
@@ -66,6 +70,32 @@ FINAL = Quality("final", crf=19, preset="medium", two_pass_loudness=True)
 QUALITIES = {q.name: q for q in (DRAFT, PREVIEW, FINAL)}
 
 
+@dataclass(frozen=True)
+class RenderRange:
+    video_input: int
+    audio_input: int | None
+    video_info: MediaInfo
+    audio_info: MediaInfo
+    fill_input: int | None
+    fill_info: MediaInfo | None
+    target_frames: int
+    target_duration: float
+
+
+def allocate_range_frames(edl: EDL, fps: str) -> list[int]:
+    """Round cumulative boundaries, so per-cut rounding cannot accumulate."""
+    rate = float(Fraction(fps))
+    frames: list[int] = []
+    cursor = 0.0
+    previous = 0
+    for rng in edl.ranges:
+        cursor += rng.output_duration
+        boundary = max(previous + 1, round(cursor * rate))
+        frames.append(boundary - previous)
+        previous = boundary
+    return frames
+
+
 def _canvas_for(edl: EDL, quality: Quality) -> tuple[int, int]:
     """Output canvas, scaled down for the cheaper qualities.
 
@@ -81,12 +111,17 @@ def _canvas_for(edl: EDL, quality: Quality) -> tuple[int, int]:
 
 
 def _reframe_filter(
-    rng: EDLRange, info: MediaInfo, canvas: tuple[int, int], default: ReframeMode
+    rng: EDLRange,
+    info: MediaInfo,
+    canvas: tuple[int, int],
+    default: ReframeMode,
+    *,
+    force_fit: bool = False,
 ) -> str:
     """Geometry for one range: crop if asked, then fit onto the canvas."""
     out_w, out_h = canvas
-    plan = rng.reframe
-    mode = plan.mode if plan else default
+    plan = None if force_fit else rng.reframe
+    mode = ReframeMode.FIT if force_fit else (plan.mode if plan else default)
 
     src_w, src_h = info.video.display_size if info.video else (out_w, out_h)
     parts: list[str] = []
@@ -114,7 +149,7 @@ def _reframe_filter(
             crop_h = max(2, round(src_w / target / 2) * 2)
             parts.append(f"crop={src_w}:{crop_h}:0:(ih-{crop_h})/2")
 
-    if rng.zoom > 1.0:
+    if rng.zoom > 1.0 and not force_fit:
         # A punch-in is a centred crop by 1/zoom, applied before the final scale
         # so it costs no resolution beyond the zoom itself.
         z = rng.zoom
@@ -126,7 +161,7 @@ def _reframe_filter(
     return ",".join(parts)
 
 
-def build_audio_graph(edl: EDL, infos: list[MediaInfo]) -> tuple[str, str]:
+def build_audio_graph(edl: EDL, ranges: list[RenderRange]) -> tuple[str, str]:
     """Build only the audio half of the graph, for the measurement pass.
 
     Identical to what the render will do to the audio, so the measurement
@@ -134,42 +169,92 @@ def build_audio_graph(edl: EDL, infos: list[MediaInfo]) -> tuple[str, str]:
     """
     parts: list[str] = []
     labels: list[str] = []
-    for index, (rng, info) in enumerate(zip(edl.ranges, infos, strict=True)):
-        parts.append(_audio_chain(index, rng, info))
+    for index, (rng, media) in enumerate(zip(edl.ranges, ranges, strict=True)):
+        parts.append(_audio_chain(index, rng, media))
         labels.append(f"[a{index}]")
     parts.append(f"{''.join(labels)}concat=n={len(edl.ranges)}:v=0:a=1[ca]")
-    return ";".join(parts), "[ca]"
+    total = sum(media.target_duration for media in ranges)
+    parts.append(f"[ca]{_final_audio_chain(total)}[cam]")
+    return ";".join(parts), "[cam]"
 
 
-def _audio_chain(index: int, rng: EDLRange, info: MediaInfo) -> str:
+def _audio_chain(index: int, rng: EDLRange, media: RenderRange) -> str:
     """The per-range audio chain, shared by the measurement and render passes."""
-    if not info.has_audio:
+    target = media.target_duration
+    if media.audio_input is None or not media.audio_info.has_audio:
         # A silent range still needs an audio stream or concat refuses. The
         # explicit duration and aformat matter: without them the generated
         # stream can reach the encoder with an unexpected sample format.
         return (
-            f"anullsrc=r=48000:cl=stereo:d={rng.output_duration:.4f},"
+            f"anullsrc=r=48000:cl=stereo:d={target:.9f},"
             f"aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
-            f"asetpts=PTS-STARTPTS[a{index}]"
+            f"asettb=1/48000,asetpts=N/SR/TB[a{index}]"
         )
     # Render the same track that was transcribed. Mapping 0:a:0 unconditionally
     # is what makes a multi-track recording come out silent: OBS puts desktop
     # audio on track 0 and the microphone on track 1.
-    track = min(rng.audio_track, max(0, len(info.audio) - 1))
-    chain: list[str] = ["aresample=48000:async=1"]
+    track = min(rng.audio_track, max(0, len(media.audio_info.audio) - 1))
+    chain: list[str] = [
+        f"atrim=duration={rng.audio_duration:.9f}",
+        "aresample=48000:async=1:first_pts=0",
+        "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo",
+        "asettb=1/48000",
+        "asetpts=N/SR/TB",
+    ]
     if rng.speed != 1.0:
         chain.extend(_atempo_chain(rng.speed))
     if rng.audio_gain_db:
         chain.append(f"volume={rng.audio_gain_db:.2f}dB")
     # Short fades at both edges prevent the click that a hard splice makes.
-    chain.append(audio_cut_fades(rng.output_duration))
-    chain.append("asetpts=PTS-STARTPTS")
-    return f"[{index}:a:{track}]{','.join(chain)}[a{index}]"
+    chain.extend(
+        [
+            f"apad=whole_dur={target:.9f}",
+            f"atrim=duration={target:.9f}",
+            audio_cut_fades(target),
+            "aresample=48000:async=1:first_pts=0",
+            "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo",
+            "asettb=1/48000",
+            "asetpts=N/SR/TB",
+        ]
+    )
+    return f"[{media.audio_input}:a:{track}]{','.join(chain)}[a{index}]"
+
+
+def _final_audio_chain(duration: float) -> str:
+    return ",".join(
+        [
+            "aresample=48000:async=1:first_pts=0",
+            "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo",
+            f"apad=whole_dur={duration:.9f}",
+            f"atrim=duration={duration:.9f}",
+            "asettb=1/48000",
+            "asetpts=N/SR/TB",
+        ]
+    )
+
+
+def _fill_source(rng: EDLRange) -> tuple[str, float, float] | None:
+    if rng.visual_fill_strategy is VisualFillStrategy.SECONDARY_VIDEO:
+        assert rng.secondary_video_source is not None
+        assert rng.secondary_video_start is not None
+        assert rng.secondary_video_end is not None
+        return rng.secondary_video_source, rng.secondary_video_start, rng.secondary_video_end
+    if rng.visual_fill_strategy is VisualFillStrategy.END_CARD:
+        assert rng.end_card_source is not None
+        assert rng.end_card_start is not None
+        assert rng.end_card_end is not None
+        return rng.end_card_source, rng.end_card_start, rng.end_card_end
+    return None
+
+
+def _fill_source_duration(rng: EDLRange) -> float:
+    fill = _fill_source(rng)
+    return 0.0 if fill is None else fill[2] - fill[1]
 
 
 def build_filtergraph(
     edl: EDL,
-    infos: list[MediaInfo],
+    ranges: list[RenderRange],
     *,
     canvas: tuple[int, int],
     fps: str,
@@ -181,31 +266,80 @@ def build_filtergraph(
     audio_labels: list[str] = []
     parts: list[str] = []
 
-    for index, (rng, info) in enumerate(zip(edl.ranges, infos, strict=True)):
-        vin = f"{index}:v:0"
+    for index, (rng, media) in enumerate(zip(edl.ranges, ranges, strict=True)):
+        vin = f"{media.video_input}:v:0"
 
         vchain: list[str] = []
-        if info.video and info.video.is_hdr and has_libzimg():
+        if media.video_info.video and media.video_info.video.is_hdr and has_libzimg():
             vchain.append(TONEMAP_CHAIN)
-        vchain.append(_reframe_filter(rng, info, canvas, edl.default_reframe))
+        visual_duration = rng.visual_content_end - rng.effective_video_start
+        vchain.append(f"trim=duration={visual_duration:.9f}")
+        vchain.append("setpts=PTS-STARTPTS")
+        vchain.append(_reframe_filter(rng, media.video_info, canvas, edl.default_reframe))
         if rng.speed != 1.0:
             vchain.append(f"setpts=PTS/{rng.speed:.6f}")
         vchain.append(f"fps={fps}")
-        # Rebase timestamps so the concat filter joins ranges seamlessly.
-        vchain.append("setpts=PTS-STARTPTS")
-        parts.append(f"[{vin}]{','.join(vchain)}[v{index}]")
+        rate = float(Fraction(fps))
+        primary_frames = min(
+            media.target_frames,
+            max(1, round(rng.primary_visual_output_duration * rate)),
+        )
+        vchain.append(f"tpad=stop_mode=clone:stop_duration={1 / rate:.9f}")
+        vchain.append(f"trim=end_frame={primary_frames}")
+        vchain.append(f"setpts=N/({fps}*TB)")
+        primary_label = f"[vp{index}]"
+        parts.append(f"[{vin}]{','.join(vchain)}{primary_label}")
+
+        fill_frames = media.target_frames - primary_frames
+        if media.fill_input is not None and media.fill_info is not None and fill_frames > 0:
+            fill_duration = _fill_source_duration(rng)
+            fill_chain = [
+                f"trim=duration={fill_duration:.9f}",
+                "setpts=PTS-STARTPTS",
+                _reframe_filter(
+                    rng,
+                    media.fill_info,
+                    canvas,
+                    ReframeMode.FIT,
+                    force_fit=True,
+                ),
+            ]
+            if rng.speed != 1.0:
+                fill_chain.append(f"setpts=PTS/{rng.speed:.6f}")
+            fill_chain.extend(
+                [
+                    f"fps={fps}",
+                    f"tpad=stop_mode=clone:stop_duration={1 / rate:.9f}",
+                    f"trim=end_frame={fill_frames}",
+                    f"setpts=N/({fps}*TB)",
+                ]
+            )
+            fill_label = f"[vf{index}]"
+            parts.append(f"[{media.fill_input}:v:0]{','.join(fill_chain)}{fill_label}")
+            parts.append(f"{primary_label}{fill_label}concat=n=2:v=1:a=0[v{index}]")
+        else:
+            remaining = max(0.0, media.target_duration - primary_frames / rate)
+            parts.append(
+                f"{primary_label}tpad=stop_mode=clone:stop_duration={remaining:.9f},"
+                f"trim=end_frame={media.target_frames},setpts=N/({fps}*TB)[v{index}]"
+            )
         video_labels.append(f"[v{index}]")
 
-        parts.append(_audio_chain(index, rng, info))
+        parts.append(_audio_chain(index, rng, media))
         audio_labels.append(f"[a{index}]")
 
     pairs = "".join(v + a for v, a in zip(video_labels, audio_labels, strict=True))
     parts.append(f"{pairs}concat=n={len(edl.ranges)}:v=1:a=1[cv][ca]")
+    total_frames = sum(media.target_frames for media in ranges)
+    total_duration = sum(media.target_duration for media in ranges)
+    parts.append(f"[cv]trim=end_frame={total_frames},setpts=N/({fps}*TB)[cvm]")
+    parts.append(f"[ca]{_final_audio_chain(total_duration)}[cam]")
 
-    vlabel, alabel = "[cv]", "[ca]"
+    vlabel, alabel = "[cvm]", "[cam]"
 
     for number, overlay in enumerate(edl.overlays):
-        src = f"{len(edl.ranges) + number}:v:0"
+        last_input = max(max(r.video_input, r.audio_input or 0, r.fill_input or 0) for r in ranges)
+        src = f"{last_input + 1 + number}:v:0"
         prepared = f"[ov{number}]"
         chain = []
         if overlay.scale_width:
@@ -228,7 +362,7 @@ def build_filtergraph(
         vlabel = "[vs]"
 
     if loudnorm:
-        parts.append(f"{alabel}{loudnorm}[an]")
+        parts.append(f"{alabel}{loudnorm},{_final_audio_chain(total_duration)}[an]")
         alabel = "[an]"
 
     return ";".join(parts), vlabel, alabel
@@ -262,10 +396,14 @@ def render_edl(
     for warning in warnings:
         log.warning("edl: %s", warning)
 
-    infos = [probe(manifest.by_id(r.source).resolved_path()) for r in edl.ranges]
+    video_infos = [
+        probe(manifest.by_id(r.effective_video_source).resolved_path()) for r in edl.ranges
+    ]
     canvas = _canvas_for(edl, quality)
-    fps = resolve_output_fps(infos, edl.output_fps)
-    source_fps = resolve_output_fps(infos, None)
+    fps = resolve_output_fps(video_infos, edl.output_fps)
+    source_fps = resolve_output_fps(video_infos, None)
+    frame_counts = allocate_range_frames(edl, fps)
+    rate = float(Fraction(fps))
 
     if caption_file is not None and not has_libass():
         log.warning(
@@ -276,21 +414,64 @@ def render_edl(
     measured = None
 
     inputs: list[str] = []
-    for rng, info in zip(edl.ranges, infos, strict=True):
-        # Fast seek before -i, duration after: seeks by keyframe then decodes to
-        # the exact frame, which is both quick and accurate.
-        #
-        # The duration is aligned to a whole frame. ffmpeg rounds `-t` up to the
-        # next frame, so without this every cut adds up to one frame and the
-        # output drifts further from the EDL the more cuts it has.
+    render_ranges: list[RenderRange] = []
+    next_input = 0
+    for rng, video_info, frames in zip(edl.ranges, video_infos, frame_counts, strict=True):
+        if video_info.video is None:
+            raise ValueError(f"source {rng.effective_video_source!r} has no video stream")
+        video_input = next_input
+        next_input += 1
+        visual_duration = rng.visual_content_end - rng.effective_video_start
         inputs += [
             "-ss",
-            f"{rng.start:.4f}",
+            f"{rng.effective_video_start:.9f}",
             "-t",
-            f"{frame_aligned_duration(rng.duration, fps):.6f}",
+            f"{visual_duration:.9f}",
             "-i",
-            str(info.path),
+            str(video_info.path),
         ]
+        audio_info = probe(manifest.by_id(rng.effective_audio_source).resolved_path())
+        audio_input: int | None = None
+        if audio_info.has_audio:
+            audio_input = next_input
+            next_input += 1
+            inputs += [
+                "-ss",
+                f"{rng.effective_audio_start:.9f}",
+                "-t",
+                f"{rng.audio_duration:.9f}",
+                "-i",
+                str(audio_info.path),
+            ]
+        fill_input: int | None = None
+        fill_info: MediaInfo | None = None
+        if fill := _fill_source(rng):
+            fill_source, fill_start, fill_end = fill
+            fill_info = probe(manifest.by_id(fill_source).resolved_path())
+            if fill_info.video is None:
+                raise ValueError(f"visual fill source {fill_source!r} has no video stream")
+            fill_input = next_input
+            next_input += 1
+            inputs += [
+                "-ss",
+                f"{fill_start:.9f}",
+                "-t",
+                f"{fill_end - fill_start:.9f}",
+                "-i",
+                str(fill_info.path),
+            ]
+        render_ranges.append(
+            RenderRange(
+                video_input=video_input,
+                audio_input=audio_input,
+                video_info=video_info,
+                audio_info=audio_info,
+                fill_input=fill_input,
+                fill_info=fill_info,
+                target_frames=frames,
+                target_duration=frames / rate,
+            )
+        )
     for overlay in edl.overlays:
         inputs += ["-i", str(overlay.file)]
 
@@ -301,7 +482,7 @@ def render_edl(
         # selected material happens to be quiet. The measurement decodes audio
         # only, so it costs a fraction of the render it informs -- and it lets
         # loudnorm run in its accurate linear mode rather than guessing.
-        audio_graph, audio_label = build_audio_graph(edl, infos)
+        audio_graph, audio_label = build_audio_graph(edl, render_ranges)
         if quality.two_pass_loudness:
             measured = measure_loudness(inputs, audio_graph, audio_label)
         else:
@@ -311,10 +492,19 @@ def render_edl(
             log.info("selected audio is silent; skipping loudness normalisation")
 
     graph, vlabel, alabel = build_filtergraph(
-        edl, infos, canvas=canvas, fps=fps, caption_file=caption_file, loudnorm=loudnorm
+        edl,
+        render_ranges,
+        canvas=canvas,
+        fps=fps,
+        caption_file=caption_file,
+        loudnorm=loudnorm,
     )
 
+    output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
+    staging = _render_staging_dir()
+    staged = staging / f"{output.stem}-{uuid4().hex}.mp4"
+    total_frames = sum(frame_counts)
     args = [
         "-y",
         *inputs,
@@ -332,6 +522,8 @@ def render_edl(
         str(quality.crf),
         "-pix_fmt",
         "yuv420p",
+        "-tag:v",
+        "avc1",
         "-colorspace",
         "bt709",
         "-color_primaries",
@@ -344,9 +536,17 @@ def render_edl(
         "192k",
         "-ar",
         "48000",
+        "-ac",
+        "2",
+        "-vsync",
+        "cfr",
+        "-r",
+        fps,
+        "-frames:v",
+        str(total_frames),
         "-movflags",
         "+faststart",
-        str(output),
+        str(staged),
     ]
     log.info(
         "rendering %s: %d range(s), %dx%d @ %s, quality=%s",
@@ -357,9 +557,18 @@ def render_edl(
         fps,
         quality.name,
     )
-    run_ffmpeg(args, desc=f"render {output.name}", timeout=14400)
-
-    rendered = probe(output)
+    try:
+        run_ffmpeg(args, desc=f"render {output.name}", timeout=14400)
+        rendered = probe(staged)
+        run_ffmpeg(
+            ["-v", "error", "-i", str(staged), "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"],
+            desc=f"decode validation for {output.name}",
+            timeout=14400,
+        )
+        _publish_atomic(staged, output)
+        rendered = probe(output)
+    finally:
+        staged.unlink(missing_ok=True)
     return RenderManifest(
         output=str(output),
         edl=edl.name,
@@ -374,6 +583,30 @@ def render_edl(
         loudness_target_lufs=LOUDNORM_I if loudnorm else None,
         sources_used=edl.source_ids(),
     )
+
+
+def _publish_atomic(staged: Path, output: Path) -> None:
+    """Copy across filesystems under a private name, then atomically publish."""
+    partial = output.with_name(f".{output.name}.{uuid4().hex}.partial")
+    try:
+        shutil.copy2(staged, partial)
+        with partial.open("rb") as handle:
+            os.fsync(handle.fileno())
+        partial.replace(output)
+    finally:
+        partial.unlink(missing_ok=True)
+
+
+def _render_staging_dir() -> Path:
+    """Return a writable Linux-side directory for unpublished renders."""
+    preferred = app_home() / "render-staging"
+    try:
+        preferred.mkdir(parents=True, exist_ok=True)
+        return preferred
+    except OSError:
+        fallback = Path(tempfile.gettempdir()) / "social-video-agent" / "render-staging"
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
 
 
 def _quick_silence_check(inputs: list[str], audio_graph: str, audio_label: str):

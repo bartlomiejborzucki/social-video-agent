@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import sys
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import typer
 from rich.console import Console
@@ -507,20 +509,37 @@ def edit(
 def render(
     workspace_dir: Path = typer.Argument(..., help="Workspace containing edl.json."),
     quality: str = typer.Option("final", "--quality"),
+    output: Path | None = typer.Option(
+        None, "--output", "-o", help="Exact destination for preview.mp4 or final.mp4."
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Render the EDL already in a workspace. Deterministic and repeatable."""
+    from social_video.paths import normalize_user_path
     from social_video.pipeline import load_workspace_artifacts, stage_render
     from social_video.workspace.layout import Workspace
 
+    if quality not in ("draft", "preview", "final"):
+        err_console.print(f"[red]error:[/red] unknown quality {quality!r}")
+        raise typer.Exit(1)
     ws = Workspace.at(workspace_dir)
     manifest, edl = _guard(lambda: load_workspace_artifacts(ws))
+    destination = _guard(lambda: normalize_user_path(output)) if output else None
+    if destination is not None:
+        source_paths = {entry.resolved_path().resolve() for entry in manifest.sources}
+        if destination.resolve(strict=False) in source_paths:
+            err_console.print("[red]error:[/red] output must not overwrite source media")
+            raise typer.Exit(1)
     captions = Path(edl.captions) if edl.captions else None
-    output = _guard(lambda: stage_render(edl, manifest, ws, quality=quality, captions=captions))
+    rendered = _guard(
+        lambda: stage_render(
+            edl, manifest, ws, quality=quality, captions=captions, output=destination
+        )
+    )
     if as_json:
-        console.print_json(json.dumps({"output": str(output)}))
+        console.print_json(json.dumps({"output": str(rendered), "quality": quality}))
         return
-    console.print(f"[green]rendered[/green] {output}", soft_wrap=True)
+    console.print(f"[green]rendered[/green] {rendered}", soft_wrap=True)
 
 
 @app.command()
@@ -550,18 +569,48 @@ def qa(
     raise typer.Exit(0 if report.passed else 1)
 
 
+@app.command("apply-editorial-qa")
+def apply_editorial_review(
+    workspace_dir: Path = typer.Argument(..., help="Workspace containing qa-editorial.json."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Apply only the supervising editor's validated fixes to edl.json."""
+    from social_video.editorial.review import apply_editorial_qa
+    from social_video.schemas.base import load_artifact, save_artifact
+    from social_video.schemas.editorial_qa import EditorialQA
+    from social_video.schemas.edl import EDL
+    from social_video.workspace.layout import Workspace
+
+    ws = Workspace.at(workspace_dir)
+    edl = _guard(lambda: load_artifact(EDL, ws.edl))
+    review = _guard(lambda: load_artifact(EditorialQA, ws.editorial_qa))
+    updated, changed = _guard(lambda: apply_editorial_qa(edl, review))
+    if changed:
+        _guard(lambda: save_artifact(updated, ws.edl))
+    result = {"status": review.status.value, "changed": changed, "edl": str(ws.edl)}
+    if as_json:
+        console.print_json(json.dumps(result))
+    else:
+        verb = "updated" if changed else "approved without changes"
+        console.print(f"[green]{verb}[/green] {ws.edl}", soft_wrap=True)
+
+
 def _print_qa(report) -> None:
     console.print("[bold]QA[/bold]")
     for check in report.checks:
         if check.passed:
             mark = "[green]ok[/green]  "
+        elif check.accepted:
+            mark = "[cyan]accepted[/cyan]"
         elif check.severity.value == "error":
             mark = "[red]FAIL[/red]"
         else:
             mark = "[yellow]warn[/yellow]"
         console.print(f"  {mark} {escape(check.name)}: {escape(check.message)}")
-    if report.passed:
+    if report.status == "passed":
         console.print("[green]passed[/green]")
+    elif report.status == "passed_with_warnings":
+        console.print("[yellow]passed_with_warnings[/yellow]")
     else:
         console.print(f"[red]{len(report.errors)} problem(s)[/red]")
         if report.exhausted:
@@ -592,7 +641,14 @@ def _guard(fn):
 
 def _copy_output(source: Path, destination: Path) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, destination)
+    partial = destination.with_name(f".{destination.name}.{uuid4().hex}.partial")
+    try:
+        shutil.copy2(source, partial)
+        with partial.open("rb") as handle:
+            os.fsync(handle.fileno())
+        partial.replace(destination)
+    finally:
+        partial.unlink(missing_ok=True)
     return destination
 
 

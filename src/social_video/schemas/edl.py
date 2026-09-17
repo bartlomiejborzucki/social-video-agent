@@ -30,6 +30,14 @@ class ReframeMode(str, Enum):
     SPLIT_STACK = "split_stack"
 
 
+class VisualFillStrategy(str, Enum):
+    """Explicit editorial choice for visual time beyond the primary shot."""
+
+    FREEZE = "intentional_hold"
+    SECONDARY_VIDEO = "secondary_video"
+    END_CARD = "end_card"
+
+
 class CropKeyframe(Artifact):
     """Crop-window position at a point in time, in source pixels."""
 
@@ -117,6 +125,51 @@ class EDLRange(Artifact):
     grade: str = ""
     transition_in: str = "cut"
 
+    # Optional split A/V sources. Existing v1 EDLs keep using source/start/end.
+    video_source: str | None = None
+    audio_source: str | None = None
+    video_start: float | None = Field(default=None, ge=0.0)
+    video_end: float | None = Field(default=None, gt=0.0)
+    audio_start: float | None = Field(default=None, ge=0.0)
+    audio_end: float | None = Field(default=None, gt=0.0)
+    freeze_at: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Source timestamp of the last safe frame; it is held to the range end.",
+    )
+    freeze_duration: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Exact output duration of an intentional last-frame hold.",
+    )
+    max_static_hold: float = Field(
+        default=0.75,
+        gt=0.0,
+        description="Maximum unapproved static hold, in output seconds.",
+    )
+    intentional_hold: bool = False
+    visual_fill_strategy: VisualFillStrategy | None = None
+    visual_fill_reason: str = ""
+    secondary_video_source: str | None = None
+    secondary_video_start: float | None = Field(default=None, ge=0.0)
+    secondary_video_end: float | None = Field(default=None, gt=0.0)
+    end_card_source: str | None = None
+    end_card_start: float | None = Field(default=None, ge=0.0)
+    end_card_end: float | None = Field(default=None, gt=0.0)
+    hold_last_frame_until: float | None = Field(
+        default=None,
+        gt=0.0,
+        description="Minimum output duration of this range, in seconds.",
+    )
+    max_visual_source_time: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Hard privacy boundary; frames after this source time may not appear.",
+    )
+    technical_reason: str = Field(
+        default="", description="Technical justification for split A/V, freeze, or privacy limit."
+    )
+
     @model_validator(mode="after")
     def _check_interval(self) -> EDLRange:
         if self.end <= self.start:
@@ -124,7 +177,115 @@ class EDLRange(Artifact):
                 f"range on source {self.source!r} ends at {self.end} which is not after "
                 f"its start {self.start}"
             )
+        for kind, start, end in (
+            ("video", self.effective_video_start, self.effective_video_end),
+            ("audio", self.effective_audio_start, self.effective_audio_end),
+        ):
+            if end <= start:
+                raise ValueError(f"{kind} end {end} is not after its start {start}")
+        limit = self.max_visual_source_time
+        declared_video_end = self.video_end if self.video_end is not None else self.end
+        if self.freeze_at is not None and not (
+            self.effective_video_start <= self.freeze_at <= declared_video_end
+        ):
+            raise ValueError("freeze_at must lie inside the effective video interval")
+        if limit is not None and limit < self.effective_video_start:
+            raise ValueError("max_visual_source_time must not precede video_start")
+        if self.freeze_at is not None and limit is not None and self.freeze_at > limit:
+            raise ValueError("freeze_at must not exceed max_visual_source_time")
+        gap = self.unfilled_visual_duration
+        if gap > 0.001:
+            if self.visual_fill_strategy is None:
+                raise ValueError(
+                    f"audio/timeline outlasts safe moving video by {gap:.3f}s; set an explicit "
+                    "visual_fill_strategy"
+                )
+            self._check_visual_fill(gap)
+        elif self.visual_fill_strategy is not None:
+            self._check_visual_fill(0.0)
         return self
+
+    def _check_visual_fill(self, required: float) -> None:
+        strategy = self.visual_fill_strategy
+        reason = self.visual_fill_reason or self.technical_reason or self.reason
+        if strategy is VisualFillStrategy.FREEZE:
+            if self.freeze_at is None or self.freeze_duration is None:
+                raise ValueError("intentional_hold requires freeze_at and freeze_duration")
+            if self.freeze_duration + 0.001 < required:
+                raise ValueError(
+                    f"freeze_duration {self.freeze_duration:.3f}s does not fill the "
+                    f"required {required:.3f}s"
+                )
+            if self.freeze_duration > self.max_static_hold and not self.intentional_hold:
+                raise ValueError(
+                    f"freeze_duration exceeds max_static_hold={self.max_static_hold:.2f}s; "
+                    "a longer hold requires intentional_hold=true and a reason"
+                )
+            if self.intentional_hold and not reason.strip():
+                raise ValueError("intentional_hold=true requires a written reason")
+            return
+        if self.intentional_hold or self.freeze_duration is not None:
+            raise ValueError("intentional_hold and freeze_duration are only valid for a hold")
+        if strategy is VisualFillStrategy.SECONDARY_VIDEO:
+            source = self.secondary_video_source
+            start = self.secondary_video_start
+            end = self.secondary_video_end
+            label = "secondary video"
+        else:
+            source = self.end_card_source
+            start = self.end_card_start
+            end = self.end_card_end
+            label = "end card"
+        if source is None or start is None or end is None or end <= start:
+            raise ValueError(f"{label} strategy requires a source and valid start/end")
+        available = (end - start) / self.speed
+        if available + 0.001 < required:
+            raise ValueError(f"{label} provides {available:.3f}s but {required:.3f}s is required")
+        if not reason.strip():
+            raise ValueError(f"{label} strategy requires a written reason")
+
+    @property
+    def effective_video_source(self) -> str:
+        return self.video_source or self.source
+
+    @property
+    def effective_audio_source(self) -> str:
+        return self.audio_source or self.source
+
+    @property
+    def effective_video_start(self) -> float:
+        return self.video_start if self.video_start is not None else self.start
+
+    @property
+    def effective_video_end(self) -> float:
+        end = self.video_end if self.video_end is not None else self.end
+        if self.max_visual_source_time is not None:
+            end = min(end, self.max_visual_source_time)
+        return end
+
+    @property
+    def effective_audio_start(self) -> float:
+        return self.audio_start if self.audio_start is not None else self.start
+
+    @property
+    def effective_audio_end(self) -> float:
+        return self.audio_end if self.audio_end is not None else self.end
+
+    @property
+    def visual_content_end(self) -> float:
+        return min(self.freeze_at or self.effective_video_end, self.effective_video_end)
+
+    @property
+    def video_duration(self) -> float:
+        return self.effective_video_end - self.effective_video_start
+
+    @property
+    def primary_visual_output_duration(self) -> float:
+        return (self.visual_content_end - self.effective_video_start) / self.speed
+
+    @property
+    def audio_duration(self) -> float:
+        return self.effective_audio_end - self.effective_audio_start
 
     @property
     def duration(self) -> float:
@@ -132,9 +293,33 @@ class EDLRange(Artifact):
         return self.end - self.start
 
     @property
+    def unfilled_visual_duration(self) -> float:
+        target = max(
+            self.audio_duration / self.speed,
+            self.hold_last_frame_until or 0.0,
+        )
+        return max(0.0, target - self.primary_visual_output_duration)
+
+    @property
+    def declared_visual_fill_duration(self) -> float:
+        if self.visual_fill_strategy is VisualFillStrategy.FREEZE:
+            return self.freeze_duration or 0.0
+        if self.visual_fill_strategy is VisualFillStrategy.SECONDARY_VIDEO:
+            if self.secondary_video_start is None or self.secondary_video_end is None:
+                return 0.0
+            return (self.secondary_video_end - self.secondary_video_start) / self.speed
+        if self.visual_fill_strategy is VisualFillStrategy.END_CARD:
+            if self.end_card_start is None or self.end_card_end is None:
+                return 0.0
+            return (self.end_card_end - self.end_card_start) / self.speed
+        return 0.0
+
+    @property
     def output_duration(self) -> float:
         """Duration this range occupies in the output."""
-        return self.duration / self.speed
+        visual = self.primary_visual_output_duration + self.declared_visual_fill_duration
+        natural = max(visual, self.audio_duration / self.speed)
+        return max(natural, self.hold_last_frame_until or 0.0)
 
 
 class EDL(Artifact):
@@ -155,6 +340,10 @@ class EDL(Artifact):
     captions: str | None = Field(default=None, description="Path to a CaptionTrack artifact.")
     brand_profile: str | None = None
     normalize_audio: bool = True
+    accepted_qa_warnings: list[str] = Field(
+        default_factory=list,
+        description="Exact QA check names explicitly accepted by the supervising editor.",
+    )
 
     @model_validator(mode="after")
     def _check_canvas(self) -> EDL:
@@ -173,6 +362,14 @@ class EDL(Artifact):
     def source_ids(self) -> list[str]:
         seen: list[str] = []
         for r in self.ranges:
-            if r.source not in seen:
-                seen.append(r.source)
+            for source_id in (
+                r.effective_video_source,
+                r.effective_audio_source,
+                r.secondary_video_source,
+                r.end_card_source,
+            ):
+                if source_id is None:
+                    continue
+                if source_id not in seen:
+                    seen.append(source_id)
         return seen

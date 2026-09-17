@@ -12,9 +12,18 @@ import json
 import pytest
 from pydantic import ValidationError as PydanticError
 
+from social_video.editorial.review import apply_editorial_qa
 from social_video.errors import ValidationError
 from social_video.schemas.base import SCHEMA_VERSION, load_artifact, save_artifact
-from social_video.schemas.edl import EDL, CropKeyframe, EDLRange, ReframeMode, ReframePlan
+from social_video.schemas.editorial_qa import EditorialFix, EditorialQA, EditorialQAStatus
+from social_video.schemas.edl import (
+    EDL,
+    CropKeyframe,
+    EDLRange,
+    ReframeMode,
+    ReframePlan,
+    VisualFillStrategy,
+)
 from social_video.schemas.source import SourceEntry, SourceManifest
 
 
@@ -37,6 +46,82 @@ class TestEDLRange:
     def test_rejects_absurd_speed(self):
         with pytest.raises(PydanticError):
             EDLRange(source="a", start=0, end=1, speed=0)
+
+    def test_split_av_and_freeze_define_one_output_range(self):
+        item = EDLRange(
+            source="video",
+            start=0,
+            end=2,
+            audio_source="voice",
+            audio_start=3,
+            audio_end=6,
+            freeze_at=1.5,
+            freeze_duration=1.5,
+            max_visual_source_time=1.5,
+            visual_fill_strategy=VisualFillStrategy.FREEZE,
+            intentional_hold=True,
+            technical_reason="Do not show frames after the approved privacy boundary.",
+        )
+        assert item.effective_video_source == "video"
+        assert item.effective_audio_source == "voice"
+        assert item.visual_content_end == 1.5
+        assert item.output_duration == 3.0
+
+    def test_freeze_cannot_cross_privacy_boundary(self):
+        with pytest.raises(PydanticError, match="max_visual_source_time"):
+            EDLRange(
+                source="video",
+                start=0,
+                end=2,
+                freeze_at=1.8,
+                max_visual_source_time=1.5,
+            )
+
+    def test_long_audio_and_7_10_safe_video_requires_fill_strategy(self):
+        with pytest.raises(PydanticError, match=r"outlasts safe moving video by 3\.760s"):
+            EDLRange(
+                source="b-roll",
+                start=0,
+                end=10.86,
+                video_end=10.86,
+                audio_end=10.86,
+                freeze_at=7.10,
+                max_visual_source_time=7.10,
+            )
+
+    def test_short_explicit_freeze_below_default_limit_is_allowed(self):
+        item = EDLRange(
+            source="b-roll",
+            start=0,
+            end=7.7,
+            freeze_at=7.0,
+            max_visual_source_time=7.0,
+            freeze_duration=0.7,
+            visual_fill_strategy=VisualFillStrategy.FREEZE,
+            visual_fill_reason="Brief hold to finish the final word.",
+        )
+        assert item.output_duration == pytest.approx(7.7)
+
+    def test_long_freeze_requires_explicit_approval_and_reason(self):
+        common = {
+            "source": "b-roll",
+            "start": 0,
+            "end": 10.86,
+            "freeze_at": 7.10,
+            "max_visual_source_time": 7.10,
+            "freeze_duration": 3.76,
+            "visual_fill_strategy": VisualFillStrategy.FREEZE,
+        }
+        with pytest.raises(PydanticError, match="max_static_hold"):
+            EDLRange(**common)
+        with pytest.raises(PydanticError, match="written reason"):
+            EDLRange(**common, intentional_hold=True)
+        approved = EDLRange(
+            **common,
+            intentional_hold=True,
+            visual_fill_reason="Deliberate still ending approved by the supervising editor.",
+        )
+        assert approved.freeze_duration == 3.76
 
 
 class TestEDL:
@@ -183,3 +268,61 @@ class TestPersistence:
     def test_missing_file(self, tmp_path):
         with pytest.raises(ValidationError, match="not found"):
             load_artifact(EDL, tmp_path / "nope.json")
+
+
+class TestEditorialQA:
+    def test_approved_is_always_an_explicit_empty_contract(self):
+        qa = EditorialQA(status=EditorialQAStatus.APPROVED, fixes=[])
+        assert qa.model_dump(mode="json") == {
+            "schema_version": SCHEMA_VERSION,
+            "status": "approved",
+            "fixes": [],
+        }
+
+    def test_changes_requested_requires_exact_fixes(self):
+        qa = EditorialQA(
+            status=EditorialQAStatus.CHANGES_REQUESTED,
+            fixes=[EditorialFix(path="ranges[2].end", value=4.2, reason="trim pause")],
+        )
+        assert qa.fixes[0].path == "ranges[2].end"
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"status": "approved", "fixes": [{"path": "ranges[0].end", "value": 1}]},
+            {"status": "changes_requested", "fixes": []},
+            {"status": "maybe", "fixes": []},
+            {"status": "approved", "fixes": [], "unknown": True},
+        ],
+    )
+    def test_rejects_ambiguous_or_unknown_contracts(self, payload):
+        with pytest.raises(PydanticError):
+            EditorialQA.model_validate(payload)
+
+    def test_approved_does_not_change_edl(self):
+        edl = EDL(ranges=[EDLRange(source="a", start=0, end=2)])
+        updated, changed = apply_editorial_qa(
+            edl, EditorialQA(status=EditorialQAStatus.APPROVED, fixes=[])
+        )
+        assert updated is edl
+        assert not changed
+
+    def test_applies_only_the_listed_fix(self):
+        edl = EDL(ranges=[EDLRange(source="a", start=0, end=2, quote="keep")])
+        review = EditorialQA(
+            status=EditorialQAStatus.CHANGES_REQUESTED,
+            fixes=[EditorialFix(path="ranges[0].end", value=1.5, reason="tighten")],
+        )
+        updated, changed = apply_editorial_qa(edl, review)
+        assert changed
+        assert updated.ranges[0].end == 1.5
+        assert updated.ranges[0].quote == "keep"
+
+    def test_rejects_fix_for_unknown_path(self):
+        edl = EDL(ranges=[EDLRange(source="a", start=0, end=2)])
+        review = EditorialQA(
+            status=EditorialQAStatus.CHANGES_REQUESTED,
+            fixes=[EditorialFix(path="ranges[7].end", value=1.5)],
+        )
+        with pytest.raises(ValidationError, match="does not exist"):
+            apply_editorial_qa(edl, review)

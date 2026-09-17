@@ -51,8 +51,16 @@ class Workspace:
     # -- directories -------------------------------------------------------
 
     @property
+    def heavy_root(self) -> Path:
+        """High-I/O data stays in Linux even for an explicit /mnt workspace."""
+        if is_wsl_mount_path(self.root):
+            digest = hashlib.sha256(str(self.root).encode("utf-8")).hexdigest()[:12]
+            return app_home() / "workspaces" / f"external-{digest}" / "edit"
+        return self.root
+
+    @property
     def cache(self) -> Path:
-        return self.root / "cache"
+        return self.heavy_root / "cache"
 
     @property
     def transcripts(self) -> Path:
@@ -76,15 +84,15 @@ class Workspace:
 
     @property
     def previews(self) -> Path:
-        return self.root / "previews"
+        return self.heavy_root / "previews"
 
     @property
     def qa(self) -> Path:
-        return self.root / "qa"
+        return self.heavy_root / "qa"
 
     @property
     def renders(self) -> Path:
-        return self.root / "renders"
+        return self.heavy_root / "renders"
 
     @property
     def segments(self) -> Path:
@@ -93,7 +101,7 @@ class Workspace:
 
     @property
     def final(self) -> Path:
-        return self.root / "final"
+        return self.heavy_root / "final"
 
     # -- files -------------------------------------------------------------
 
@@ -113,6 +121,10 @@ class Workspace:
     @property
     def edl(self) -> Path:
         return self.root / "edl.json"
+
+    @property
+    def editorial_qa(self) -> Path:
+        return self.root / "qa-editorial.json"
 
     @property
     def packed_transcript(self) -> Path:

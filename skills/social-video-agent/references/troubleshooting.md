@@ -36,6 +36,19 @@ and applied. `inspect` shows stored size, display size, and rotation separately.
 **Cuts sound abrupt.** Cut boundaries snap to word edges and carry short fades.
 If it still feels tight, raise `cut_padding` in the profile.
 
+**VLC has no sound, Windows playback stutters, or audio bitrate is absurd.**
+Re-render with the current CLI and run `social-video-agent qa WORKSPACE`. QA now
+blocks nonstandard VFR output, compressed/non-monotonic AAC timestamps, wrong
+AAC cadence, stream-duration mismatch, and incomplete decoding. Do not repair
+the file with an external post-trim.
+
+**The ending looks frozen.** Audio outlasts the safe moving image and the EDL
+lacks a suitable visual ending. Choose a second approved B-roll shot, adjust
+its timing, use an approved return shot, trim only at an edit-plan-approved
+sentence boundary, or provide a designed end card. A sub-0.75-second hold may
+be declared explicitly. Longer holds need supervising-editor approval and a
+reason; automatic zooms, loops, and synthetic motion are not fixes.
+
 **The edit feels over-cut.** Use a more restrained profile (`calm-expert`), or
 raise `max_pause` and `min_pause`. The mechanical pass only removes dead air,
 isolated filler, and repeated phrases — everything else was your decision.

@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from social_video.ffmpeg.filters import crop_position_expression
-from social_video.ffmpeg.probe import _normalise_rotation, _pick_frame_rate, parse_fps
+from social_video.ffmpeg.probe import (
+    MediaInfo,
+    VideoStream,
+    _normalise_rotation,
+    _pick_frame_rate,
+    parse_fps,
+    resolve_output_fps,
+)
 from social_video.schemas.transcript import TokenType, Transcript, TranscriptToken
 from social_video.transcribe.normalize import synthesize_spacing
 from social_video.transcript.pack import format_duration, group_phrases, pack_transcript
@@ -71,6 +80,43 @@ class TestPickFrameRate:
 
     def test_defaults_when_both_are_useless(self):
         assert _pick_frame_rate({}) == "30/1"
+
+
+class TestResolveOutputFrameRate:
+    @staticmethod
+    def media(average: str, nominal: str) -> MediaInfo:
+        video = VideoStream(
+            index=0,
+            codec="h264",
+            width=1920,
+            height=1080,
+            rotation=0,
+            frame_rate=average,
+            nominal_frame_rate=nominal,
+            pix_fmt="yuv420p",
+            color_transfer="bt709",
+            nb_frames=None,
+        )
+        return MediaInfo(Path("phone.mp4"), 57.5, 1, "mov,mp4", video, ())
+
+    def test_phone_average_does_not_leak_into_output(self):
+        source = self.media("375000/12493", "30/1")
+        assert resolve_output_fps([source]) == "30/1"
+
+    @pytest.mark.parametrize(
+        ("nominal", "expected"),
+        [
+            ("30000/1001", "30000/1001"),
+            ("60000/1001", "60000/1001"),
+            ("60/1", "60/1"),
+            ("25/1", "30/1"),
+        ],
+    )
+    def test_maps_sources_to_social_compatibility_rates(self, nominal, expected):
+        assert resolve_output_fps([self.media(nominal, nominal)]) == expected
+
+    def test_explicit_override_remains_authoritative(self):
+        assert resolve_output_fps([self.media("30/1", "30/1")], "24000/1001") == ("24000/1001")
 
 
 class TestSynthesizeSpacing:

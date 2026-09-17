@@ -34,39 +34,78 @@ def validate_edl(
 
     known = set(manifest.ids)
     for index, rng in enumerate(edl.ranges):
-        where = f"ranges[{index}] (source {rng.source!r}, {rng.start:.2f}-{rng.end:.2f})"
-
-        if rng.source not in known:
-            problems.append(
-                f"{where}: unknown source. Manifest has: {', '.join(sorted(known)) or '<none>'}"
+        where = f"ranges[{index}]"
+        uses = (
+            (
+                "video",
+                rng.effective_video_source,
+                rng.effective_video_start,
+                rng.visual_content_end,
+            ),
+            (
+                "audio",
+                rng.effective_audio_source,
+                rng.effective_audio_start,
+                rng.effective_audio_end,
+            ),
+        )
+        optional_uses: list[tuple[str, str, float, float]] = []
+        if rng.secondary_video_source is not None:
+            optional_uses.append(
+                (
+                    "secondary video",
+                    rng.secondary_video_source,
+                    rng.secondary_video_start or 0.0,
+                    rng.secondary_video_end or 0.0,
+                )
             )
-            continue
-
-        entry = manifest.by_id(rng.source)
-        path = Path(entry.path)
-        if check_media and not path.is_file():
-            problems.append(f"{where}: source file is missing at {path}")
-            continue
-
-        duration = entry.duration
-        if check_media and duration <= 0:
-            try:
-                duration = probe(path).duration
-            # A probe failure here is reported as a problem below.
-            except Exception:
-                duration = 0.0
-
-        if duration > 0 and rng.start >= duration:
-            problems.append(
-                f"{where}: starts at {rng.start:.2f}s but the source is only {duration:.2f}s long"
+        if rng.end_card_source is not None:
+            optional_uses.append(
+                (
+                    "end card",
+                    rng.end_card_source,
+                    rng.end_card_start or 0.0,
+                    rng.end_card_end or 0.0,
+                )
             )
-        elif duration > 0 and rng.end > duration + END_TOLERANCE:
-            problems.append(
-                f"{where}: ends at {rng.end:.2f}s, past the end of a {duration:.2f}s source"
-            )
+        for kind, source_id, start, end in (*uses, *optional_uses):
+            detail = f"{where} ({kind} source {source_id!r}, {start:.2f}-{end:.2f})"
+            if source_id not in known:
+                problems.append(
+                    f"{detail}: unknown source. Manifest has: "
+                    f"{', '.join(sorted(known)) or '<none>'}"
+                )
+                continue
+            entry = manifest.by_id(source_id)
+            path = Path(entry.path)
+            if check_media and not path.is_file():
+                problems.append(f"{detail}: source file is missing at {path}")
+                continue
+            duration = entry.duration
+            if check_media and duration <= 0:
+                try:
+                    duration = probe(path).duration
+                except Exception:
+                    duration = 0.0
+            if duration > 0 and start >= duration:
+                problems.append(
+                    f"{detail}: starts at {start:.2f}s but the source is only {duration:.2f}s long"
+                )
+            elif duration > 0 and end > duration + END_TOLERANCE:
+                problems.append(
+                    f"{detail}: ends at {end:.2f}s, past the end of a {duration:.2f}s source"
+                )
+            if check_media:
+                info = probe(path)
+                if kind in {"video", "secondary video", "end card"} and info.video is None:
+                    problems.append(f"{detail}: source has no video stream")
+                if kind == "audio" and rng.audio_source is not None and not info.has_audio:
+                    problems.append(f"{detail}: explicit audio_source has no audio stream")
 
-        if rng.duration < 0.05:
-            warnings.append(f"{where}: only {rng.duration * 1000:.0f}ms long; likely a mistake")
+        if rng.output_duration < 0.05:
+            warnings.append(
+                f"{where}: only {rng.output_duration * 1000:.0f}ms long; likely a mistake"
+            )
 
     total = edl.total_duration
     for index, overlay in enumerate(edl.overlays):
