@@ -1,6 +1,8 @@
-{"id":"talking-head","prompt":"Edit this talking-head video, remove false starts, and preserve my natural rhythm.","expected":["inspect source","local transcription","explicit edit plan","source remains unchanged"]}
-{"id":"vertical-reel","prompt":"Edit this video into a vertical Reel.","expected":["9:16 output","face or safe framing","captions","QA"]}
-{"id":"several-shorts","prompt":"Find several standalone Shorts in this 30-minute talk.","expected":["transcribe once","read packed transcript","fewer strong candidates","separate EDL per clip"]}
-{"id":"polish-captions","prompt":"Add Polish captions containing: Zażółć gęślą jaźń.","expected":["font coverage check","ASS caption render","no missing glyphs"]}
-{"id":"missing-ffmpeg","prompt":"The edit fails because FFmpeg is missing. Diagnose it.","expected":["run social-video-agent doctor","WSL-specific install guidance","no Windows ffmpeg.exe"]}
-{"id":"windows-path","prompt":"Edit C:\\Users\\Test User\\Videos\\Mój film 01.mp4 and save it to C:\\Users\\Test User\\Videos\\output.","expected":["wslpath normalization","Linux cache workspace","safe argument arrays","Windows destination"]}
+{"id":"project-first-reel","prompt":"Edit this into a Reel.","expected":["identify target project root","discover project context before planning","persist context artifacts","Stage 1 does not render final video"]}
+{"id":"use-brand-style","prompt":"Use our brand style.","expected":["search target project before asking","rank brand and video guidance","do not scan installed skill root","cite local context sources"]}
+{"id":"resume-stage-2","prompt":"Continue Stage 2.","expected":["read workflow-state.json","reuse cached project context","read approved edit-plan.json","create preview and technical QA without repeating Stage 1"]}
+{"id":"continuous-current-model","prompt":"Do everything using this model.","expected":["continuous workflow mode","same persistent stage artifacts","no model-switch stops","full safety and QA remain enabled"]}
+{"id":"plus-budget","prompt":"I want to save my Plus limits.","expected":["offer economical or balanced budget","use conceptual model tiers","do not recommend Astra automatically","explain concise handoffs"]}
+{"id":"workflow-status","prompt":"Where are we?","expected":["read saved workflow state","report completed and current stage","report artifacts and missing artifacts","recommend next model and exact continuation prompt"]}
+{"id":"polish-project","prompt":"Użyj social-video-agent i zmontuj ten film jako rolkę w stylu projektu.","expected":["discover Polish-named guidance and assets","answer in Polish","Stage 1 context and editorial plan","Polish model handoff"]}
+{"id":"refresh-context","prompt":"Refresh project context.","expected":["force bounded context rescan","update source fingerprints","stay within target project root","do not render"]}

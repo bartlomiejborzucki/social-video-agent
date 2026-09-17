@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "tiers": {
+    "editorial_strong": {"name": "Sol", "reasoning_effort": "high"},
+    "execution_balanced": {"name": "Terra", "reasoning_effort": "medium"},
+    "mechanical_fast": {"name": "Luna", "reasoning_effort": "low"},
+    "escalation": {"name": "Astra", "reasoning_effort": "high"}
+  },
+  "stages": {
+    "balanced": {
+      "stage_1_editorial_plan": "editorial_strong",
+      "stage_2_execution": "execution_balanced",
+      "stage_3_editorial_review": "editorial_strong",
+      "stage_4_finalization": "execution_balanced",
+      "stage_5_delivery": "mechanical_fast"
+    },
+    "economical": {
+      "stage_1_editorial_plan": "execution_balanced",
+      "stage_2_execution": "mechanical_fast",
+      "stage_3_editorial_review": "execution_balanced",
+      "stage_4_finalization": "mechanical_fast",
+      "stage_5_delivery": "mechanical_fast"
+    },
+    "quality": {
+      "stage_1_editorial_plan": "editorial_strong",
+      "stage_2_execution": "execution_balanced",
+      "stage_3_editorial_review": "editorial_strong",
+      "stage_4_finalization": "execution_balanced",
+      "stage_5_delivery": "mechanical_fast"
+    }
+  },
+  "reasons": {
+    "en": {
+      "stage_1_editorial_plan": "Project understanding and editorial decisions need strong judgement.",
+      "stage_2_execution": "The approved plan is ready for deterministic technical execution.",
+      "stage_3_editorial_review": "The preview now needs supervising-editor judgement.",
+      "stage_4_finalization": "Approved corrections and verification are execution work.",
+      "stage_5_delivery": "Delivery variants are mechanical and must not change the story."
+    },
+    "pl": {
+      "stage_1_editorial_plan": "Zrozumienie projektu i decyzje redakcyjne wymagają mocnego osądu.",
+      "stage_2_execution": "Zatwierdzony plan jest gotowy do deterministycznego wykonania technicznego.",
+      "stage_3_editorial_review": "Podgląd wymaga teraz oceny supervising editora.",
+      "stage_4_finalization": "Zatwierdzone poprawki i weryfikacja są pracą wykonawczą.",
+      "stage_5_delivery": "Warianty dostawy są mechaniczne i nie mogą zmieniać historii."
+    }
+  }
+}

@@ -59,6 +59,108 @@ For a source under `/mnt/c` or `/mnt/d`, high-I/O intermediate data is stored un
 
 Native Windows is not the primary supported runtime. There is no PowerShell launcher, `wsl.exe` bridge, native Windows execution engine, Docker service, MCP server, or cloud backend.
 
+## Project-aware editing
+
+`social-video-agent` starts from the project, not generic editing defaults. When
+invoked from a repository it performs a bounded local discovery pass before
+editorial planning. It looks for explicit `social-video.yaml` configuration,
+applicable `AGENTS.md`, brandbooks, video and tone-of-voice guidelines, fonts,
+logos, templates, and relevant design assets. It skips `.git`, dependencies,
+virtual environments, builds, caches, models, renders, and temporary frames; it
+does not recursively ingest the whole repository.
+
+The target project root is distinct from the installed plugin/skill root. All
+findings are saved per edit under:
+
+```text
+edit/context/project-context.json
+edit/context/project-context.md
+edit/context/context-sources.json
+```
+
+Explicit user instructions have highest priority, followed by project-specific
+social-video config, project instructions, video guidance, brand guidance,
+templates, the general design system, previous outputs, and finally skill
+defaults. Claims carry a source and confidence; heuristic colors or web fonts
+are not silently promoted to video rules.
+
+Inspect or refresh discovery deterministically:
+
+```bash
+social-video-agent context inspect . --workspace edit
+social-video-agent context refresh . --workspace edit
+```
+
+An optional `.social-video/config.yaml` (or `social-video.yaml`) may specify
+only the fields the project needs, for example:
+
+```yaml
+brand_name: Example
+content_language: pl
+editing_profile: calm-educational
+model_budget: balanced
+caption_style:
+  position: lower_safe_zone
+font: assets/fonts/Inter-Regular.ttf
+brand_colors: ["#F4C542"]
+logo: assets/logo.svg
+editing_guide: docs/video-guidelines.md
+```
+
+Private local brand assets may remain gitignored. Discovery reads them locally
+but never copies them into this plugin or uploads them.
+
+The root, cache, and state decisions are recorded in
+[ADR-003](docs/architecture/ADR-003-project-context-and-staged-workflow.md).
+
+## Guided multi-model workflow
+
+The default interactive workflow persists state in `edit/workflow-state.json`,
+so changing model or starting a new Codex conversation does not lose progress:
+
+```text
+Stage 0/1  Sol (high)     discovery + editorial plan       → stop
+Stage 2    Terra (medium) EDL + captions + preview + QA    → stop
+Stage 3    Sol (high)     supervising-editor review        → stop
+Stage 4    Terra (medium) approved fixes + final render
+Stage 5    Luna (low)     optional mechanical variants
+```
+
+Astra is not a normal step. It is suggested only for a genuinely difficult
+narrative reconstruction or deep technical impasse. Model names are mapped
+from stable conceptual tiers in one configuration file, so future model-name
+changes do not alter workflow schemas.
+
+Initialize and inspect a workflow:
+
+```bash
+social-video-agent workflow init interview.mp4 --project-root . --language pl
+social-video-agent workflow status edit --language pl
+social-video-agent workflow complete 1 --workspace edit --language pl
+```
+
+At each boundary the agent validates artifacts, saves state, stops, recommends
+the next model, explains why, and gives a short continuation prompt. It does
+not claim to switch the user's model automatically. Ask “Where are we?” or
+“Continue social-video-agent with Stage 2” in a new conversation to resume.
+
+Use `--workflow-mode continuous` or say “Do everything with the current model”
+to run all stages without handoff stops. “Just make it quickly” does the same,
+but context discovery, artifacts, source safety, and QA remain mandatory.
+Budgets are `economical`, `balanced`, and `quality`; Astra is never selected
+automatically.
+
+Example:
+
+> User: Use social-video-agent to turn interview.mp4 into a Reel.
+>
+> Agent: I found `docs/brandbook.pdf`, `docs/video-guidelines.md`, and
+> `assets/logo.svg`. I will use the calm educational profile and project
+> typography. Stage 1 will create the editorial plan without rendering.
+>
+> Agent after Stage 1: Stage 1 complete. Switch to Terra and send:
+> “Continue social-video-agent with Stage 2.”
+
 ## What works
 
 - Local transcription with faster-whisper, downloaded on first transcription and cached under `~/.cache/social-video-agent/models/`.
@@ -76,6 +178,9 @@ The canonical command is `social-video-agent`; `social-video` remains as a compa
 
 ```bash
 social-video-agent doctor
+social-video-agent context inspect . --workspace edit
+social-video-agent workflow init INPUT --project-root . --language en
+social-video-agent workflow status edit
 social-video-agent inspect INPUT
 social-video-agent transcribe INPUT
 social-video-agent pack WORKSPACE
@@ -162,10 +267,10 @@ The project is Apache-2.0 and incorporates attributed MIT-licensed work from [br
 
 ## Known limitations
 
-- The `edit` command creates a mechanical first pass; the skill expects Codex to review the packed transcript and revise editorial choices.
+- The legacy `edit` command remains a continuous mechanical path; normal skill use now creates a project-aware staged plan and stops at guided handoffs.
 - The multi-short workflow is agent-driven; there is no single `shorts` command yet.
 - WhisperX alignment and speaker diarization are declared optional dependencies but are not connected to the pipeline.
-- Remotion is not enabled. Node is therefore optional in v0.1.0, and no `node_modules` directory should be created on `/mnt/c`.
+- Remotion is not enabled. Node is therefore optional in v0.2.0, and no `node_modules` directory should be created on `/mnt/c`.
 - Face-aware framing follows the most prominent face, not the active speaker.
 - Actual Windows 11 `/mnt/c` acceptance must be recorded for each release; generic Linux CI is not equivalent.
 

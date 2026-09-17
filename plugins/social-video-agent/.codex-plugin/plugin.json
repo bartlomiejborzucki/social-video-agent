@@ -1,7 +1,7 @@
 {
   "name": "social-video-agent",
   "version": "0.2.0",
-  "description": "Edit source recordings into captioned social clips with deterministic local WSL tools and inspectable edit artifacts.",
+  "description": "Create project-aware social clips through a persistent staged workflow and deterministic local WSL tools.",
   "author": {
     "name": "Bartlomiej Borzucki",
     "url": "https://github.com/bartlomiejborzucki"
@@ -13,16 +13,16 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Social Video Agent",
-    "shortDescription": "Edit recordings into social clips locally",
-    "longDescription": "Turn existing recordings into vertical Reels and Shorts with local transcription, FFmpeg rendering, Polish-capable captions, and inspectable edit plans.",
+    "shortDescription": "Project-aware staged social video editing",
+    "longDescription": "Discover local project and brand guidance, plan edits in durable stages, and turn recordings into vertical Reels and Shorts with local transcription, FFmpeg rendering, Polish-capable captions, and technical and editorial QA.",
     "developerName": "Bartlomiej Borzucki",
     "category": "Creativity",
     "capabilities": ["Read", "Write"],
     "websiteURL": "https://github.com/bartlomiejborzucki/social-video-agent",
     "defaultPrompt": [
-      "Edit this video into a vertical Reel.",
-      "Remove mistakes and add readable captions.",
-      "Find the best standalone Shorts in this talk."
+      "Use social-video-agent and edit this video into a Reel.",
+      "Continue social-video-agent with Stage 2.",
+      "Show the saved project context and workflow status."
     ]
   }
 }

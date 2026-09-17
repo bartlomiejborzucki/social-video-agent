@@ -1,0 +1,55 @@
+"""Persistent multi-stage workflow state."""
+
+from __future__ import annotations
+
+from enum import Enum
+
+from pydantic import Field
+
+from social_video.schemas.base import Artifact
+
+
+class WorkflowMode(str, Enum):
+    GUIDED = "guided"
+    CONTINUOUS = "continuous"
+
+
+class ModelBudget(str, Enum):
+    ECONOMICAL = "economical"
+    BALANCED = "balanced"
+    QUALITY = "quality"
+
+
+class WorkflowStage(str, Enum):
+    EDITORIAL_PLAN = "stage_1_editorial_plan"
+    EXECUTION = "stage_2_execution"
+    EDITORIAL_REVIEW = "stage_3_editorial_review"
+    FINALIZATION = "stage_4_finalization"
+    DELIVERY = "stage_5_delivery"
+    COMPLETE = "complete"
+
+
+class WorkflowState(Artifact):
+    workflow_version: int = 1
+    target_project_root: str
+    workspace: str
+    source_media: list[str] = Field(min_length=1)
+    current_stage: WorkflowStage = WorkflowStage.EDITORIAL_PLAN
+    completed_stages: list[WorkflowStage] = Field(default_factory=list)
+    recommended_next_model_tier: str
+    recommended_next_model_name: str
+    recommended_reasoning_effort: str
+    recommendation_reason: str
+    handoff_required: bool = True
+    model_budget: ModelBudget = ModelBudget.BALANCED
+    workflow_mode: WorkflowMode = WorkflowMode.GUIDED
+    project_context_path: str
+    edit_plan_path: str
+    edl_path: str
+    preview_path: str
+    technical_qa_path: str
+    editorial_qa_path: str
+    final_output_path: str
+    delivery_manifest_path: str
+    created_at: str
+    updated_at: str

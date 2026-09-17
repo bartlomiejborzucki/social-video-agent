@@ -83,6 +83,10 @@ class Workspace:
         return self.root / "assets"
 
     @property
+    def context(self) -> Path:
+        return self.root / "context"
+
+    @property
     def previews(self) -> Path:
         return self.heavy_root / "previews"
 
@@ -127,6 +131,30 @@ class Workspace:
         return self.root / "qa-editorial.json"
 
     @property
+    def workflow_state(self) -> Path:
+        return self.root / "workflow-state.json"
+
+    @property
+    def project_context(self) -> Path:
+        return self.context / "project-context.json"
+
+    @property
+    def project_context_summary(self) -> Path:
+        return self.context / "project-context.md"
+
+    @property
+    def context_sources(self) -> Path:
+        return self.context / "context-sources.json"
+
+    @property
+    def technical_qa(self) -> Path:
+        return self.qa / "qa-technical.json"
+
+    @property
+    def delivery_manifest(self) -> Path:
+        return self.root / "delivery-manifest.json"
+
+    @property
     def packed_transcript(self) -> Path:
         return self.root / "takes-packed.md"
 
@@ -151,6 +179,7 @@ class Workspace:
             self.candidates,
             self.captions,
             self.assets,
+            self.context,
             self.previews,
             self.qa,
             self.renders,

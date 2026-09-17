@@ -52,6 +52,14 @@ class EditPlan(Artifact):
     strategy: str = Field(default="", description="The approach, in a short paragraph.")
     items: list[PlanItem] = Field(default_factory=list)
     open_questions: list[str] = Field(default_factory=list)
+    style_sources: list[str] = Field(
+        default_factory=list,
+        description="Project-context files that influenced editorial choices.",
+    )
+    user_overrides: list[str] = Field(
+        default_factory=list,
+        description="Current-request choices that intentionally override project defaults.",
+    )
 
     @property
     def kept(self) -> list[PlanItem]:

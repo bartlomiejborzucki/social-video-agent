@@ -129,6 +129,11 @@ def stage_plan(
     goal: str = "",
 ) -> EditPlan:
     plan = draft_edit_plan(transcript, profile, goal=goal)
+    if workspace.project_context.is_file():
+        from social_video.schemas.project_context import ProjectContext
+
+        context = load_artifact(ProjectContext, workspace.project_context)
+        plan.style_sources = context.style_sources
     save_artifact(plan, workspace.edit_plan)
     record_stage(workspace, "plan", {"items": len(plan.items)})
     return plan
@@ -269,6 +274,7 @@ def stage_qa(
         )
         report.artifacts.append(str(ending_sheet))
     save_artifact(report, workspace.qa / "qa-report.json")
+    save_artifact(report, workspace.technical_qa)
     record_stage(
         workspace,
         "qa",

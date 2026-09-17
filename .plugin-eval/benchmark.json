@@ -1,0 +1,106 @@
+{
+  "kind": "plugin-eval-benchmark",
+  "schemaVersion": 2,
+  "version": 2,
+  "targetKind": "skill",
+  "targetName": "social-video-agent",
+  "runner": {
+    "type": "codex-cli",
+    "model": "gpt-5.4-mini",
+    "sandbox": "workspace-write",
+    "approvalPolicy": "never",
+    "extraArgs": []
+  },
+  "workspace": {
+    "sourcePath": ".",
+    "setupMode": "copy",
+    "preserve": "on-failure"
+  },
+  "targetProvisioning": {
+    "mode": "isolated-skill-home"
+  },
+  "verifiers": {
+    "commands": [
+      ".venv/bin/pytest -q tests/unit/test_project_context.py tests/unit/test_workflow.py"
+    ]
+  },
+  "notes": [
+    "Run from the social-video-agent repository root.",
+    "This benchmark uses real isolated codex exec sessions; there is no dry-run mode.",
+    "Review model and account quota before running."
+  ],
+  "setupQuestions": [
+    "Is the run allowed to consume Codex account quota?",
+    "Should failed isolated workspaces be preserved for inspection?"
+  ],
+  "scenarios": [
+    {
+      "id": "project-first-reel",
+      "title": "Discover project context before planning a Reel",
+      "purpose": "Verify that a generic edit request starts from the target project rather than skill defaults.",
+      "userInput": "Use social-video-agent. Create a tiny fake target project with AGENTS.md, docs/brandbook.md, docs/video-guidelines.md, assets/logo.svg, and a placeholder input.mp4. Start the guided workflow for: Edit this into a Reel. Do not render media.",
+      "successChecklist": [
+        "Context discovery happens before editorial planning.",
+        "The target project and installed skill roots remain distinct.",
+        "Project-context artifacts and workflow-state.json exist.",
+        "The run stops in Stage 1 without a final render."
+      ]
+    },
+    {
+      "id": "brand-discovery",
+      "title": "Use local brand style without a questionnaire",
+      "purpose": "Verify bounded local discovery and source-backed style claims.",
+      "userInput": "Use our brand style for this Reel. Inspect the current target project first and show which local files support the style choices. Do not scan node_modules or any installed skill directory.",
+      "successChecklist": [
+        "Likely brand and video files are searched before asking for discoverable facts.",
+        "Ignored/vendor directories are not treated as context.",
+        "Claims distinguish explicit guidance from hints and cite local paths."
+      ]
+    },
+    {
+      "id": "resume-stage-2",
+      "title": "Resume Stage 2 from files",
+      "purpose": "Verify cross-conversation state recovery without repeating editorial discovery.",
+      "userInput": "Continue social-video-agent with Stage 2. Use workflow-state.json and the existing context and edit plan. Report missing prerequisites instead of restarting Stage 1.",
+      "successChecklist": [
+        "workflow-state.json is read first.",
+        "Cached context and edit plan are reused.",
+        "Stage 1 is not repeated.",
+        "The expected Stage 2 artifacts and next handoff are identified."
+      ]
+    },
+    {
+      "id": "continuous-mode",
+      "title": "One-model continuous mode",
+      "purpose": "Verify that opting out of model switches preserves the staged safety contract.",
+      "userInput": "Do everything using this model. Explain how social-video-agent will continue without model-switch stops while retaining artifacts and QA.",
+      "successChecklist": [
+        "Continuous mode is selected.",
+        "All normal stage artifacts and checks remain required.",
+        "No automatic model switch is claimed."
+      ]
+    },
+    {
+      "id": "economical-guidance",
+      "title": "Budget-conscious model routing",
+      "purpose": "Verify economical guidance without routine Astra use.",
+      "userInput": "I want to save my Plus limits. Configure the social-video-agent workflow economically and explain the next model handoff.",
+      "successChecklist": [
+        "Economical mode uses conceptual model tiers.",
+        "Astra is not selected automatically.",
+        "The recommendation includes an exact short continuation prompt."
+      ]
+    },
+    {
+      "id": "workflow-status",
+      "title": "Status and resume UX",
+      "purpose": "Verify concise state reporting suitable for a new conversation.",
+      "userInput": "Where are we? Inspect the saved social-video workflow and tell me the current stage, completed stages, artifacts, missing files, next model, and exact prompt.",
+      "successChecklist": [
+        "The answer derives from workflow-state.json rather than chat history.",
+        "Required and missing artifacts are explicit.",
+        "The next model and localized continuation prompt are concise."
+      ]
+    }
+  ]
+}

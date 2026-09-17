@@ -8,6 +8,11 @@ rather than reaching ffmpeg.
 
 ```
 edit/
+  workflow-state.json     persistent stage/model handoff state
+  context/
+    project-context.json  structured project facts and decisions
+    project-context.md    compact human-readable summary
+    context-sources.json  ranked source paths, confidence, fingerprints
   project.md              your notes and the user's standing preferences
   source-manifest.json    what the sources are, probed
   transcripts/            canonical transcript per source
@@ -32,6 +37,8 @@ edit/
   "goal": "60 second educational Reel",
   "profile": "educational",
   "strategy": "Open on the claim, drop the setup, end on the example.",
+  "style_sources": ["docs/video-guidelines.md", "docs/brandbook.pdf"],
+  "user_overrides": ["Make this one faster than the calm project default."],
   "items": [
     {"action": "drop", "source": "talk", "start": 0.0, "end": 12.4,
      "reason": "throat-clearing before the real opening"},

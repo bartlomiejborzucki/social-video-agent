@@ -36,6 +36,14 @@ from social_video.schemas.plan import (
     PlanAction,
     PlanItem,
 )
+from social_video.schemas.project_context import (
+    ContextClaim,
+    ContextConfidence,
+    ContextSource,
+    ContextSources,
+    ProjectConfig,
+    ProjectContext,
+)
 from social_video.schemas.qa import QACheck, QAReport, QASeverity, RenderManifest
 from social_video.schemas.source import SourceEntry, SourceManifest
 from social_video.schemas.transcript import (
@@ -44,6 +52,7 @@ from social_video.schemas.transcript import (
     TranscriptSegment,
     TranscriptToken,
 )
+from social_video.schemas.workflow import ModelBudget, WorkflowMode, WorkflowStage, WorkflowState
 
 __all__ = [
     "EDL",
@@ -59,16 +68,23 @@ __all__ = [
     "CaptionTrack",
     "CaptionWord",
     "ClipCandidate",
+    "ContextClaim",
+    "ContextConfidence",
+    "ContextSource",
+    "ContextSources",
     "CropKeyframe",
     "EDLRange",
     "EditPlan",
     "EditorialFix",
     "EditorialQA",
     "EditorialQAStatus",
+    "ModelBudget",
     "OutputProfile",
     "Overlay",
     "PlanAction",
     "PlanItem",
+    "ProjectConfig",
+    "ProjectContext",
     "QACheck",
     "QAReport",
     "QASeverity",
@@ -82,6 +98,9 @@ __all__ = [
     "TranscriptSegment",
     "TranscriptToken",
     "VisualFillStrategy",
+    "WorkflowMode",
+    "WorkflowStage",
+    "WorkflowState",
     "load_artifact",
     "save_artifact",
 ]

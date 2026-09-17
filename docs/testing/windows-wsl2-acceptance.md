@@ -6,6 +6,12 @@ Run this checklist on a real Windows 11 machine. Generic Linux CI does not prove
 - [ ] Clone the repository to `~/projects/social-video-agent`, not `/mnt/c`.
 - [ ] Run `./scripts/wsl/bootstrap.sh`.
 - [ ] Run `social-video-agent doctor`; the final summary is `READY`.
+- [ ] From a separate fake target project containing `AGENTS.md`, brand/video
+      docs, and a logo, run `social-video-agent workflow init ... --project-root
+      ...`; verify only target-project files appear in `context-sources.json`.
+- [ ] Complete Stage 1 and open a new Codex conversation. Ask “Where are we?”;
+      verify state resumes at Stage 2 and recommends the configured execution
+      model without repeating discovery.
 - [ ] Run `./scripts/smoke-test.sh` to generate and edit deterministic media.
 - [ ] Run `uv run python scripts/manual_wsl_acceptance.py --mount-root /mnt/c/Temp`.
 - [ ] Inspect and edit a source under `/mnt/c/...`.
@@ -19,7 +25,7 @@ Run this checklist on a real Windows 11 machine. Generic Linux CI does not prove
       an intentional end card/hold is documented.
 - [ ] Confirm `qa-report.json` reports matching audio/video duration, normal AAC
       cadence, full decoding, and a passing `ending visual continuity` check.
-- [ ] If Remotion is enabled in a future release, run its WSL smoke render; it is not enabled in v0.1.0.
+- [ ] If Remotion is enabled in a future release, run its WSL smoke render; it is not enabled in v0.2.0.
 - [ ] Hash the source before and after and confirm it is unchanged.
 
 Record the Windows version, WSL distribution, `codex --version`, doctor JSON, and checklist result in the release notes.

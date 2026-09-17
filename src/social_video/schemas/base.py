@@ -26,7 +26,11 @@ class Artifact(BaseModel):
     )
 
     def to_json(self) -> str:
-        return self.model_dump_json(indent=2, exclude_none=True)
+        return self.model_dump_json(
+            indent=2,
+            exclude_none=True,
+            exclude_computed_fields=True,
+        )
 
 
 T = TypeVar("T", bound=Artifact)
@@ -69,6 +73,11 @@ def load_artifact(model: type[T], path: str | Path) -> T:
                 f"writes and reads version {SCHEMA_VERSION}. Regenerate the artifact "
                 f"rather than editing the version by hand."
             )
+        # Pydantic serialised computed fields by default in older releases of
+        # this project. They are derived values, not schema inputs, so accept
+        # and discard them when resuming an existing workspace.
+        for computed_name in model.model_computed_fields:
+            raw.pop(computed_name, None)
     try:
         return model.model_validate(raw)
     except PydanticValidationError as exc:
