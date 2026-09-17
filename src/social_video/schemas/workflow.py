@@ -20,6 +20,16 @@ class ModelBudget(str, Enum):
     QUALITY = "quality"
 
 
+class Renderer(str, Enum):
+    REMOTION = "remotion"
+    FFMPEG = "ffmpeg"
+
+
+class RemotionLicenseAttestation(str, Enum):
+    FREE_LICENSE_ELIGIBLE = "free_license_eligible"
+    COMPANY_LICENSE_CONFIRMED = "company_license_confirmed"
+
+
 class WorkflowStage(str, Enum):
     EDITORIAL_PLAN = "stage_1_editorial_plan"
     EXECUTION = "stage_2_execution"
@@ -30,7 +40,7 @@ class WorkflowStage(str, Enum):
 
 
 class WorkflowState(Artifact):
-    workflow_version: int = 2
+    workflow_version: int = 3
     target_project_root: str
     workspace: str
     source_media: list[str] = Field(min_length=1)
@@ -44,8 +54,12 @@ class WorkflowState(Artifact):
     handoff_required: bool = True
     model_budget: ModelBudget = ModelBudget.BALANCED
     workflow_mode: WorkflowMode = WorkflowMode.GUIDED
+    renderer: Renderer = Renderer.FFMPEG
+    remotion_license_attestation: RemotionLicenseAttestation | None = None
+    remotion_license_checked_at: str | None = None
     project_context_path: str
     edit_plan_path: str
+    motion_plan_path: str = ""
     edl_path: str
     preview_path: str
     technical_qa_path: str

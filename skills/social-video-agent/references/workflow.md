@@ -5,6 +5,24 @@ before doing work. After completing a stage run `workflow complete N`; this
 validates artifacts and advances state. `workflow status` reports missing files,
 the next stage, model tier/name, effort, and continuation prompt.
 
+## Stage 0 — mandatory renderer and license gate
+
+New workflows use Remotion by default. Before reading project context or media,
+tell the user that Remotion's current license permits free use for eligible
+users (including individuals, qualifying small organisations, nonprofits, and
+non-commercial evaluation) and otherwise requires a Company License. Ask for a
+declaration; do not decide eligibility for them and do not describe this as
+legal advice.
+
+- `free_license_eligible`: save the declaration and continue.
+- `company_license_confirmed`: save the declaration and continue.
+- neither: stop. Do not scan, transcribe, plan, or render.
+- explicit user opt-out: initialize with `--renderer ffmpeg`; the core editor
+  remains available without Remotion, but this is not the default route.
+
+Current terms: <https://www.remotion.dev/license>. Never claim that installing
+the npm package itself grants a license.
+
 ## Stage 0 + Stage 1 — discovery and editorial plan
 
 Recommended tier: `editorial_strong`.
@@ -25,9 +43,13 @@ Recommended tier: `execution_balanced`.
 
 Read state, project context, and approved plan. Do not rediscover unchanged
 context or reinterpret the story without a concrete execution conflict. Create
-the exact `edl.json`, captions, 9:16 framing, restrained requested graphics,
-and `preview.mp4`; run technical QA and write `qa/qa-technical.json`. Stop and
-hand off for editorial review.
+the exact `edl.json`, captions, and 9:16 framing. For the default renderer also
+write `motion-plan.json`: use explicit project style sources, record a rationale
+for every hook/lower-third/callout/end-card, and leave `elements` empty when no
+graphic improves the story. FFmpeg first creates the frame-accurate base edit;
+Remotion composites the approved motion layer; then FFmpeg/ffprobe QA the final
+`preview.mp4`. Write `qa/qa-technical.json`, stop, and hand off for editorial
+review.
 
 ## Stage 3 — supervising-editor review
 
@@ -53,7 +75,7 @@ Recommended tier: `execution_balanced`.
 Current recommendations: OpenAI Terra or Claude Sonnet 5, medium effort.
 
 Apply only `qa-editorial.json` fixes. Approval is a no-op; do not perform a new
-full editorial analysis. Update affected EDL/captions/visual plan, render a new
+full editorial analysis. Update affected EDL/captions/`motion-plan.json`, render a new
 preview if substantive, rerun technical QA, render `final.mp4`, fully decode it,
 and verify duration, CFR, A/V timing, captions, ending, and destination. Persist
 state.

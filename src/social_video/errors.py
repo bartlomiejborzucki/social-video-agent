@@ -56,6 +56,10 @@ class CapabilityError(SocialVideoError):
     """The installed ffmpeg lacks a filter or library this operation needs."""
 
 
+class RemotionError(SocialVideoError):
+    """The Remotion compositor failed with a concise actionable diagnostic."""
+
+
 def _quote(arg: str) -> str:
     """Render one argv element readably for a copy-pasteable error message."""
     if arg and not any(c in arg for c in " \t\n\"'\\$`*?[]()<>|&;#~"):

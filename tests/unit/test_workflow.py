@@ -12,10 +12,17 @@ from social_video.profiles import load_profile
 from social_video.schemas.base import save_artifact
 from social_video.schemas.editorial_qa import EditorialQA, EditorialQAStatus
 from social_video.schemas.edl import EDL, EDLRange
+from social_video.schemas.motion import MotionPlan
 from social_video.schemas.plan import EditPlan
 from social_video.schemas.qa import QACheck, QAReport, QASeverity
 from social_video.schemas.transcript import Transcript
-from social_video.schemas.workflow import ModelBudget, WorkflowMode, WorkflowStage
+from social_video.schemas.workflow import (
+    ModelBudget,
+    RemotionLicenseAttestation,
+    Renderer,
+    WorkflowMode,
+    WorkflowStage,
+)
 from social_video.workflow import advance_workflow, create_workflow, load_workflow, workflow_status
 from social_video.workspace.layout import Workspace
 
@@ -30,6 +37,10 @@ def _setup(tmp_path: Path, **kwargs):
     source = project / "input.mp4"
     source.write_bytes(b"fixture")
     workspace = Workspace.at(tmp_path / "workspace/edit")
+    kwargs.setdefault(
+        "remotion_license_attestation",
+        RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE,
+    )
     state = create_workflow([source], workspace, project_root=project, **kwargs)
     return project, source, workspace, state
 
@@ -53,6 +64,10 @@ def _write_stage_2(workspace: Workspace) -> None:
     workspace.previews.mkdir(parents=True, exist_ok=True)
     (workspace.previews / "preview.mp4").write_bytes(b"preview")
     save_artifact(QAReport(output="preview.mp4"), workspace.technical_qa)
+    save_artifact(
+        MotionPlan(rationale="A restrained branded layer supports the approved story."),
+        workspace.motion_plan,
+    )
 
 
 def _write_stage_3(workspace: Workspace) -> None:
@@ -69,6 +84,8 @@ def test_guided_handoffs_persist_and_stage_1_does_not_render(tmp_path: Path) -> 
         "openai": "Sol",
         "claude": "Claude Opus 5",
     }
+    assert state.renderer is Renderer.REMOTION
+    assert state.remotion_license_attestation is RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE
     assert not (workspace.final / "final.mp4").exists()
 
     _write_stage_1(workspace)
@@ -185,7 +202,12 @@ def test_explicit_project_config_can_set_budget_and_mode(tmp_path: Path) -> None
     source.write_bytes(b"fixture")
     workspace = Workspace.at(tmp_path / "configured-workspace/edit")
 
-    state = create_workflow([source], workspace, project_root=project)
+    state = create_workflow(
+        [source],
+        workspace,
+        project_root=project,
+        remotion_license_attestation=RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE,
+    )
 
     assert state.model_budget is ModelBudget.ECONOMICAL
     assert state.workflow_mode is WorkflowMode.CONTINUOUS
@@ -200,6 +222,38 @@ def test_status_reports_required_and_missing_artifacts(tmp_path: Path) -> None:
     assert state.project_context_path in status["required_artifacts"]
     assert state.edit_plan_path in status["missing_artifacts"]
     assert state.project_context_path not in status["missing_artifacts"]
+
+
+def test_stage_0_blocks_remotion_before_creating_workspace_without_attestation(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    source = project / "input.mp4"
+    source.write_bytes(b"fixture")
+    workspace = Workspace.at(tmp_path / "blocked/edit")
+
+    with pytest.raises(ValidationError, match="Stage 0 cannot continue"):
+        create_workflow([source], workspace, project_root=project)
+
+    assert not workspace.root.exists()
+
+
+def test_explicit_ffmpeg_renderer_does_not_require_remotion_license(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    source = project / "input.mp4"
+    source.write_bytes(b"fixture")
+
+    state = create_workflow(
+        [source],
+        Workspace.at(tmp_path / "ffmpeg/edit"),
+        project_root=project,
+        renderer=Renderer.FFMPEG,
+    )
+
+    assert state.renderer is Renderer.FFMPEG
+    assert state.remotion_license_attestation is None
 
 
 def test_version_1_state_gets_provider_recommendations_on_resume(tmp_path: Path) -> None:

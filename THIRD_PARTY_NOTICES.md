@@ -108,18 +108,20 @@ package we publish.
 
 ---
 
-## Optional: Remotion
+## Remotion
 
 **Remotion is not open-source software.** Under its licence, free use is limited
 to individuals, non-profit organisations, for-profit organisations with **up to
 three employees**, and evaluation. Larger for-profit organisations require a paid
 company licence from https://remotion.pro.
 
-No Remotion code is vendored here, and nothing in the core pipeline requires it:
-cutting, captions, vertical reframing, audio and QA are all FFmpeg and libass.
-Remotion is not integrated in the current runtime; it remains a possible
-optional future layer. **If you work at an organisation above that threshold,
-confirm your licence position before enabling it.**
+No Remotion code is vendored in the Python package. Its npm packages are pinned
+in `package-lock.json` and installed locally during bootstrap. New workflows
+use it as the default motion-design compositor after FFmpeg has created the
+frame-accurate base edit. Stage 0 requires the user to declare free-license
+eligibility or confirm a Company License before discovery or media processing.
+An explicit FFmpeg-only opt-out remains available. **Confirm the current terms
+at https://www.remotion.dev/license before selecting either declaration.**
 
 ---
 

@@ -14,9 +14,17 @@ from social_video.project_context import discover_project_context, resolve_proje
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.editorial_qa import EditorialQA
 from social_video.schemas.edl import EDL
+from social_video.schemas.motion import MotionPlan
 from social_video.schemas.plan import EditPlan
 from social_video.schemas.qa import QAReport
-from social_video.schemas.workflow import ModelBudget, WorkflowMode, WorkflowStage, WorkflowState
+from social_video.schemas.workflow import (
+    ModelBudget,
+    RemotionLicenseAttestation,
+    Renderer,
+    WorkflowMode,
+    WorkflowStage,
+    WorkflowState,
+)
 from social_video.workspace.layout import Workspace
 
 STAGE_ORDER = (
@@ -35,8 +43,20 @@ def create_workflow(
     project_root: str | Path | None = None,
     model_budget: ModelBudget = ModelBudget.BALANCED,
     workflow_mode: WorkflowMode = WorkflowMode.GUIDED,
+    renderer: Renderer = Renderer.REMOTION,
+    remotion_license_attestation: RemotionLicenseAttestation | None = None,
     refresh_context: bool = False,
 ) -> WorkflowState:
+    if renderer is Renderer.REMOTION and remotion_license_attestation is None:
+        raise ValidationError(
+            "Remotion is the default renderer, but Stage 0 cannot continue without a "
+            "license declaration. Confirm --remotion-license free_license_eligible if "
+            "you are an individual, a for-profit organization with up to 3 employees, "
+            "a non-profit, or evaluating non-commercially; otherwise confirm "
+            "--remotion-license company_license_confirmed after obtaining a Company "
+            "License. Terms: https://www.remotion.dev/license. To avoid using Remotion, "
+            "explicitly select --renderer ffmpeg."
+        )
     workspace.ensure()
     target = resolve_project_root(project_root)
     context, _ = discover_project_context(target, workspace, refresh=refresh_context)
@@ -53,8 +73,12 @@ def create_workflow(
         source_media=[str(normalize_user_path(item, must_exist=True)) for item in source_media],
         model_budget=model_budget,
         workflow_mode=workflow_mode,
+        renderer=renderer,
+        remotion_license_attestation=remotion_license_attestation,
+        remotion_license_checked_at=now if remotion_license_attestation else None,
         project_context_path=str(workspace.project_context),
         edit_plan_path=str(workspace.edit_plan),
+        motion_plan_path=str(workspace.motion_plan),
         edl_path=str(workspace.edl),
         preview_path=str(workspace.previews / "preview.mp4"),
         technical_qa_path=str(workspace.technical_qa),
@@ -127,6 +151,12 @@ def workflow_status(state: WorkflowState, *, language: str = "en") -> dict[str, 
         "missing_artifacts": missing,
         "workspace": state.workspace,
         "target_project_root": state.target_project_root,
+        "renderer": state.renderer.value,
+        "remotion_license_attestation": (
+            state.remotion_license_attestation.value
+            if state.remotion_license_attestation is not None
+            else None
+        ),
     }
 
 
@@ -174,6 +204,8 @@ def _validate_stage_artifacts(state: WorkflowState, stage: WorkflowStage) -> Non
         load_artifact(EditPlan, state.edit_plan_path)
     elif stage is WorkflowStage.EXECUTION:
         load_artifact(EDL, state.edl_path)
+        if state.renderer is Renderer.REMOTION:
+            load_artifact(MotionPlan, state.motion_plan_path)
         report = load_artifact(QAReport, state.technical_qa_path)
         if not report.passed:
             raise ValidationError("cannot complete Stage 2; technical QA failed")
@@ -196,7 +228,10 @@ def _required_paths(state: WorkflowState, stage: WorkflowStage) -> list[str]:
     if stage is WorkflowStage.EDITORIAL_PLAN:
         return [state.project_context_path, state.edit_plan_path]
     if stage is WorkflowStage.EXECUTION:
-        return [state.edl_path, state.preview_path, state.technical_qa_path]
+        required = [state.edl_path, state.preview_path, state.technical_qa_path]
+        if state.renderer is Renderer.REMOTION:
+            required.insert(1, state.motion_plan_path)
+        return required
     if stage is WorkflowStage.EDITORIAL_REVIEW:
         return [state.editorial_qa_path]
     if stage is WorkflowStage.FINALIZATION:

@@ -127,6 +127,10 @@ class Workspace:
         return self.root / "edl.json"
 
     @property
+    def motion_plan(self) -> Path:
+        return self.root / "motion-plan.json"
+
+    @property
     def editorial_qa(self) -> Path:
         return self.root / "qa-editorial.json"
 

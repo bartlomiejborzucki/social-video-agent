@@ -3,7 +3,7 @@ name: social-video-agent
 description: Create project-aware Reels and Shorts from recordings with local transcription, an explicit plan and EDL, persistent stages, rendering, and QA. Use when asked to edit, trim, caption, reframe, review or resume a preview, or create delivery variants. Do not use for generated video or simple conversion.
 license: Apache-2.0
 metadata:
-  version: "0.2.1"
+  version: "0.3.0"
 ---
 
 # Project-aware social video editing
@@ -17,14 +17,21 @@ mistake this installed skill's directory for the user's project.
    current directory or nearest Git root. Stay within it.
 2. If the edit workspace contains `workflow-state.json`, read it and resume its
    `current_stage`; chat history is not state.
-3. Otherwise read [project-context.md](references/project-context.md) and run
-   Stage 0 discovery as part of Stage 1:
+3. Otherwise, before discovery, ingest, probing, or transcription, explain that
+   Remotion is the default motion-design renderer and obtain one explicit
+   declaration: `free_license_eligible` or `company_license_confirmed`. If the
+   user cannot make either declaration, stop the default workflow. Only a user
+   who explicitly opts out may continue with `--renderer ffmpeg`. Read
+   [workflow.md](references/workflow.md) for the exact boundary.
+4. Then read [project-context.md](references/project-context.md) and run Stage 0
+   discovery as part of Stage 1:
 
    ```bash
-   social-video-agent workflow init INPUT --project-root PROJECT --language USER_LANGUAGE
+   social-video-agent workflow init INPUT --project-root PROJECT \
+     --remotion-license DECLARATION --language USER_LANGUAGE
    ```
 
-4. Read [workflow.md](references/workflow.md) plus only the active stage's
+5. Read [workflow.md](references/workflow.md) plus only the active stage's
    relevant reference below. Use [model-routing.md](references/model-routing.md)
    for handoffs.
 5. In guided mode validate and save artifacts, stop at the boundary, recommend
@@ -55,6 +62,10 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
   never use `ffmpeg.exe` or a PowerShell/WSL bridge.
 - Never hide missing privacy-safe footage with an automatic long freeze, loop,
   zoom, transition, or synthetic motion.
+- For every Remotion workflow, Stage 2 writes `motion-plan.json`. Use discovered
+  project typography/colors and only story-serving hook, lower-third, callout,
+  or end-card elements. Remotion enriches an approved edit; it does not decide
+  the story or repair insufficient footage.
 
 ## References
 

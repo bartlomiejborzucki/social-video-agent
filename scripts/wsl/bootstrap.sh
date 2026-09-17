@@ -4,6 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 
+if [[ "$PROJECT_ROOT" == /mnt/* ]]; then
+  echo "ERROR: the repository is under /mnt, where Node/Remotion installs and renders are slow and unreliable." >&2
+  echo "Clone it into the WSL filesystem, for example ~/projects/social-video-agent, and rerun bootstrap." >&2
+  exit 1
+fi
+
 if [[ "$(uname -s)" != "Linux" ]]; then
   echo "ERROR: this bootstrap runs in Linux. On Windows, configure Codex Agent environment to Windows Subsystem for Linux and rerun it there." >&2
   exit 1
@@ -63,8 +69,39 @@ if ! command -v uv >/dev/null 2>&1; then
   export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 fi
 
+node_major=0
+if command -v node >/dev/null 2>&1; then
+  node_major="$(node --version | sed -E 's/^v([0-9]+).*/\1/')"
+fi
+if [[ ! "$node_major" =~ ^[0-9]+$ ]] || ((node_major < 20)); then
+  echo "Installing Node.js LTS inside WSL with nvm (Remotion requires Node.js 20+)."
+  export NVM_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/social-video-agent/nvm"
+  mkdir -p "$NVM_DIR"
+  nvm_installer="$(mktemp)"
+  trap 'rm -f -- "${installer:-}" "${nvm_installer:-}"' EXIT
+  curl --proto '=https' --tlsv1.2 -fsSL \
+    https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.7/install.sh -o "$nvm_installer"
+  PROFILE=/dev/null bash "$nvm_installer"
+  # shellcheck disable=SC1091
+  source "$NVM_DIR/nvm.sh"
+  nvm install --lts
+  nvm use --lts
+  mkdir -p "$HOME/.local/bin"
+  ln -sfn "$(command -v node)" "$HOME/.local/bin/node"
+  ln -sfn "$(command -v npm)" "$HOME/.local/bin/npm"
+  ln -sfn "$(command -v npx)" "$HOME/.local/bin/npx"
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "ERROR: npm was not found inside WSL after checking Node.js." >&2
+  exit 1
+fi
+
 cd "$PROJECT_ROOT"
 uv sync --extra dev
+npm ci
+npx remotion browser ensure
+npm exec tsc -- --noEmit
 
 mkdir -p "$HOME/.local/bin" "${XDG_CACHE_HOME:-$HOME/.cache}/social-video-agent"
 ln -sfn "$PROJECT_ROOT/.venv/bin/social-video-agent" "$HOME/.local/bin/social-video-agent"
@@ -72,6 +109,8 @@ ln -sfn "$PROJECT_ROOT/.venv/bin/social-video" "$HOME/.local/bin/social-video"
 
 echo "Running offline FFmpeg and Polish-caption smoke test."
 uv run --no-sync pytest tests/integration/test_wsl_smoke.py -q
+echo "Running offline Remotion motion-design smoke test."
+uv run --no-sync pytest tests/integration/test_remotion.py -q
 
 echo "Running project doctor."
 "$PROJECT_ROOT/.venv/bin/social-video-agent" doctor

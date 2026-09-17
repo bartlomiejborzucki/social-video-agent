@@ -12,9 +12,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
       - uses: astral-sh/setup-uv@v10.1.0
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg fontconfig fonts-noto-core
       - run: uv sync --extra dev
+      - run: npm ci
+      - run: npx remotion browser ensure
       - run: ./scripts/release-check.sh
       - name: Checksums
         run: cd dist && sha256sum *.whl *.tar.gz *.zip > SHA256SUMS

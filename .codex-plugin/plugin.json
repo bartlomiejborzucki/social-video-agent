@@ -1,7 +1,7 @@
 {
   "name": "social-video-agent",
-  "version": "0.2.1",
-  "description": "Create project-aware social clips through a persistent staged workflow and deterministic local WSL tools.",
+  "version": "0.3.0",
+  "description": "Create project-aware social clips through a persistent staged workflow, deterministic FFmpeg editing, and Remotion motion design in WSL.",
   "author": {
     "name": "Bartlomiej Borzucki",
     "url": "https://github.com/bartlomiejborzucki"
@@ -14,7 +14,7 @@
   "interface": {
     "displayName": "Social Video Agent",
     "shortDescription": "Project-aware staged social video editing",
-    "longDescription": "Discover local project and brand guidance, plan edits in durable stages, and turn recordings into vertical Reels and Shorts with local transcription, FFmpeg rendering, Polish-capable captions, and technical and editorial QA.",
+    "longDescription": "Discover local project and brand guidance, plan edits and motion design in durable stages, and turn recordings into vertical Reels and Shorts with local transcription, FFmpeg, Remotion, Polish-capable captions, and technical and editorial QA.",
     "developerName": "Bartlomiej Borzucki",
     "category": "Creativity",
     "capabilities": ["Read", "Write"],

@@ -8,6 +8,7 @@ for exactly this and an unmerged pull request providing it.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import platform
 import shutil
@@ -321,15 +322,16 @@ def _cuda_actually_works() -> tuple[bool, str]:
 
 
 def _check_node(report: DoctorReport) -> None:
+    root = _repository_root()
     node = shutil.which("node")
     if not node:
         report.add(
             Check(
-                "optional: node",
+                "node",
                 False,
-                False,
-                "not found; needed only for Remotion motion graphics",
-                "Install Node.js 20+ only if you want the optional Remotion visuals.",
+                True,
+                "not found; Remotion is the default renderer",
+                "Install Node.js 20+ inside WSL, then rerun `scripts/wsl/bootstrap.sh`.",
             )
         )
     else:
@@ -339,26 +341,72 @@ def _check_node(report: DoctorReport) -> None:
             ).stdout.strip()
         except (OSError, subprocess.SubprocessError):
             version = "unknown"
-        report.add(Check("optional: node", True, False, f"{version} ({node})"))
-    manager = next((name for name in ("npm", "pnpm", "yarn") if shutil.which(name)), None)
+        try:
+            major = int(version.removeprefix("v").split(".", 1)[0])
+        except (ValueError, IndexError):
+            major = 0
+        report.add(
+            Check(
+                "node",
+                major >= 20,
+                True,
+                f"{version} ({node})",
+                "Install Node.js 20+ inside WSL, then rerun `scripts/wsl/bootstrap.sh`."
+                if major < 20
+                else "",
+            )
+        )
+    npm = shutil.which("npm")
     report.add(
         Check(
-            "optional: node package manager",
-            manager is not None,
-            False,
-            manager or "not found; only needed when Remotion is enabled",
+            "node package manager",
+            npm is not None,
+            True,
+            npm or "npm not found",
+            "Install npm with Node.js inside WSL." if npm is None else "",
         )
     )
-    root = _repository_root()
-    remotion = bool(root and (root / "package.json").is_file())
+    package = root / "package.json" if root else None
+    lock = root / "package-lock.json" if root else None
+    remotion_package = root / "node_modules" / "remotion" / "package.json" if root else None
+    expected = ""
+    installed = ""
+    if package is not None and remotion_package is not None:
+        try:
+            expected = json.loads(package.read_text(encoding="utf-8"))["dependencies"]["remotion"]
+            installed = json.loads(remotion_package.read_text(encoding="utf-8"))["version"]
+        except (OSError, KeyError, TypeError, json.JSONDecodeError):
+            pass
+    remotion_ok = bool(expected and installed == expected and lock and lock.is_file())
     report.add(
         Check(
-            "optional: remotion",
-            remotion,
-            False,
-            "enabled in this checkout"
-            if remotion
-            else "not enabled; core FFmpeg editing is unaffected",
+            "remotion",
+            remotion_ok,
+            True,
+            f"{installed} (locked)" if remotion_ok else "dependencies not installed or mismatched",
+            "Run `npm ci` in the Linux repository checkout." if not remotion_ok else "",
+        )
+    )
+    browser = None
+    browser_root = root / "node_modules" / ".remotion" if root else None
+    if browser_root and browser_root.is_dir():
+        browser = next(
+            (
+                candidate
+                for candidate in browser_root.rglob("chrome-headless-shell*")
+                if candidate.is_file() and os.access(candidate, os.X_OK)
+            ),
+            None,
+        )
+    report.add(
+        Check(
+            "remotion browser",
+            browser is not None,
+            True,
+            str(browser) if browser else "Chrome Headless Shell not found",
+            "Run `npx remotion browser ensure` in the Linux repository checkout."
+            if browser is None
+            else "",
         )
     )
 

@@ -96,6 +96,12 @@ def workflow_init(
     project_root: Path | None = typer.Option(None, "--project-root"),
     model_budget: str = typer.Option("balanced", "--model-budget"),
     workflow_mode: str = typer.Option("guided", "--workflow-mode"),
+    renderer: str = typer.Option("remotion", "--renderer"),
+    remotion_license: str | None = typer.Option(
+        None,
+        "--remotion-license",
+        help="Required for Remotion: free_license_eligible or company_license_confirmed.",
+    ),
     quick: bool = typer.Option(False, "--quick", help="Continuous workflow on current model."),
     refresh_context: bool = typer.Option(False, "--refresh-context"),
     language: str = typer.Option("en", "--language"),
@@ -104,7 +110,12 @@ def workflow_init(
     """Create Stage 0/1 state and context. Never renders video."""
     from social_video.paths import normalize_user_path
     from social_video.pipeline import stage_ingest
-    from social_video.schemas.workflow import ModelBudget, WorkflowMode
+    from social_video.schemas.workflow import (
+        ModelBudget,
+        RemotionLicenseAttestation,
+        Renderer,
+        WorkflowMode,
+    )
     from social_video.workflow import create_workflow, workflow_status
     from social_video.workspace.layout import Workspace
 
@@ -114,7 +125,10 @@ def workflow_init(
     )
     budget = _guard(lambda: ModelBudget(model_budget))
     mode = WorkflowMode.CONTINUOUS if quick else _guard(lambda: WorkflowMode(workflow_mode))
-    _guard(lambda: stage_ingest(normalized_source, workspace))
+    selected_renderer = _guard(lambda: Renderer(renderer))
+    attestation = (
+        _guard(lambda: RemotionLicenseAttestation(remotion_license)) if remotion_license else None
+    )
     state = _guard(
         lambda: create_workflow(
             [normalized_source],
@@ -122,9 +136,12 @@ def workflow_init(
             project_root=project_root,
             model_budget=budget,
             workflow_mode=mode,
+            renderer=selected_renderer,
+            remotion_license_attestation=attestation,
             refresh_context=refresh_context,
         )
     )
+    _guard(lambda: stage_ingest(normalized_source, workspace))
     payload = workflow_status(state, language=language)
     _print_workflow(payload, as_json=as_json)
 
@@ -221,6 +238,11 @@ def _print_workflow(payload: dict[str, Any], *, as_json: bool) -> None:
         return
     polish = payload.get("language") == "pl"
     console.print(f"[bold]{escape(payload['current_stage'])}[/bold]")
+    if payload.get("renderer"):
+        console.print(f"Renderer: [cyan]{escape(payload['renderer'])}[/cyan]")
+    if payload.get("remotion_license_attestation"):
+        license_label = "Deklaracja licencji Remotion" if polish else "Remotion license declaration"
+        console.print(f"{license_label}: {escape(payload['remotion_license_attestation'])}")
     if payload["missing_artifacts"]:
         missing_label = "Brakujące artefakty etapu:" if polish else "Missing for this stage:"
         console.print(f"[yellow]{missing_label}[/yellow]")
@@ -715,11 +737,28 @@ def render(
     output: Path | None = typer.Option(
         None, "--output", "-o", help="Exact destination for preview.mp4 or final.mp4."
     ),
+    renderer: str | None = typer.Option(
+        None,
+        "--renderer",
+        help="remotion (default for new workflows) or ffmpeg.",
+    ),
+    remotion_license: str | None = typer.Option(
+        None,
+        "--remotion-license",
+        help="License declaration when rendering without workflow-state.json.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Render the EDL already in a workspace. Deterministic and repeatable."""
     from social_video.paths import normalize_user_path
     from social_video.pipeline import load_workspace_artifacts, stage_render
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.motion import MotionPlan
+    from social_video.schemas.workflow import (
+        RemotionLicenseAttestation,
+        Renderer,
+    )
+    from social_video.workflow import load_workflow
     from social_video.workspace.layout import Workspace
 
     if quality not in ("draft", "preview", "final"):
@@ -734,13 +773,47 @@ def render(
             err_console.print("[red]error:[/red] output must not overwrite source media")
             raise typer.Exit(1)
     captions = Path(edl.captions) if edl.captions else None
+    if ws.workflow_state.is_file():
+        workflow = _guard(lambda: load_workflow(ws))
+        selected_renderer = _guard(lambda: Renderer(renderer)) if renderer else workflow.renderer
+        attestation = workflow.remotion_license_attestation
+        if remotion_license:
+            attestation = _guard(lambda: RemotionLicenseAttestation(remotion_license))
+    else:
+        selected_renderer = _guard(lambda: Renderer(renderer or "remotion"))
+        attestation = (
+            _guard(lambda: RemotionLicenseAttestation(remotion_license))
+            if remotion_license
+            else None
+        )
+    motion_plan = (
+        _guard(lambda: load_artifact(MotionPlan, ws.motion_plan))
+        if selected_renderer is Renderer.REMOTION and attestation is not None
+        else None
+    )
     rendered = _guard(
         lambda: stage_render(
-            edl, manifest, ws, quality=quality, captions=captions, output=destination
+            edl,
+            manifest,
+            ws,
+            quality=quality,
+            captions=captions,
+            output=destination,
+            renderer=selected_renderer,
+            motion_plan=motion_plan,
+            remotion_license_attestation=attestation,
         )
     )
     if as_json:
-        console.print_json(json.dumps({"output": str(rendered), "quality": quality}))
+        console.print_json(
+            json.dumps(
+                {
+                    "output": str(rendered),
+                    "quality": quality,
+                    "renderer": selected_renderer.value,
+                }
+            )
+        )
         return
     console.print(f"[green]rendered[/green] {rendered}", soft_wrap=True)
 

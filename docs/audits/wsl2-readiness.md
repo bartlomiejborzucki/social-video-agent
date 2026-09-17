@@ -16,11 +16,11 @@ Status meanings: **READY** is implemented and covered by an automated or recorde
 | `/mnt/c` source/output support | PARTIAL | READY | A real WSL mount test rendered a Polish-named source from `C:\Temp\...`, wrote a Polish-named output to `/mnt/c`, used Linux intermediates, and verified the source hash. |
 | Fast WSL workspace/cache | PARTIAL | READY | Mounted Windows sources use `~/.cache/social-video-agent/workspaces`; explicit output may return to Windows. |
 | WSL bootstrap | MISSING | READY | Idempotent Ubuntu/Debian bootstrap checks packages, uv, FFmpeg, fonts, environment, smoke test, and doctor. |
-| Project doctor | PARTIAL | READY | Reports platform/WSL/distro, Python env, uv, FFmpeg, ASR, optional GPU/Node/Remotion, fonts, workspace, plugin, skill, and marketplace. |
+| Project doctor | PARTIAL | READY | Reports platform/WSL/distro, Python env, uv, FFmpeg, ASR, required Node/Remotion/browser, optional GPU, fonts, workspace, plugin, skill, and marketplace. |
 | Codex plugin manifest | PARTIAL | READY | Current `.codex-plugin/plugin.json` schema fields and offline validator; repository metadata is no longer placeholder data. |
 | Repository marketplace | MISSING | READY | `.agents/plugins/marketplace.json` points to `plugins/social-video-agent` as required by current Codex discovery. |
 | Canonical skill | PARTIAL | READY | One implementation at `skills/social-video-agent`; the plugin links to it and distribution validation checks it. |
-| Remotion | MISSING | PARTIAL | Not enabled in v0.1.0 and correctly reported as optional. No Node install or unsupported runtime is claimed. |
+| Remotion | MISSING | READY | Default for new workflows with a pre-discovery license gate, exact npm lock, Linux-side Chrome, validated motion plan, real MP4 smoke render, and blocking doctor checks. Legacy workspaces remain FFmpeg for compatibility. |
 | Automated CI | PARTIAL | PARTIAL | Linux unit/integration/media/Unicode/distribution/package jobs plus macOS/Windows unit portability are defined and their local equivalents pass. No remote GitHub Actions run was observed in this audit; CI does not claim to be WSL. |
 | Release packaging | MISSING | READY | Tag workflow builds wheel, sdist, skill zip, checksums, and GitHub release assets. |
 | Public repository documents | PARTIAL | READY | README, Apache-2.0 license, changelog, contributing, security, AGENTS, and acceptance guide. |

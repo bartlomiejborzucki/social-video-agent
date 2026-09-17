@@ -1,14 +1,31 @@
 # Troubleshooting
 
 Run `social-video-agent doctor` first. It checks ffmpeg and its libraries, Python
-packages, fonts and their Unicode coverage, GPU usability, and console
-encoding, and every failure comes with what to do about it.
+packages, fonts and their Unicode coverage, Node, locked Remotion packages,
+Chrome Headless Shell, GPU usability, and console encoding. Every failure comes
+with what to do about it.
 
 ## Common
 
 **No ffmpeg.** Install via the system package manager, or
 `social-video-agent doctor --install-ffmpeg` to fetch a static build with no
 administrator rights.
+
+**Remotion or its browser is missing.** Keep the repository in the WSL Linux
+filesystem, then rerun `./scripts/wsl/bootstrap.sh`. The bootstrap runs
+`npm ci` from the lockfile and `npx remotion browser ensure`; do not put
+`node_modules` under `/mnt/c`.
+
+**Stage 0 asks about a Remotion license.** This is intentional and happens
+before project/media discovery. Select `free_license_eligible` only if you have
+confirmed you meet the current free-license terms, or
+`company_license_confirmed` after obtaining the appropriate license. If neither
+applies, the normal workflow stops. An explicit `--renderer ffmpeg` opt-out is
+available for the core non-Remotion renderer.
+
+**Remotion says `motion-plan.json` is missing.** Stage 2 has not completed its
+visual plan. Create the validated artifact described in `artifacts.md`; do not
+replace it with ad-hoc React edits or random effects.
 
 **Captions do not appear.** The ffmpeg build lacks libass. `doctor` reports
 this. Homebrew's formula has shipped without it.

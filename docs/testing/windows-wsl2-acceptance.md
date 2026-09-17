@@ -5,7 +5,11 @@ Run this checklist on a real Windows 11 machine. Generic Linux CI does not prove
 - [ ] In ChatGPT Desktop, set **Settings → Agent environment → Windows Subsystem for Linux**, select the distribution, and restart the app.
 - [ ] Clone the repository to `~/projects/social-video-agent`, not `/mnt/c`.
 - [ ] Run `./scripts/wsl/bootstrap.sh`.
-- [ ] Run `social-video-agent doctor`; the final summary is `READY`.
+- [ ] Confirm the Remotion license choice, initialize a workflow with
+      `--remotion-license free_license_eligible` or
+      `company_license_confirmed`, and verify the declaration is persisted.
+- [ ] Run `social-video-agent doctor`; Node, Remotion, Chrome Headless Shell,
+      and the final summary are `OK`/`READY`.
 - [ ] From a separate fake target project containing `AGENTS.md`, brand/video
       docs, and a logo, run `social-video-agent workflow init ... --project-root
       ...`; verify only target-project files appear in `context-sources.json`.
@@ -25,8 +29,10 @@ Run this checklist on a real Windows 11 machine. Generic Linux CI does not prove
       an intentional end card/hold is documented.
 - [ ] Confirm `qa-report.json` reports matching audio/video duration, normal AAC
       cadence, full decoding, and a passing `ending visual continuity` check.
-- [ ] If Remotion is enabled in a future release, run its WSL smoke render; the
-  current renderer is Python + FFmpeg and does not integrate Remotion.
+- [ ] Run `npm run remotion:smoke`; verify the Polish motion graphic renders,
+      audio is complete, and both VLC and Windows Media Player play it smoothly.
+- [ ] Confirm Stage 2 produced `motion-plan.json` and preview/final share the
+      approved visual structure.
 - [ ] Hash the source before and after and confirm it is unchanged.
 
 Record the Windows version, WSL distribution, `codex --version`, doctor JSON, and checklist result in the release notes.

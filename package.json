@@ -1,0 +1,26 @@
+{
+  "name": "social-video-agent-remotion",
+  "private": true,
+  "version": "0.3.0",
+  "scripts": {
+    "remotion:studio": "remotion studio remotion/index.ts",
+    "remotion:smoke": "uv run --no-sync pytest tests/integration/test_remotion.py -q"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.525",
+    "@remotion/cli": "4.0.525",
+    "@remotion/media": "4.0.525",
+    "@remotion/renderer": "4.0.525",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "remotion": "4.0.525"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.16",
+    "@types/react-dom": "19.1.9",
+    "typescript": "5.9.3"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true
+  }
+}

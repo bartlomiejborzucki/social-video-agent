@@ -20,6 +20,7 @@ edit/
   analysis/               scene detection
   edit-plan.json          editorial intent
   edl.json                exact ranges and render instructions
+  motion-plan.json        intentional Remotion motion-design layer
   qa-editorial.json       mandatory supervising-editor decision
   captions/               caption data, .srt, and .ass
   previews/preview.mp4    stable preview artifact
@@ -118,6 +119,45 @@ requires `intentional_hold: true` and a written reason; QA still reports it.
 Without a strategy the EDL fails validation instead of extending the last frame.
 
 Edit it by hand freely. Re-render with `social-video-agent render WORKSPACE`.
+
+## motion-plan.json — motion design
+
+The default renderer requires a separate visual plan so effects remain
+inspectable and do not leak into editorial decisions:
+
+```json
+{
+  "schema_version": 1,
+  "style": "editorial_clean",
+  "accent_color": "#F4C542",
+  "text_color": "#FFFFFF",
+  "background_color": "#101114",
+  "font_family": "Inter",
+  "font_path": "/absolute/target-project/assets/fonts/Inter-Regular.ttf",
+  "elements": [
+    {
+      "schema_version": 1,
+      "type": "hook",
+      "start": 0.2,
+      "end": 2.4,
+      "text": "Najważniejsza teza",
+      "reason": "Make the approved opening understandable without sound."
+    }
+  ],
+  "rationale": "Use the project accent and calm typography; no decorative transitions."
+}
+```
+
+Allowed element types are `hook`, `lower_third`, `callout`, and `end_card`.
+Every element has a bounded timeline interval and editorial reason; an element
+outside the video duration blocks rendering. An empty list is valid when
+restraint is the professional choice. This plan never changes EDL cuts, audio,
+privacy stops, or the source files.
+
+`font_path` is optional and points at a local project-owned TTF, OTF, WOFF, or
+WOFF2 file (maximum 20 MB). It is copied only into the private Linux render
+staging directory, never into this repository or a release artifact. Confirm
+that the project's font license permits its intended rendered use.
 
 ## Canonical transcript
 

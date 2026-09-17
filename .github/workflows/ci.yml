@@ -44,7 +44,6 @@ jobs:
           enable-cache: true
       - run: uv sync --frozen --extra dev --python ${{ matrix.python }}
       - run: uv run --frozen --no-sync --python ${{ matrix.python }} pytest -q
-      - run: uv run --frozen --no-sync --python ${{ matrix.python }} social-video-agent doctor --json
 
   portability-unit:
     strategy:
@@ -80,3 +79,25 @@ jobs:
             dist/*.whl
             dist/*.tar.gz
             dist/social-video-agent-skill.zip
+
+  remotion-smoke:
+    runs-on: ubuntu-latest
+    env:
+      SOCIAL_VIDEO_FORCE_CPU: '1'
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fontconfig fonts-noto-core
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --extra dev --python 3.12
+      - run: npm ci
+      - run: npm exec tsc -- --noEmit
+      - run: npx remotion browser ensure
+      - run: uv run --frozen --no-sync pytest tests/integration/test_remotion.py -q
+      - run: uv run --frozen --no-sync social-video-agent doctor --json

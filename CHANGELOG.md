@@ -4,6 +4,23 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-17
+
+### Added
+
+- Default Remotion motion-design composition for new staged workflows, with
+  exact locked Node dependencies, Chrome/bootstrap/doctor checks, a validated
+  `motion-plan.json`, project-aware restrained graphic primitives, and a real
+  offline H.264/AAC smoke render in CI.
+- A blocking Stage 0 license declaration before discovery or media work, plus
+  an explicit FFmpeg-only opt-out and backwards-compatible legacy workspaces.
+
+### Changed
+
+- FFmpeg remains responsible for deterministic cuts, captions, audio timing and
+  the base edit; Remotion composites the planned visual layer; FFmpeg/ffprobe
+  still provide blocking technical QA and full-stream decode validation.
+
 ## [0.2.1] - 2026-09-17
 
 ### Fixed

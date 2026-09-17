@@ -1,12 +1,14 @@
 # social-video-agent
 
-An agent-native, local-first editor for turning existing recordings into Reels and Shorts. Codex makes editorial decisions from an inspectable transcript; Python and FFmpeg perform deterministic media work. Sources are never modified, and no paid API key is required.
+An agent-native, local-first editor for turning existing recordings into Reels and Shorts. Codex makes editorial decisions from an inspectable transcript; FFmpeg performs frame-accurate cuts and audio, and Remotion adds a planned motion-design layer. Sources are never modified, and no paid AI API key is required.
 
 ```text
-source → local transcription → packed transcript → edit plan → EDL → render → QA
+source → local transcription → edit plan → EDL + motion plan → FFmpeg base → Remotion → QA
 ```
 
-The project is an alpha. The core FFmpeg pipeline, captions, local faster-whisper backend, profiles, and QA are implemented. Remotion, WhisperX alignment, and diarization are not yet wired into the runtime.
+The project is an alpha. The FFmpeg pipeline, default Remotion compositor,
+captions, local faster-whisper backend, profiles, and QA are implemented.
+WhisperX alignment and diarization remain optional future integrations.
 
 ## Windows 11 + Codex + WSL2
 
@@ -58,6 +60,25 @@ social-video-agent edit '/mnt/c/Users/User/Videos/Mój film.mp4' \
 For a source under `/mnt/c` or `/mnt/d`, high-I/O intermediate data is stored under `~/.cache/social-video-agent/workspaces/` in Linux. Only the requested final file is copied to the Windows destination. Override the cache root with `SOCIAL_VIDEO_HOME`.
 
 Native Windows is not the primary supported runtime. There is no PowerShell launcher, `wsl.exe` bridge, native Windows execution engine, Docker service, MCP server, or cloud backend.
+
+### Remotion is enabled by default
+
+Bootstrap installs the exact Node packages from `package-lock.json`, downloads
+Chrome Headless Shell through Remotion's official command, type-checks the
+composition, and runs a real offline MP4 smoke render. `doctor` treats Node,
+Remotion, and its browser as required. Keep both the repository and
+`node_modules` in the WSL filesystem.
+
+Remotion uses a source-available license rather than Apache-2.0. Stage 0 stops
+before project discovery or media processing until the user records one of:
+
+- `free_license_eligible` — after confirming the current free-license terms;
+- `company_license_confirmed` — after obtaining the applicable Company License.
+
+See the [current Remotion license](https://www.remotion.dev/license). The CLI
+does not decide legal eligibility. Users who explicitly do not want Remotion
+may select `--renderer ffmpeg`, but that is an opt-out from the default visual
+pipeline.
 
 ## Project-aware editing
 
@@ -136,7 +157,8 @@ model-name changes do not alter workflow schemas.
 Initialize and inspect a workflow:
 
 ```bash
-social-video-agent workflow init interview.mp4 --project-root . --language pl
+social-video-agent workflow init interview.mp4 --project-root . \
+  --remotion-license free_license_eligible --language pl
 social-video-agent workflow status edit --language pl
 social-video-agent workflow complete 1 --workspace edit --language pl
 ```
@@ -164,6 +186,14 @@ Example:
 > Agent after Stage 1: Stage 1 complete. Switch to Terra and send:
 > “Continue social-video-agent with Stage 2.”
 
+Before that first discovery, the agent explains the Remotion license gate and
+records the user's declaration. Stage 2 writes both `edl.json` and
+`motion-plan.json`. The motion plan is project-aware and reviewable: it may use
+restrained hook typography, lower thirds, callouts, and a designed end card,
+but every element needs a timeline interval and reason. It does not add random
+zooms, transitions, or motion merely to appear busy. A clean edit with no extra
+graphic is valid when that serves the material better.
+
 ## What works
 
 - Local transcription with faster-whisper, downloaded on first transcription and cached under `~/.cache/social-video-agent/models/`.
@@ -171,6 +201,8 @@ Example:
   multiple audio tracks, sample-derived AAC timestamps, and deterministic EDL rendering.
 - Face-aware 9:16 framing with restrained movement.
 - ASS captions with preflight glyph checks, including `Zażółć gęślą jaźń`.
+- Project-aware Remotion motion design with exact pinned dependencies, a
+  durable `motion-plan.json`, H.264/AAC social export, and real render smoke QA.
 - Profiles for talking heads, education, podcasts, stories, landscape, square, and faster social editing.
 - Mechanical QA for duration, audio, clipping, silence at cuts, black frames, and caption bounds.
 - Content-addressed transcription caching and immutable source files.
@@ -182,7 +214,8 @@ The canonical command is `social-video-agent`; `social-video` remains as a compa
 ```bash
 social-video-agent doctor
 social-video-agent context inspect . --workspace edit
-social-video-agent workflow init INPUT --project-root . --language en
+social-video-agent workflow init INPUT --project-root . \
+  --remotion-license free_license_eligible --language en
 social-video-agent workflow status edit
 social-video-agent inspect INPUT
 social-video-agent transcribe INPUT
@@ -194,16 +227,23 @@ social-video-agent qa WORKSPACE
 social-video-agent apply-editorial-qa WORKSPACE
 ```
 
-`social-video-agent doctor` checks this project's WSL/Linux environment, FFmpeg, Python dependencies, ASR, fonts, plugin files, and workspace. OpenAI's separate `codex doctor` checks Codex itself; the commands are complementary.
+`social-video-agent doctor` checks this project's WSL/Linux environment,
+FFmpeg, Python dependencies, ASR, fonts, Node, locked Remotion packages,
+Chrome Headless Shell, plugin files, and workspace. OpenAI's separate
+`codex doctor` checks Codex itself; the commands are complementary.
 
 GPU/CUDA is optional. CPU mode is supported and setup never installs NVIDIA drivers, CUDA, Docker, or Whisper models. Models download only when transcription first needs one.
 
 ## Linux and macOS
 
-The Python pipeline remains cross-platform. Install Python 3.10–3.13, `uv`, FFmpeg with libass, fontconfig, and a font with the required glyphs, then run:
+The pipeline remains cross-platform. Install Python 3.10–3.13, `uv`, FFmpeg
+with libass, fontconfig, a font with the required glyphs, Node.js 20+, and npm,
+then run:
 
 ```bash
 uv sync --extra dev
+npm ci
+npx remotion browser ensure
 uv run social-video-agent doctor
 ```
 
@@ -251,6 +291,11 @@ social-video-agent doctor
 
 Tiny media fixtures are generated deterministically with FFmpeg. Automated Linux CI covers unit tests, plugin/skill/package validation, 30/60 fps rendering, paths with spaces and Polish Unicode, caption burn-in, and source immutability. GitHub-hosted Linux is not WSL: actual `/mnt/c` behavior and WSL detection remain a manual release gate in [docs/testing/windows-wsl2-acceptance.md](docs/testing/windows-wsl2-acceptance.md).
 
+A dedicated CI job installs Node 24, the locked Remotion graph and Chrome
+Headless Shell, type-checks the React composition, renders a synthetic Polish
+fixture, verifies CFR/AAC timing, runs technical QA, and fully decodes both
+streams. It still does not pretend that generic Linux is a real `/mnt/c` test.
+
 The social delivery contract is MP4 with H.264/`avc1`, `yuv420p`, BT.709,
 compatible constant frame rate, AAC-LC stereo at 48 kHz with continuous sample
 timestamps, `faststart`, 720×1280 preview, and 1080×1920 final. Rendering first
@@ -273,9 +318,13 @@ The project is Apache-2.0 and incorporates attributed MIT-licensed work from [br
 - The legacy `edit` command remains a continuous mechanical path; normal skill use now creates a project-aware staged plan and stops at guided handoffs.
 - The multi-short workflow is agent-driven; there is no single `shorts` command yet.
 - WhisperX alignment and speaker diarization are declared optional dependencies but are not connected to the pipeline.
-- The current renderer is Python + FFmpeg; Remotion is not integrated in v0.2.1.
-  Node is therefore optional. If a future opt-in Remotion layer is added, keep
-  its repository and `node_modules` in the WSL filesystem, not under `/mnt/c`.
+- Remotion currently composites a deliberately small vocabulary of project-aware
+  hook, lower-third, callout, and end-card graphics. It does not automatically
+  invent bespoke illustration, 3D work, or brand animation. Professional quality
+  still depends on the source, project guidance, Stage 1 decisions, and Stage 3
+  supervising-editor review.
+- Legacy workspaces resume with the FFmpeg renderer for compatibility. New
+  workflows default to Remotion and require the Stage 0 declaration.
 - Face-aware framing follows the most prominent face, not the active speaker.
 - Actual Windows 11 `/mnt/c` acceptance must be recorded for each release; generic Linux CI is not equivalent.
 

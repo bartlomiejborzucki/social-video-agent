@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "social-video-agent",
-  "version": "0.2.1",
-  "description": "Create project-aware social clips through persistent editorial and execution stages rendered by local tools.",
+  "version": "0.3.0",
+  "description": "Create project-aware social clips through persistent stages, deterministic FFmpeg editing, and planned Remotion motion design.",
   "license": "Apache-2.0",
   "keywords": ["video", "editing", "reels", "shorts", "tiktok", "captions", "ffmpeg"],
   "repository": "https://github.com/bartlomiejborzucki/social-video-agent"

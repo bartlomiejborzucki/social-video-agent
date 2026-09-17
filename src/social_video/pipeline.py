@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
+from fractions import Fraction
 from pathlib import Path
 
 from social_video.analysis.scenes import detect_scenes, scene_cut_times
@@ -32,10 +33,12 @@ from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.brand import BrandProfile, OutputProfile
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.edl import EDL, ReframeMode
+from social_video.schemas.motion import MotionPlan
 from social_video.schemas.plan import EditPlan
 from social_video.schemas.qa import QAReport
 from social_video.schemas.source import SourceManifest
 from social_video.schemas.transcript import Transcript
+from social_video.schemas.workflow import RemotionLicenseAttestation, Renderer
 from social_video.sources import build_manifest
 from social_video.transcribe.base import TranscriptionOptions
 from social_video.transcribe.service import transcribe_source
@@ -218,13 +221,60 @@ def stage_render(
     quality: str = "final",
     captions: Path | None = None,
     output: Path | None = None,
+    renderer: Renderer = Renderer.FFMPEG,
+    motion_plan: MotionPlan | None = None,
+    remotion_license_attestation: RemotionLicenseAttestation | None = None,
 ) -> Path:
     q: Quality = QUALITIES[quality]
     out_dir = workspace.previews if quality != "final" else workspace.final
     output = output or out_dir / ("final.mp4" if quality == "final" else "preview.mp4")
-    manifest_obj = render_edl(edl, manifest, output, quality=q, caption_file=captions)
+    render_target = output
+    if renderer is Renderer.REMOTION:
+        if remotion_license_attestation is None:
+            raise ValidationError("Remotion rendering requires a saved license attestation")
+        if motion_plan is None:
+            raise ValidationError(
+                f"Remotion is enabled but MotionPlan was not provided ({workspace.motion_plan})"
+            )
+        render_target = workspace.cache / "remotion" / f"base-{quality}.mp4"
+    manifest_obj = render_edl(edl, manifest, render_target, quality=q, caption_file=captions)
+    if renderer is Renderer.REMOTION:
+        from social_video.remotion import render_motion_design
+
+        assert motion_plan is not None  # checked before the technical base render
+        base_info = probe(render_target)
+        if base_info.video is None:
+            raise ValidationError("technical base render has no video stream")
+        rate = float(Fraction(manifest_obj.frame_rate))
+        duration_in_frames = (
+            base_info.video.nb_frames
+            if base_info.video.nb_frames is not None
+            else round(manifest_obj.duration * rate)
+        )
+        render_motion_design(
+            render_target,
+            output,
+            motion_plan,
+            duration_in_frames=duration_in_frames,
+            fps=rate,
+            width=base_info.video.width,
+            height=base_info.video.height,
+            staging_root=workspace.cache / "remotion",
+        )
+        final_info = probe(output)
+        manifest_obj.output = str(output)
+        manifest_obj.duration = final_info.duration
+        if final_info.video is None:
+            raise ValidationError("Remotion output has no video stream")
+        manifest_obj.width = final_info.video.width
+        manifest_obj.height = final_info.video.height
+        manifest_obj.tool_versions["remotion"] = "4.0.525"
     save_artifact(manifest_obj, workspace.renders / f"{output.stem}.manifest.json")
-    record_stage(workspace, f"render:{quality}", {"output": str(output)})
+    record_stage(
+        workspace,
+        f"render:{quality}",
+        {"output": str(output), "renderer": renderer.value},
+    )
     return output
 
 
