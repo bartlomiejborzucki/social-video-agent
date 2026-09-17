@@ -32,10 +32,11 @@ from social_video.reframe.plan import plan_reframe
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.brand import BrandProfile, OutputProfile
 from social_video.schemas.captions import CaptionTrack
+from social_video.schemas.config import BrandContract
 from social_video.schemas.edl import EDL, ReframeMode
 from social_video.schemas.motion import MotionPlan
 from social_video.schemas.plan import EditPlan
-from social_video.schemas.qa import QAReport
+from social_video.schemas.qa import QACheck, QAReport, QASeverity, RenderManifest
 from social_video.schemas.source import SourceManifest
 from social_video.schemas.transcript import Transcript
 from social_video.schemas.workflow import RemotionLicenseAttestation, Renderer
@@ -151,6 +152,11 @@ def stage_compile(
     reframe: ReframeMode | None = None,
 ) -> EDL:
     edl = compile_plan(plan, transcript, profile, reframe_mode=reframe)
+    if workspace.brand_contract.is_file():
+        from social_video.project_config import apply_contract_to_edl
+
+        contract = load_artifact(BrandContract, workspace.brand_contract)
+        edl = apply_contract_to_edl(edl, contract)
     save_artifact(edl, workspace.edl)
     record_stage(workspace, "compile", {"ranges": len(edl.ranges)})
     return edl
@@ -213,6 +219,14 @@ def stage_captions(
     return track, ass_path
 
 
+def load_workspace_brand(workspace: Workspace, fallback: str = "default") -> BrandProfile:
+    if workspace.brand_contract.is_file():
+        contract = load_artifact(BrandContract, workspace.brand_contract)
+        contract.validate_assets()
+        return contract.brand
+    return load_brand(fallback)
+
+
 def stage_render(
     edl: EDL,
     manifest: SourceManifest,
@@ -225,6 +239,28 @@ def stage_render(
     motion_plan: MotionPlan | None = None,
     remotion_license_attestation: RemotionLicenseAttestation | None = None,
 ) -> Path:
+    contract: BrandContract | None = None
+    if workspace.brand_contract.is_file():
+        contract = load_artifact(BrandContract, workspace.brand_contract)
+        contract.validate_assets()
+        if edl.brand_profile != contract.project_config_sha256:
+            raise ValidationError(
+                "EDL brand_profile does not match the compiled project brand contract; "
+                "recompile Stage 2 before rendering"
+            )
+    elif edl.brand_profile:
+        # Backward-compatible named profiles remain supported; arbitrary names do not.
+        load_brand(edl.brand_profile)
+    if (
+        renderer is Renderer.FFMPEG
+        and contract is not None
+        and captions is not None
+        and contract.brand.captions.background_style.value == "rounded_box"
+    ):
+        raise ValidationError(
+            "caption background_style=rounded_box requires the Remotion renderer; "
+            "FFmpeg/libass cannot render the configured rounded contract exactly"
+        )
     q: Quality = QUALITIES[quality]
     out_dir = workspace.previews if quality != "final" else workspace.final
     output = output or out_dir / ("final.mp4" if quality == "final" else "preview.mp4")
@@ -237,7 +273,19 @@ def stage_render(
                 f"Remotion is enabled but MotionPlan was not provided ({workspace.motion_plan})"
             )
         render_target = workspace.cache / "remotion" / f"base-{quality}.mp4"
-    manifest_obj = render_edl(edl, manifest, render_target, quality=q, caption_file=captions)
+    caption_track: CaptionTrack | None = None
+    remotion_caption_style = None
+    base_captions = captions
+    if renderer is Renderer.REMOTION and captions is not None and contract is not None:
+        json_path = captions.with_suffix(".json")
+        if not json_path.is_file():
+            raise ValidationError(
+                f"caption data required for branded Remotion captions is missing: {json_path}"
+            )
+        caption_track = load_artifact(CaptionTrack, json_path)
+        remotion_caption_style = contract.brand.captions
+        base_captions = None
+    manifest_obj = render_edl(edl, manifest, render_target, quality=q, caption_file=base_captions)
     if renderer is Renderer.REMOTION:
         from social_video.remotion import render_motion_design
 
@@ -251,15 +299,31 @@ def stage_render(
             if base_info.video.nb_frames is not None
             else round(manifest_obj.duration * rate)
         )
+        render_plan = motion_plan.model_copy(deep=True)
+        if contract is not None:
+            render_plan.font_family = contract.brand.captions.font_family
+            render_plan.font_path = contract.resolved_font_file
+            render_plan.accent_color = contract.brand.accent_colour
+            render_plan.text_color = contract.brand.captions.primary_colour
+            render_plan.background_color = contract.brand.background_colour
         render_motion_design(
             render_target,
             output,
-            motion_plan,
+            render_plan,
             duration_in_frames=duration_in_frames,
             fps=rate,
             width=base_info.video.width,
             height=base_info.video.height,
             staging_root=workspace.cache / "remotion",
+            captions=caption_track,
+            caption_style=remotion_caption_style,
+            logo_path=(
+                Path(contract.resolved_logo_file)
+                if contract and contract.resolved_logo_file
+                else None
+            ),
+            logo_usage=contract.brand.logo_usage if contract else "none",
+            safe_margins=contract.safe_margins if contract else None,
         )
         final_info = probe(output)
         manifest_obj.output = str(output)
@@ -269,6 +333,19 @@ def stage_render(
         manifest_obj.width = final_info.video.width
         manifest_obj.height = final_info.video.height
         manifest_obj.tool_versions["remotion"] = "4.0.525"
+    if contract is not None:
+        manifest_obj.brand_contract_sha256 = contract.project_config_sha256
+        manifest_obj.caption_style = contract.brand.captions.model_dump(
+            mode="json", exclude={"schema_version"}
+        )
+    manifest_obj.captions_burned = captions is not None
+    manifest_obj.logo_applied = bool(
+        contract
+        and contract.resolved_logo_file
+        and contract.brand.logo_usage != "none"
+        and renderer is Renderer.REMOTION
+    )
+    manifest_obj.brand_safe_margins = contract.safe_margins if contract else {}
     save_artifact(manifest_obj, workspace.renders / f"{output.stem}.manifest.json")
     record_stage(
         workspace,
@@ -287,7 +364,28 @@ def stage_qa(
     attempt: int = 1,
     sheets: bool = True,
 ) -> QAReport:
+    caption_problem: str | None = None
+    if captions is None and edl.captions:
+        captions, caption_problem = resolve_caption_track(Path(edl.captions))
     report = check_render(output, edl, captions=captions, attempt=attempt)
+    if caption_problem:
+        report.checks.append(
+            QACheck(
+                name="caption QA data available",
+                severity=QASeverity.ERROR,
+                passed=False,
+                message=caption_problem,
+            )
+        )
+    elif edl.captions:
+        report.checks.append(
+            QACheck(
+                name="caption QA data available",
+                severity=QASeverity.INFO,
+                passed=True,
+                message="structured caption JSON was loaded",
+            )
+        )
     if sheets:
         boundaries = Timeline(edl).cut_boundaries()
         # Only generate stills where a check actually flagged something, or at
@@ -310,9 +408,20 @@ def stage_qa(
             at = sl.output_start + max(
                 0.0, (limit - sl.range.effective_video_start) / sl.range.speed
             )
-            privacy_targets.update({max(0.0, at - 0.04), at, at + 0.04, timeline.duration})
+            privacy_targets.update(
+                {
+                    max(0.0, at - 0.25),
+                    max(0.0, at - 0.04),
+                    at,
+                    at + 0.04,
+                    at + 0.25,
+                    max(0.0, timeline.duration - 1.0),
+                    timeline.duration,
+                }
+            )
         if privacy_targets:
-            made = boundary_sheets(output, sorted(privacy_targets), workspace.qa, window=0.04)
+            privacy_dir = workspace.qa / "privacy-review"
+            made = boundary_sheets(output, sorted(privacy_targets), privacy_dir, window=0.04)
             report.artifacts.extend(str(path) for path in made)
         ending_sheet = contact_sheet(
             output,
@@ -325,12 +434,56 @@ def stage_qa(
         report.artifacts.append(str(ending_sheet))
     save_artifact(report, workspace.qa / "qa-report.json")
     save_artifact(report, workspace.technical_qa)
+    if workspace.brand_contract.is_file():
+        from social_video.qa.brand import check_brand
+
+        contract = load_artifact(BrandContract, workspace.brand_contract)
+        manifest_path = workspace.renders / f"{output.stem}.manifest.json"
+        render_manifest = load_artifact(RenderManifest, manifest_path)
+        brand_report = check_brand(
+            output,
+            contract,
+            render_manifest,
+            accepted_deviations=set(edl.accepted_qa_warnings),
+        )
+        save_artifact(brand_report, workspace.brand_qa)
     record_stage(
         workspace,
         "qa",
         {"passed": report.passed, "status": report.status, "attempt": attempt},
     )
     return report
+
+
+def resolve_caption_track(caption_source: Path) -> tuple[CaptionTrack | None, str | None]:
+    """Resolve JSON directly or the structured peer of SRT/ASS for QA."""
+    suffix = caption_source.suffix.casefold()
+    if suffix not in {".json", ".srt", ".ass"}:
+        return None, f"unsupported caption artifact for QA: {caption_source}"
+    if suffix != ".json" and not caption_source.is_file():
+        return None, f"configured caption artifact is missing: {caption_source}"
+    json_path = caption_source if suffix == ".json" else caption_source.with_suffix(".json")
+    if not json_path.is_file():
+        return (
+            None,
+            f"caption QA data is missing: {json_path}; the configured {suffix} "
+            "artifact cannot be checked",
+        )
+    track = load_artifact(CaptionTrack, json_path)
+    if suffix != ".json":
+        text = caption_source.read_text(encoding="utf-8", errors="replace")
+        derived_count = (
+            text.count("-->")
+            if suffix == ".srt"
+            else sum(line.startswith("Dialogue:") for line in text.splitlines())
+        )
+        if derived_count != len(track.cues):
+            return (
+                None,
+                f"caption artifacts are inconsistent: {caption_source} has "
+                f"{derived_count} cue(s), {json_path} has {len(track.cues)}",
+            )
+    return track, None
 
 
 def run_edit(
@@ -349,7 +502,7 @@ def run_edit(
 ) -> tuple[Path, QAReport]:
     """The whole talking-head pipeline, end to end."""
     profile = load_profile(profile_name)
-    brand = load_brand(brand_name)
+    brand = load_workspace_brand(workspace, brand_name)
 
     manifest = stage_ingest(source, workspace)
     transcript = stage_transcribe(

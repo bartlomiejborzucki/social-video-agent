@@ -9,7 +9,13 @@ prose example in SKILL.md, is read by raw dict indexing, and its ``version``
 and ``total_duration_s`` fields are never read by any code.
 """
 
-from social_video.schemas.base import SCHEMA_VERSION, Artifact, load_artifact, save_artifact
+from social_video.schemas.base import (
+    SCHEMA_VERSION,
+    Artifact,
+    load_artifact,
+    save_artifact,
+    save_artifacts_atomically,
+)
 from social_video.schemas.brand import (
     BrandProfile,
     CaptionCase,
@@ -18,6 +24,8 @@ from social_video.schemas.brand import (
     OutputProfile,
 )
 from social_video.schemas.captions import CaptionCue, CaptionTrack, CaptionWord
+from social_video.schemas.config import BrandContract, CaptionConfig, ProjectVideoConfig
+from social_video.schemas.delivery import DeliveryItem, DeliveryManifest
 from social_video.schemas.editorial_qa import EditorialFix, EditorialQA, EditorialQAStatus
 from social_video.schemas.edl import (
     EDL,
@@ -58,10 +66,12 @@ __all__ = [
     "EDL",
     "SCHEMA_VERSION",
     "Artifact",
+    "BrandContract",
     "BrandProfile",
     "CandidateScores",
     "CandidateSet",
     "CaptionCase",
+    "CaptionConfig",
     "CaptionCue",
     "CaptionPosition",
     "CaptionStyle",
@@ -73,6 +83,8 @@ __all__ = [
     "ContextSource",
     "ContextSources",
     "CropKeyframe",
+    "DeliveryItem",
+    "DeliveryManifest",
     "EDLRange",
     "EditPlan",
     "EditorialFix",
@@ -85,6 +97,7 @@ __all__ = [
     "PlanItem",
     "ProjectConfig",
     "ProjectContext",
+    "ProjectVideoConfig",
     "QACheck",
     "QAReport",
     "QASeverity",
@@ -103,4 +116,5 @@ __all__ = [
     "WorkflowState",
     "load_artifact",
     "save_artifact",
+    "save_artifacts_atomically",
 ]

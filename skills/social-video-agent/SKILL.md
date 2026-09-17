@@ -3,7 +3,7 @@ name: social-video-agent
 description: Create project-aware Reels and Shorts from recordings with local transcription, an explicit plan and EDL, persistent stages, rendering, and QA. Use when asked to edit, trim, caption, reframe, review or resume a preview, or create delivery variants. Do not use for generated video or simple conversion.
 license: Apache-2.0
 metadata:
-  version: "0.3.0"
+  version: "0.4.0"
 ---
 
 # Project-aware social video editing
@@ -31,10 +31,14 @@ mistake this installed skill's directory for the user's project.
      --remotion-license DECLARATION --language USER_LANGUAGE
    ```
 
-5. Read [workflow.md](references/workflow.md) plus only the active stage's
+   If project config exists, run `social-video-agent config validate PROJECT
+   --workspace WORKSPACE`. Treat `brand-contract.json` as executable input and
+   stop on a missing required asset or component-version mismatch.
+
+6. Read [workflow.md](references/workflow.md) plus only the active stage's
    relevant reference below. Use [model-routing.md](references/model-routing.md)
    for handoffs.
-5. In guided mode validate and save artifacts, stop at the boundary, recommend
+7. In guided mode validate and save artifacts, stop at the boundary, recommend
    the next model, and give the exact continuation prompt in the user's
    language. The skill cannot switch models.
 
@@ -66,6 +70,10 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
   project typography/colors and only story-serving hook, lower-third, callout,
   or end-card elements. Remotion enriches an approved edit; it does not decide
   the story or repair insufficient footage.
+- Stage 2 compiles project config into `brand-contract.json`; render only a
+  matching EDL/contract. Stage 4 requires technical QA and `qa/qa-brand.json`.
+- Stage 5 uses `social-video-agent deliver`; preserve the EDL hash and verify
+  every delivery-manifest entry.
 
 ## References
 

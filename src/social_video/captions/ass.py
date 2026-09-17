@@ -21,6 +21,7 @@ from social_video.schemas.captions import CaptionTrack
 _ALIGNMENT = {
     CaptionPosition.BOTTOM: 2,
     CaptionPosition.LOWER_THIRD: 2,
+    CaptionPosition.LOWER_SAFE_ZONE: 2,
     CaptionPosition.CENTER: 5,
     CaptionPosition.TOP: 8,
 }
@@ -79,7 +80,7 @@ def render_ass(
         margin_v = round(height * max(style.margin_pct, 22.0) / 100.0)
 
     # BorderStyle 3 draws an opaque box behind the text; 1 draws an outline.
-    border_style = 3 if style.background_box else 1
+    border_style = 3 if style.background_box or style.background_style.value != "none" else 1
 
     lines = [
         "[Script Info]",
@@ -105,7 +106,7 @@ def render_ass(
             f"{hex_to_ass_colour(primary)},"
             f"{hex_to_ass_colour(style.highlight_colour)},"
             f"{hex_to_ass_colour(style.outline_colour)},"
-            f"{hex_to_ass_colour(style.outline_colour, alpha=128)},"
+            f"{hex_to_ass_colour(style.background_colour)},"
             f"{-1 if style.bold else 0},0,0,0,100,100,0,0,"
             f"{border_style},{style.outline_width:g},{style.shadow:g},{alignment},"
             f"{margin_h},{margin_h},{margin_v},1"

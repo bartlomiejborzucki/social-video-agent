@@ -33,6 +33,10 @@ standalone story, false starts, repetitions, meaningful pauses, ordering,
 ending, B-roll/punch-in opportunities, and caption behavior. Project defaults
 apply only after discovery; the current request wins and overrides are recorded.
 
+Run `config validate` when project config is present. It creates executable
+`brand-contract.json`; missing required font/logo assets or mixed
+CLI/skill/plugin versions block the workflow before editorial work.
+
 Produce `context/*`, `edit-plan.json` (including `style_sources` and
 `user_overrides`), and optionally `edit-plan.md`. Do not render. Validate, mark
 Stage 1 complete, and stop in guided mode.
@@ -50,6 +54,11 @@ graphic improves the story. FFmpeg first creates the frame-accurate base edit;
 Remotion composites the approved motion layer; then FFmpeg/ffprobe QA the final
 `preview.mp4`. Write `qa/qa-technical.json`, stop, and hand off for editorial
 review.
+
+Generate captions from the compiled brand contract. The EDL stores its
+fingerprint, never an unresolvable project/profile name. Rounded caption boxes
+are rendered by Remotion; an FFmpeg-only run fails rather than silently
+approximating that contract.
 
 ## Stage 3 — supervising-editor review
 
@@ -75,19 +84,22 @@ Recommended tier: `execution_balanced`.
 Current recommendations: OpenAI Terra or Claude Sonnet 5, medium effort.
 
 Apply only `qa-editorial.json` fixes. Approval is a no-op; do not perform a new
-full editorial analysis. Update affected EDL/captions/`motion-plan.json`, render a new
+full editorial analysis. Fixes explicitly target `edl`, `captions`, or `style`;
+all paths and resulting artifacts validate before any write. Update affected artifacts, render a new
 preview if substantive, rerun technical QA, render `final.mp4`, fully decode it,
-and verify duration, CFR, A/V timing, captions, ending, and destination. Persist
-state.
+and verify duration, CFR, A/V timing, captions, ending, and destination. Require
+passing `qa/qa-brand.json` before Stage 4 completes. Persist state.
 
 ## Stage 5 — optional delivery
 
 Recommended tier: `mechanical_fast`.
 Current recommendations: OpenAI Luna or Claude Haiku 4.5, low effort.
 
-Create only approved mechanical variants: no-captions, resolution variants,
-SRT/VTT, thumbnail/poster, names, and `delivery-manifest.json`. Hash or compare
-the EDL before and after; Stage 5 must not change cuts or story.
+Use `social-video-agent deliver WORKSPACE --output DESTINATION` with desired
+variant flags. Create only approved mechanical variants: no-captions, SRT/VTT,
+thumbnail/poster, names, and `delivery-manifest.json`. Every video gets QA and
+every item gets size, format, SHA-256 and status. Verify the EDL hash before and
+after; Stage 5 must not change cuts or story, and `/tmp` is not a delivery target.
 
 ## Resume and failure behavior
 

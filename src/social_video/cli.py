@@ -31,8 +31,10 @@ app = typer.Typer(
 )
 context_app = typer.Typer(help="Discover and cache target-project brand/editing context.")
 workflow_app = typer.Typer(help="Persist and resume the guided multi-stage editing workflow.")
+config_app = typer.Typer(help="Initialize and validate executable project branding.")
 app.add_typer(context_app, name="context")
 app.add_typer(workflow_app, name="workflow")
+app.add_typer(config_app, name="config")
 console = Console()
 err_console = Console(stderr=True)
 
@@ -49,7 +51,55 @@ def main(
 @app.command()
 def version() -> None:
     """Print the version."""
+    from social_video.compatibility import validate_component_versions
+
+    _guard(validate_component_versions)
     console.print(__version__)
+
+
+@config_app.command("init")
+def config_init(
+    project_root: Path = typer.Argument(Path(), help="Target project root."),
+    force: bool = typer.Option(False, "--force", help="Replace an existing config."),
+) -> None:
+    """Create a documented .social-video/config.yaml template."""
+    from social_video.project_config import init_project_config
+
+    path = _guard(lambda: init_project_config(project_root, force=force))
+    console.print(f"[green]created[/green] {path}", soft_wrap=True)
+
+
+@config_app.command("validate")
+def config_validate(
+    project_root: Path = typer.Argument(Path(), help="Target project root."),
+    workspace_dir: Path | None = typer.Option(None, "--workspace", "-w"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Validate assets and compile configuration into an executable contract."""
+    from social_video.project_config import compile_brand_contract, find_project_config
+    from social_video.workspace.layout import Workspace
+
+    root = project_root.resolve()
+    config = find_project_config(root)
+    if config is None:
+        err_console.print("[red]error:[/red] no .social-video/config.yaml or social-video.yaml")
+        raise typer.Exit(1)
+    workspace = Workspace.at(workspace_dir or root / "edit")
+    contract = _guard(lambda: compile_brand_contract(config, workspace, project_root=root))
+    payload = {
+        "status": "valid",
+        "config": str(config),
+        "contract": str(workspace.brand_contract),
+        "font": contract.brand.captions.font_family,
+        "font_file": contract.resolved_font_file,
+        "resolution": f"{contract.output_width}x{contract.output_height}",
+        "fps": contract.output_fps,
+    }
+    if as_json:
+        console.print_json(json.dumps(payload))
+    else:
+        console.print(f"[green]valid[/green] {config}")
+        console.print(f"[green]compiled[/green] {workspace.brand_contract}")
 
 
 # ---------------------------------------------------------------------------
@@ -845,14 +895,56 @@ def qa(
     raise typer.Exit(0 if report.passed else 1)
 
 
+@app.command()
+def deliver(
+    workspace_dir: Path = typer.Argument(..., help="Completed edit workspace."),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Durable destination."),
+    with_captions: bool = typer.Option(False, "--with-captions"),
+    no_captions: bool = typer.Option(False, "--no-captions"),
+    srt: bool = typer.Option(False, "--srt"),
+    vtt: bool = typer.Option(False, "--vtt"),
+    poster: bool = typer.Option(False, "--poster"),
+    resolution: list[str] | None = typer.Option(
+        None, "--resolution", help="Additional WIDTHxHEIGHT variant; repeatable."
+    ),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Create immutable Stage 5 variants and a verified delivery manifest."""
+    from social_video.delivery import deliver_workspace
+    from social_video.paths import normalize_user_path
+    from social_video.workspace.layout import Workspace
+
+    destination = _guard(lambda: normalize_user_path(output)) if output else None
+    manifest = _guard(
+        lambda: deliver_workspace(
+            Workspace.at(workspace_dir),
+            destination,
+            with_captions=with_captions,
+            no_captions=no_captions,
+            srt=srt,
+            vtt=vtt,
+            poster=poster,
+            resolutions=resolution,
+        )
+    )
+    if as_json:
+        console.print_json(manifest.to_json())
+    else:
+        console.print(f"[green]delivered[/green] {manifest.destination}")
+        manifest_path = Path(manifest.destination) / "delivery-manifest.json"
+        console.print(f"[green]manifest[/green] {manifest_path}")
+
+
 @app.command("apply-editorial-qa")
 def apply_editorial_review(
     workspace_dir: Path = typer.Argument(..., help="Workspace containing qa-editorial.json."),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Apply only the supervising editor's validated fixes to edl.json."""
-    from social_video.editorial.review import apply_editorial_qa
-    from social_video.schemas.base import load_artifact, save_artifact
+    from social_video.editorial.review import apply_editorial_qa_artifacts
+    from social_video.schemas.base import load_artifact, save_artifacts_atomically
+    from social_video.schemas.captions import CaptionTrack
+    from social_video.schemas.config import BrandContract
     from social_video.schemas.editorial_qa import EditorialQA
     from social_video.schemas.edl import EDL
     from social_video.workspace.layout import Workspace
@@ -860,9 +952,30 @@ def apply_editorial_review(
     ws = Workspace.at(workspace_dir)
     edl = _guard(lambda: load_artifact(EDL, ws.edl))
     review = _guard(lambda: load_artifact(EditorialQA, ws.editorial_qa))
-    updated, changed = _guard(lambda: apply_editorial_qa(edl, review))
+    caption_path = Path(edl.captions).with_suffix(".json") if edl.captions else None
+    captions = (
+        _guard(lambda: load_artifact(CaptionTrack, caption_path))
+        if caption_path and caption_path.is_file()
+        else None
+    )
+    style = (
+        _guard(lambda: load_artifact(BrandContract, ws.brand_contract))
+        if ws.brand_contract.is_file()
+        else None
+    )
+    updated, updated_captions, updated_style, changed = _guard(
+        lambda: apply_editorial_qa_artifacts(edl, review, captions=captions, style=style)
+    )
     if changed:
-        _guard(lambda: save_artifact(updated, ws.edl))
+        changes = {fix.artifact.value for fix in review.fixes}
+        writes = {}
+        if "edl" in changes:
+            writes[ws.edl] = updated
+        if "captions" in changes and updated_captions is not None and caption_path is not None:
+            writes[caption_path] = updated_captions
+        if "style" in changes and updated_style is not None:
+            writes[ws.brand_contract] = updated_style
+        _guard(lambda: save_artifacts_atomically(writes))
     result = {"status": review.status.value, "changed": changed, "edl": str(ws.edl)}
     if as_json:
         console.print_json(json.dumps(result))

@@ -487,6 +487,21 @@ def _check_distribution(report: DoctorReport) -> None:
                 "valid" if result.ok else "; ".join(result.errors[:2]),
             )
         )
+    from social_video.compatibility import validate_component_versions
+
+    try:
+        versions = validate_component_versions(root)
+    except Exception as exc:
+        report.add(Check("component version compatibility", False, True, str(exc)))
+    else:
+        report.add(
+            Check(
+                "component version compatibility",
+                True,
+                True,
+                ", ".join(f"{key}={value}" for key, value in sorted(versions.items())),
+            )
+        )
 
 
 def _check_workspace(report: DoctorReport) -> None:

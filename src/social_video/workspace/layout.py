@@ -131,6 +131,10 @@ class Workspace:
         return self.root / "motion-plan.json"
 
     @property
+    def brand_contract(self) -> Path:
+        return self.root / "brand-contract.json"
+
+    @property
     def editorial_qa(self) -> Path:
         return self.root / "qa-editorial.json"
 
@@ -153,6 +157,10 @@ class Workspace:
     @property
     def technical_qa(self) -> Path:
         return self.qa / "qa-technical.json"
+
+    @property
+    def brand_qa(self) -> Path:
+        return self.qa / "qa-brand.json"
 
     @property
     def delivery_manifest(self) -> Path:

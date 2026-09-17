@@ -507,7 +507,18 @@ def _build_context(root: Path, sources: ContextSources) -> ProjectContext:
 
 
 def _config_references(config: dict[str, object]) -> list[str]:
-    values = [config.get(key) for key in ("brandbook", "editing_guide", "logo", "intro", "outro")]
+    values = [
+        config.get(key)
+        for key in (
+            "brandbook",
+            "editing_guide",
+            "logo",
+            "logo_file",
+            "font_file",
+            "intro",
+            "outro",
+        )
+    ]
     values.append(config.get("font"))
     fallbacks = config.get("font_fallback")
     if isinstance(fallbacks, list):

@@ -7,6 +7,21 @@ with what to do about it.
 
 ## Common
 
+**Brand config was discovered but the render uses defaults.** Run
+`social-video-agent config validate PROJECT --workspace WORKSPACE`, recompile
+Stage 2, and confirm `brand-contract.json` exists. An EDL from before 0.4 has no
+contract fingerprint and must be recompiled; do not type the project name into
+`brand_profile`.
+
+**Configured font/logo is missing.** Assets resolve relative to the target
+project, never the installed skill. Install the font inside WSL or set
+`font_file`; fix `logo_file` when `logo_usage: required`. Ubuntu bootstrap
+installs Lato and Noto Sans.
+
+**Stage 5 output stayed temporary.** Use `social-video-agent deliver edit
+--output /durable/path --with-captions`. `/tmp` is rejected. Alternatively set
+an approved `delivery_output` in project config.
+
 **No ffmpeg.** Install via the system package manager, or
 `social-video-agent doctor --install-ffmpeg` to fetch a static build with no
 administrator rights.

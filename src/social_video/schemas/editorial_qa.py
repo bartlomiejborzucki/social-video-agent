@@ -15,9 +15,16 @@ class EditorialQAStatus(str, Enum):
     CHANGES_REQUESTED = "changes_requested"
 
 
+class EditorialArtifact(str, Enum):
+    EDL = "edl"
+    CAPTIONS = "captions"
+    STYLE = "style"
+
+
 class EditorialFix(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    artifact: EditorialArtifact = EditorialArtifact.EDL
     path: str = Field(description="Exact artifact field to change, e.g. ranges[2].end.")
     value: Any
     reason: str = ""

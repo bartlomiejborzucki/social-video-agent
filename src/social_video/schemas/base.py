@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, TypeVar
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
@@ -51,6 +52,37 @@ def save_artifact(artifact: Artifact, path: str | Path) -> Path:
     tmp.write_text(artifact.to_json(), encoding="utf-8")
     tmp.replace(p)  # atomic, so an interrupted write never truncates a good file
     return p
+
+
+def save_artifacts_atomically(items: dict[Path, Artifact]) -> None:
+    """Validate first at the caller, then publish a related artifact set with rollback."""
+    staged: dict[Path, Path] = {}
+    originals: dict[Path, bytes | None] = {}
+    try:
+        for path, artifact in items.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+            temporary.write_text(artifact.to_json(), encoding="utf-8")
+            staged[path] = temporary
+            originals[path] = path.read_bytes() if path.is_file() else None
+        published: list[Path] = []
+        try:
+            for path, temporary in staged.items():
+                temporary.replace(path)
+                published.append(path)
+        except OSError:
+            for path in reversed(published):
+                original = originals[path]
+                if original is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    restore = path.with_name(f".{path.name}.{uuid4().hex}.restore")
+                    restore.write_bytes(original)
+                    restore.replace(path)
+            raise
+    finally:
+        for temporary in staged.values():
+            temporary.unlink(missing_ok=True)
 
 
 def load_artifact(model: type[T], path: str | Path) -> T:

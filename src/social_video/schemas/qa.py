@@ -104,3 +104,8 @@ class RenderManifest(Artifact):
     loudness_target_lufs: float | None = None
     sources_used: list[str] = Field(default_factory=list)
     tool_versions: dict[str, str] = Field(default_factory=dict)
+    brand_contract_sha256: str | None = None
+    caption_style: dict = Field(default_factory=dict)
+    captions_burned: bool = False
+    logo_applied: bool = False
+    brand_safe_margins: dict[str, float] = Field(default_factory=dict)

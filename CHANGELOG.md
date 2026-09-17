@@ -4,6 +4,18 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-17
+
+### Added
+
+- Versioned project config commands and compiled `brand-contract.json` with
+  deterministic Remotion caption boxes, resolved fonts/logos, exact colors,
+  margins, resolution and CFR.
+- Blocking brand QA, automatic structured-caption discovery, atomic
+  multi-artifact editorial fixes, privacy-boundary review sheets, and a native
+  Stage 5 delivery command with per-file QA and SHA-256 manifest entries.
+- CLI/skill/plugin/package compatibility checks and a documented migration path.
+
 ## [0.3.0] - 2026-09-17
 
 ### Added

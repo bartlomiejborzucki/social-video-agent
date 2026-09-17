@@ -8,10 +8,15 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
+import yaml
+
+from social_video.compatibility import validate_component_versions, validate_saved_versions
 from social_video.errors import ValidationError
 from social_video.paths import normalize_user_path
+from social_video.project_config import compile_brand_contract, find_project_config
 from social_video.project_context import discover_project_context, resolve_project_root
 from social_video.schemas.base import load_artifact, save_artifact
+from social_video.schemas.delivery import DeliveryManifest
 from social_video.schemas.editorial_qa import EditorialQA
 from social_video.schemas.edl import EDL
 from social_video.schemas.motion import MotionPlan
@@ -47,6 +52,7 @@ def create_workflow(
     remotion_license_attestation: RemotionLicenseAttestation | None = None,
     refresh_context: bool = False,
 ) -> WorkflowState:
+    versions = validate_component_versions()
     if renderer is Renderer.REMOTION and remotion_license_attestation is None:
         raise ValidationError(
             "Remotion is the default renderer, but Stage 0 cannot continue without a "
@@ -60,6 +66,10 @@ def create_workflow(
     workspace.ensure()
     target = resolve_project_root(project_root)
     context, _ = discover_project_context(target, workspace, refresh=refresh_context)
+    config_path = find_project_config(target)
+    executable_config = config_path is not None and _is_executable_config(config_path)
+    if executable_config and config_path is not None:
+        compile_brand_contract(config_path, workspace, project_root=target)
     configured_budget = context.config.get("model_budget")
     configured_mode = context.config.get("workflow_mode")
     if configured_budget and model_budget is ModelBudget.BALANCED:
@@ -68,6 +78,7 @@ def create_workflow(
         workflow_mode = WorkflowMode(str(configured_mode))
     now = _now()
     state = WorkflowState(
+        component_versions=versions,
         target_project_root=str(target),
         workspace=str(workspace.root),
         source_media=[str(normalize_user_path(item, must_exist=True)) for item in source_media],
@@ -82,6 +93,8 @@ def create_workflow(
         edl_path=str(workspace.edl),
         preview_path=str(workspace.previews / "preview.mp4"),
         technical_qa_path=str(workspace.technical_qa),
+        brand_contract_path=str(workspace.brand_contract) if executable_config else "",
+        brand_qa_path=str(workspace.brand_qa) if executable_config else "",
         editorial_qa_path=str(workspace.editorial_qa),
         final_output_path=str(workspace.final / "final.mp4"),
         delivery_manifest_path=str(workspace.delivery_manifest),
@@ -94,7 +107,10 @@ def create_workflow(
 
 
 def load_workflow(workspace: Workspace) -> WorkflowState:
-    return load_artifact(WorkflowState, workspace.workflow_state)
+    state = load_artifact(WorkflowState, workspace.workflow_state)
+    if state.component_versions:
+        validate_saved_versions(state.component_versions)
+    return state
 
 
 def advance_workflow(workspace: Workspace, completed: WorkflowStage) -> WorkflowState:
@@ -215,13 +231,20 @@ def _validate_stage_artifacts(state: WorkflowState, stage: WorkflowStage) -> Non
         report = load_artifact(QAReport, state.technical_qa_path)
         if not report.passed:
             raise ValidationError("cannot complete Stage 4; technical QA failed")
+        if state.brand_contract_path:
+            brand_report = load_artifact(QAReport, state.brand_qa_path)
+            if not brand_report.passed:
+                raise ValidationError("cannot complete Stage 4; brand QA failed")
     elif stage is WorkflowStage.DELIVERY:
-        try:
-            manifest = json.loads(Path(state.delivery_manifest_path).read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise ValidationError(f"invalid delivery manifest: {exc}") from exc
-        if not isinstance(manifest, dict):
-            raise ValidationError("invalid delivery manifest: root must be an object")
+        from social_video.delivery import validate_delivery_manifest
+
+        raw = json.loads(Path(state.delivery_manifest_path).read_text(encoding="utf-8"))
+        if "schema_version" not in raw:
+            if not isinstance(raw, dict):
+                raise ValidationError("legacy delivery manifest root must be an object")
+        else:
+            manifest = load_artifact(DeliveryManifest, state.delivery_manifest_path)
+            validate_delivery_manifest(manifest)
 
 
 def _required_paths(state: WorkflowState, stage: WorkflowStage) -> list[str]:
@@ -235,7 +258,10 @@ def _required_paths(state: WorkflowState, stage: WorkflowStage) -> list[str]:
     if stage is WorkflowStage.EDITORIAL_REVIEW:
         return [state.editorial_qa_path]
     if stage is WorkflowStage.FINALIZATION:
-        return [state.final_output_path, state.technical_qa_path]
+        required = [state.final_output_path, state.technical_qa_path]
+        if state.brand_contract_path:
+            required.append(state.brand_qa_path)
+        return required
     if stage is WorkflowStage.DELIVERY:
         return [state.delivery_manifest_path]
     return []
@@ -280,3 +306,23 @@ def _next_prompt(stage: WorkflowStage, language: str) -> str:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _is_executable_config(path: Path) -> bool:
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return True
+    return isinstance(raw, dict) and (
+        "schema_version" in raw
+        or any(
+            key in raw
+            for key in (
+                "font_file",
+                "logo_file",
+                "brand_colors",
+                "caption_style",
+                "delivery_output",
+            )
+        )
+    )

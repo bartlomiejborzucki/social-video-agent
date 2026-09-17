@@ -92,6 +92,23 @@ def check_render(
         _check_cut_boundaries(report, output, edl)
     if captions is not None:
         _check_captions(report, captions, info)
+    elif edl is not None and not edl.captions:
+        report.checks.extend(
+            [
+                QACheck(
+                    name="captions do not overlap",
+                    severity=QASeverity.INFO,
+                    passed=True,
+                    message="captions are intentionally not configured",
+                ),
+                QACheck(
+                    name="captions inside the timeline",
+                    severity=QASeverity.INFO,
+                    passed=True,
+                    message="captions are intentionally not configured",
+                ),
+            ]
+        )
     if edl is not None and edl.accepted_qa_warnings:
         accepted = set(edl.accepted_qa_warnings)
         for check in report.checks:
@@ -538,6 +555,14 @@ def _check_cut_boundaries(report: QAReport, output: Path, edl: EDL) -> None:
 
 
 def _check_captions(report: QAReport, captions: CaptionTrack, info) -> None:
+    report.checks.append(
+        QACheck(
+            name="captions present",
+            severity=QASeverity.ERROR if not captions.cues else QASeverity.INFO,
+            passed=bool(captions.cues),
+            message=f"{len(captions.cues)} structured cue(s)",
+        )
+    )
     overlaps = captions.overlapping()
     report.checks.append(
         QACheck(

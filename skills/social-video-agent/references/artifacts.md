@@ -21,11 +21,13 @@ edit/
   edit-plan.json          editorial intent
   edl.json                exact ranges and render instructions
   motion-plan.json        intentional Remotion motion-design layer
+  brand-contract.json     compiled executable project branding
   qa-editorial.json       mandatory supervising-editor decision
   captions/               caption data, .srt, and .ass
   previews/preview.mp4    stable preview artifact
   final/final.mp4         stable delivery artifact
   qa/qa-report.json       canonical technical QA report
+  qa/qa-brand.json        blocking brand-contract QA
   qa/ending-contact-sheet.png
   cache/                  content-addressed; safe to delete
 ```
@@ -170,9 +172,20 @@ than an even split of a segment. If it is false, do not place cuts from it.
 
 ## Captions
 
-`captions/<name>.json` is the data; `.ass` is what gets burned in. To fix a
+`captions/<name>.json` is canonical data; `.srt` and `.ass` are derived peers.
+QA resolves either derived extension back to JSON and fails visibly if the
+structured data is missing. To fix a
 misheard word, edit the JSON or the `.srt` and re-render — you do not need to
 re-cut. Captions are burned last so nothing composites over them.
+
+## brand-contract.json and brand QA
+
+`config validate` resolves project config into exact font/logo paths, caption
+colors, box style, margins, line/word limits, dimensions and CFR. The EDL
+records its fingerprint; render manifests record the style actually applied.
+`qa/qa-brand.json` compares those facts and blocks Stage 4 on font, color,
+background, margin, line-limit, logo, resolution, or aspect mismatch. Accepted
+deviations remain named warnings rather than disappearing.
 
 ## QA report
 
@@ -188,6 +201,7 @@ its start/end, and whether the EDL explicitly approved it.
 ## qa-editorial.json — supervising handoff
 
 Absence is not approval. Write either `{"status":"approved","fixes":[]}` or
-`{"status":"changes_requested","fixes":[...]}`. Each fix contains only an
-exact EDL `path`, replacement `value`, and `reason`. Unknown status, unknown
+`{"status":"changes_requested","fixes":[...]}`. Each fix contains `artifact`
+(`edl`, `captions`, or `style`), an exact `path`, replacement `value`, and
+`reason`. Missing `artifact` means `edl` for pre-0.4 compatibility. Unknown status, unknown
 fields, empty requested changes, or an approval containing fixes are rejected.

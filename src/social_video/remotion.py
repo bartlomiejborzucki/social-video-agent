@@ -12,6 +12,8 @@ from uuid import uuid4
 from social_video.errors import RemotionError, ToolNotFoundError, ValidationError
 from social_video.ffmpeg.probe import probe
 from social_video.ffmpeg.run import run_ffmpeg
+from social_video.schemas.brand import CaptionStyle
+from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.motion import MotionPlan
 
 
@@ -25,6 +27,11 @@ def render_motion_design(
     width: int,
     height: int,
     staging_root: Path,
+    captions: CaptionTrack | None = None,
+    caption_style: CaptionStyle | None = None,
+    logo_path: Path | None = None,
+    logo_usage: str = "none",
+    safe_margins: dict[str, float] | None = None,
 ) -> Path:
     if base_video.resolve() == output.resolve():
         raise ValidationError("Remotion output must not overwrite its technical base video")
@@ -61,6 +68,12 @@ def render_motion_design(
         if font.stat().st_size > 20 * 1024 * 1024:
             raise ValidationError("motion-plan font_path exceeds the 20 MB safety limit")
         font_source = f"brand-font{font.suffix.casefold()}"
+    logo_source = None
+    if logo_path is not None:
+        logo_path = logo_path.expanduser().resolve()
+        if not logo_path.is_file():
+            raise ValidationError(f"configured logo does not exist: {logo_path}")
+        logo_source = f"brand-logo{logo_path.suffix.casefold()}"
     work = staging_root / f"remotion-{uuid4().hex}"
     public = work / "public"
     try:
@@ -72,6 +85,8 @@ def render_motion_design(
         shutil.copy2(base_video, public / "base.mp4")
         if font is not None and font_source is not None:
             shutil.copy2(font, public / font_source)
+        if logo_path is not None and logo_source is not None:
+            shutil.copy2(logo_path, public / logo_source)
         props = {
             "source": "base.mp4",
             "durationInFrames": duration_in_frames,
@@ -86,6 +101,18 @@ def render_motion_design(
             "elements": [
                 item.model_dump(mode="json", exclude={"schema_version"}) for item in plan.elements
             ],
+            "captions": [
+                cue.model_dump(mode="json", exclude={"schema_version", "words"})
+                for cue in (captions.cues if captions else [])
+            ],
+            "captionStyle": (
+                caption_style.model_dump(mode="json", exclude={"schema_version"})
+                if caption_style
+                else None
+            ),
+            "logoSource": logo_source,
+            "logoUsage": logo_usage,
+            "safeMargins": safe_margins or {"top": 6, "right": 6, "bottom": 12, "left": 6},
         }
         props_path = work / "props.json"
         props_path.write_text(json.dumps(props, ensure_ascii=False), encoding="utf-8")

@@ -5,6 +5,7 @@
 - Use Linux `ffmpeg`, `ffprobe`, Python, Node, and Remotion. Remotion is the default compositor for new workflows; Stage 0 must record a license declaration before discovery or media work. Never call `ffmpeg.exe` or add a PowerShell-to-WSL launcher.
 - Source media is immutable. Write all intermediates and outputs to a workspace or explicit destination.
 - Keep the skill root separate from the target project root. Project-context discovery is bounded to the target root, runs before editorial planning, and persists under that edit's `context/` directory.
+- Project branding is executable: validate config into `brand-contract.json`, render from that contract, and require brand QA at Stage 4. Never substitute an unknown EDL profile name or silently approximate a required asset.
 - Resume staged edits from `workflow-state.json`; do not rely on chat history. Guided stages are editorial plan, execution/preview, supervising review, finalization, and optional mechanical delivery.
 - Model code uses conceptual tiers. The only tier-to-name mapping is `src/social_video/workflow/model-routing.json`; do not duplicate it in Python or contributor docs.
 - Keep `SKILL.md` concise and route detailed behavior to `references/` through progressive disclosure.
@@ -13,4 +14,5 @@
 - Validate the Codex manifest, marketplace, and skill with `uv run python scripts/validate_distribution.py`.
 - Run context/workflow regressions when changing discovery, stage schemas, or handoffs: `uv run pytest tests/unit/test_project_context.py tests/unit/test_workflow.py`.
 - Stage 2 must write a project-aware `motion-plan.json`; keep motion restrained and reviewable rather than adding effects to fill space. FFmpeg owns cuts/audio/timing, Remotion owns the approved visual layer, and FFmpeg/ffprobe own final QA.
+- Stage 5 uses the delivery service, keeps the EDL hash unchanged, QA-checks video variants, and writes verified SHA-256 entries to a durable destination.
 - Do not download ASR models, CUDA, GPU drivers, or large media in CI. The dedicated Remotion job may install locked npm packages and Chrome Headless Shell; GPU support remains optional.

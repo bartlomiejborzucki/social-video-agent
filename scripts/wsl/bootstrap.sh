@@ -40,6 +40,8 @@ command -v ffprobe >/dev/null 2>&1 || missing_packages+=(ffmpeg)
 command -v fc-list >/dev/null 2>&1 || missing_packages+=(fontconfig)
 fc-list 2>/dev/null | awk 'BEGIN { IGNORECASE=1 } /Noto Sans/ { found=1 } END { exit !found }' \
   || missing_packages+=(fonts-noto-core)
+fc-list 2>/dev/null | awk 'BEGIN { IGNORECASE=1 } /Lato/ { found=1 } END { exit !found }' \
+  || missing_packages+=(fonts-lato)
 
 if ((${#missing_packages[@]})); then
   if command -v apt-get >/dev/null 2>&1 && [[ "$os_id $os_like" == *debian* || "$os_id" == "ubuntu" ]]; then

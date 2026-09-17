@@ -12,7 +12,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import type {MotionElement, SocialVideoProps} from './types';
+import type {CaptionCue, CaptionStyle, MotionElement, SocialVideoProps} from './types';
 
 const useProjectFont = (family: string, source: string | null): void => {
   const [handle] = useState(() => delayRender('Load project motion-design font'));
@@ -30,6 +30,65 @@ const useProjectFont = (family: string, source: string | null): void => {
       .then(() => continueRender(handle))
       .catch((error: unknown) => cancelRender(error));
   }, [family, handle, source]);
+};
+
+const Caption: React.FC<{
+  cue: CaptionCue;
+  style: CaptionStyle;
+  font: string;
+  height: number;
+  width: number;
+  safeMargins: SocialVideoProps['safeMargins'];
+}> = ({
+  cue,
+  style,
+  font,
+  height,
+  width,
+  safeMargins,
+}) => {
+  const position = style.position;
+  const vertical: React.CSSProperties =
+    position === 'top'
+      ? {justifyContent: 'flex-start', paddingTop: (height * style.margin_pct) / 100}
+      : position === 'center'
+        ? {justifyContent: 'center'}
+        : {justifyContent: 'flex-end', paddingBottom: (height * style.margin_pct) / 100};
+  const background = style.background_style === 'none' ? 'transparent' : style.background_colour;
+  return (
+    <AbsoluteFill
+      style={{
+        ...vertical,
+        alignItems: 'center',
+        paddingLeft: (width * safeMargins.left) / 100,
+        paddingRight: (width * safeMargins.right) / 100,
+      }}
+    >
+      <div
+        style={{
+          display: '-webkit-box',
+          WebkitBoxOrient: 'vertical',
+          WebkitLineClamp: style.max_lines,
+          overflow: 'hidden',
+          maxWidth: '88%',
+          padding: style.background_style === 'none' ? 0 : '14px 25px 17px',
+          borderRadius: style.background_style === 'rounded_box' ? style.corner_radius : 0,
+          background,
+          color: style.primary_colour,
+          fontFamily: font,
+          fontWeight: style.bold ? 700 : 400,
+          fontSize: Math.max(8, Math.round((height * style.font_size_pct) / 100)),
+          lineHeight: 1.05,
+          textAlign: 'center',
+          WebkitTextStroke: style.outline_width > 0 ? `${style.outline_width}px ${style.outline_colour}` : undefined,
+          textShadow: style.shadow > 0 ? `0 ${style.shadow}px ${style.shadow * 2}px ${style.outline_colour}` : undefined,
+          whiteSpace: 'normal',
+        }}
+      >
+        {cue.text}
+      </div>
+    </AbsoluteFill>
+  );
 };
 
 const MotionGraphic: React.FC<{
@@ -100,6 +159,19 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
   return (
     <AbsoluteFill style={{backgroundColor: '#000'}}>
       <Video src={staticFile(props.source)} style={{width: '100%', height: '100%'}} />
+      {props.logoSource && props.logoUsage !== 'none' ? (
+        <img
+          src={staticFile(props.logoSource)}
+          style={{
+            position: 'absolute',
+            top: `${props.safeMargins.top}%`,
+            right: `${props.safeMargins.right}%`,
+            width: '16%',
+            maxHeight: '10%',
+            objectFit: 'contain',
+          }}
+        />
+      ) : null}
       {props.elements.map((element, index) => {
         const from = Math.round(element.start * props.fps);
         const duration = Math.max(1, Math.round((element.end - element.start) * props.fps));
@@ -116,6 +188,24 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
           </Sequence>
         );
       })}
+      {props.captionStyle
+        ? props.captions.map((cue) => {
+            const from = Math.round(cue.start * props.fps);
+            const duration = Math.max(1, Math.round((cue.end - cue.start) * props.fps));
+            return (
+              <Sequence key={`caption-${cue.index}`} from={from} durationInFrames={duration}>
+                <Caption
+                  cue={cue}
+                  style={props.captionStyle as CaptionStyle}
+                  font={props.fontFamily}
+                  height={props.height}
+                  width={props.width}
+                  safeMargins={props.safeMargins}
+                />
+              </Sequence>
+            );
+          })
+        : null}
     </AbsoluteFill>
   );
 };

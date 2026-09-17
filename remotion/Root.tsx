@@ -15,6 +15,11 @@ const defaults: SocialVideoProps = {
   fontFamily: 'Inter, Arial, sans-serif',
   fontSource: null,
   elements: [],
+  captions: [],
+  captionStyle: null,
+  logoSource: null,
+  logoUsage: 'none',
+  safeMargins: {top: 6, right: 6, bottom: 12, left: 6},
 };
 
 export const RemotionRoot: React.FC = () => (

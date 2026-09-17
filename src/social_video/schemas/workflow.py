@@ -40,7 +40,8 @@ class WorkflowStage(str, Enum):
 
 
 class WorkflowState(Artifact):
-    workflow_version: int = 3
+    workflow_version: int = 4
+    component_versions: dict[str, str] = Field(default_factory=dict)
     target_project_root: str
     workspace: str
     source_media: list[str] = Field(min_length=1)
@@ -63,6 +64,8 @@ class WorkflowState(Artifact):
     edl_path: str
     preview_path: str
     technical_qa_path: str
+    brand_contract_path: str = ""
+    brand_qa_path: str = ""
     editorial_qa_path: str
     final_output_path: str
     delivery_manifest_path: str

@@ -24,12 +24,25 @@ class CaptionPosition(str, Enum):
     CENTER = "center"
     TOP = "top"
     LOWER_THIRD = "lower_third"
+    LOWER_SAFE_ZONE = "lower_safe_zone"
 
 
 class CaptionCase(str, Enum):
     AS_SPOKEN = "as_spoken"
     UPPER = "upper"
     LOWER = "lower"
+
+
+class CaptionBackgroundStyle(str, Enum):
+    NONE = "none"
+    BOX = "box"
+    ROUNDED_BOX = "rounded_box"
+
+
+class CaptionOutlineStyle(str, Enum):
+    NONE = "none"
+    OUTLINE = "outline"
+    SHADOW = "shadow"
 
 
 class CaptionStyle(Artifact):
@@ -48,11 +61,16 @@ class CaptionStyle(Artifact):
         "canvas, which silently means something different at 1080p and 4K.",
     )
     bold: bool = True
+    font_file: str | None = None
     primary_colour: str = Field(default="#FFFFFF")
     outline_colour: str = Field(default="#000000")
     outline_width: float = Field(default=3.0, ge=0.0)
     shadow: float = Field(default=0.0, ge=0.0)
     background_box: bool = False
+    background_colour: str = "#000000"
+    background_style: CaptionBackgroundStyle = CaptionBackgroundStyle.NONE
+    corner_radius: int = Field(default=0, ge=0, le=200)
+    outline_or_shadow: CaptionOutlineStyle = CaptionOutlineStyle.OUTLINE
 
     position: CaptionPosition = CaptionPosition.BOTTOM
     #: Distance from the frame edge as a percentage of output height.
@@ -62,6 +80,7 @@ class CaptionStyle(Artifact):
 
     case: CaptionCase = CaptionCase.AS_SPOKEN
     max_words_per_cue: int = Field(default=4, ge=1, le=20)
+    max_lines: int = Field(default=2, ge=1, le=4)
     max_chars_per_cue: int = Field(default=32, ge=8, le=120)
     min_cue_duration: float = Field(default=0.6, gt=0.0)
     highlight_active_word: bool = False
@@ -81,6 +100,7 @@ class BrandProfile(Artifact):
     background_colour: str = "#000000"
     title_font_family: str = ""
     logo_path: str | None = None
+    logo_usage: str = "none"
 
     #: Fraction of the frame kept clear of graphics at each edge.
     safe_margin_pct: float = Field(default=6.0, ge=0.0, le=25.0)

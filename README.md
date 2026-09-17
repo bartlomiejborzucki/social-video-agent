@@ -112,21 +112,45 @@ social-video-agent context inspect . --workspace edit
 social-video-agent context refresh . --workspace edit
 ```
 
-An optional `.social-video/config.yaml` (or `social-video.yaml`) may specify
-only the fields the project needs, for example:
+Initialize and validate a versioned, executable project contract:
+
+```bash
+social-video-agent config init .
+social-video-agent config validate . --workspace edit
+```
+
+`.social-video/config.yaml` (or `social-video.yaml`) may specify only the
+fields the project needs, for example:
 
 ```yaml
+schema_version: 1
 brand_name: Example
-content_language: pl
-editing_profile: calm-educational
-model_budget: balanced
+font: Lato
+font_file: assets/fonts/Lato-Bold.ttf
 caption_style:
+  font_weight: bold
+  text_color: "#FFFFFF"
+  background_color: "#28BCA5"
+  background_style: rounded_box
+  corner_radius: 45
+  outline_color: "#394463"
+  max_lines: 2
+  max_words_per_cue: 6
   position: lower_safe_zone
-font: assets/fonts/Inter-Regular.ttf
-brand_colors: ["#F4C542"]
-logo: assets/logo.svg
-editing_guide: docs/video-guidelines.md
+  bottom_margin_pct: 15
+editing_profile: calm-expert
+music_policy: none
+sfx_policy: none
+default_aspect_ratio: "9:16"
+default_resolution: "1080x1920"
+default_fps_policy: "30"
+delivery_output: exports/social
 ```
+
+Validation resolves local assets and writes `edit/brand-contract.json`. Stage 2
+renders from this contract; it does not merely copy branding into context.
+Rounded backgrounds are drawn deterministically by Remotion. Stage 4 requires
+both technical QA and `edit/qa/qa-brand.json`.
 
 Private local brand assets may remain gitignored. Discovery reads them locally
 but never copies them into this plugin or uploads them.
@@ -302,6 +326,32 @@ timestamps, `faststart`, 720×1280 preview, and 1080×1920 final. Rendering firs
 finishes and fully decodes a private file in Linux cache, then atomically
 publishes `preview.mp4` or `final.mp4`; a partial MP4 never appears under the
 destination name. Technical QA always writes `qa-report.json`.
+
+Stage 5 publishes durable, hashed variants without changing editorial state:
+
+```bash
+social-video-agent deliver edit --output ./delivery \
+  --with-captions --no-captions --srt --vtt --poster
+```
+
+`delivery-manifest.json` records file paths, sizes, formats, QA statuses and
+SHA-256 values, plus the identical EDL hash from before and after delivery.
+
+### Full branded workflow example
+
+```bash
+social-video-agent config init .
+# Edit .social-video/config.yaml and point font_file/logo_file at local assets.
+social-video-agent config validate . --workspace edit
+social-video-agent workflow init interview.mp4 --project-root . --workspace edit \
+  --remotion-license free_license_eligible --language pl
+# Stages 1-4 create/approve edit-plan.json, edl.json, captions, preview and final.
+social-video-agent qa edit --output edit/final/final.mp4
+social-video-agent workflow complete 4 --workspace edit --language pl
+social-video-agent deliver edit --output ./delivery \
+  --with-captions --no-captions --srt --vtt --poster --resolution 720x1280
+social-video-agent workflow complete 5 --workspace edit --language pl
+```
 
 If a privacy-safe picture ends before its audio, validation requires an
 explicit EDL ending strategy. It will not silently create a multi-second still.

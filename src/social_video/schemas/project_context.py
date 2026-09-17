@@ -82,6 +82,7 @@ class ProjectConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     brand_name: str | None = None
+    schema_version: int | None = None
     language: str | None = None
     content_language: str | None = None
     editing_profile: str | None = None
@@ -89,9 +90,12 @@ class ProjectConfig(BaseModel):
     workflow_mode: Literal["guided", "continuous"] | None = None
     caption_style: dict[str, Any] | None = None
     font: str | None = None
+    font_file: str | None = None
     font_fallback: list[str] | None = None
     brand_colors: list[str] | None = None
     logo: str | None = None
+    logo_file: str | None = None
+    logo_usage: str | None = None
     safe_margins: dict[str, float] | None = None
     punch_in_intensity: str | float | None = None
     broll_density: str | float | None = None
@@ -103,5 +107,6 @@ class ProjectConfig(BaseModel):
     intro: str | None = None
     outro: str | None = None
     preferred_output_directory: str | None = None
+    delivery_output: str | None = None
     brandbook: str | None = None
     editing_guide: str | None = None
