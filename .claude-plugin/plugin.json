@@ -1,6 +1,6 @@
 {
   "name": "social-video-agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Edit video into social clips by reasoning over a transcript and writing an explicit edit plan and EDL that local tools render.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/bartlomiejborzucki/social-video-agent"

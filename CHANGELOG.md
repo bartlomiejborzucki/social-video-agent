@@ -4,6 +4,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-17
+
 ### Added
 
 - WSL2-first bootstrap, diagnostics, path normalization, plugin marketplace, release checks, and acceptance documentation.

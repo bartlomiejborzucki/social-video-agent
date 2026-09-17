@@ -1,6 +1,6 @@
 {
   "name": "social-video-agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Edit source recordings into captioned social clips with deterministic local WSL tools and inspectable edit artifacts.",
   "author": {
     "name": "Bartlomiej Borzucki",

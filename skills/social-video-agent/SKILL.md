@@ -3,7 +3,7 @@ name: social-video-agent
 description: Edit video into social clips (Reels, Shorts, TikTok) by reasoning over a transcript and writing an explicit edit plan and EDL that local tools render. Use when the user asks to edit, cut, trim, or clean up a recording, make a Reel or Short, remove mistakes or filler, add captions, or convert horizontal footage to vertical. Do not use for generating video from scratch or for simple one-off format conversions.
 license: Apache-2.0
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
 # Editing social video
