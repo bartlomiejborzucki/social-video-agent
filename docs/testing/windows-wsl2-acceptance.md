@@ -25,7 +25,8 @@ Run this checklist on a real Windows 11 machine. Generic Linux CI does not prove
       an intentional end card/hold is documented.
 - [ ] Confirm `qa-report.json` reports matching audio/video duration, normal AAC
       cadence, full decoding, and a passing `ending visual continuity` check.
-- [ ] If Remotion is enabled in a future release, run its WSL smoke render; it is not enabled in v0.2.0.
+- [ ] If Remotion is enabled in a future release, run its WSL smoke render; the
+  current renderer is Python + FFmpeg and does not integrate Remotion.
 - [ ] Hash the source before and after and confirm it is unchanged.
 
 Record the Windows version, WSL distribution, `codex --version`, doctor JSON, and checklist result in the release notes.

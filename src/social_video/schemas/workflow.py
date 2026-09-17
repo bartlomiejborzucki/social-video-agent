@@ -30,7 +30,7 @@ class WorkflowStage(str, Enum):
 
 
 class WorkflowState(Artifact):
-    workflow_version: int = 1
+    workflow_version: int = 2
     target_project_root: str
     workspace: str
     source_media: list[str] = Field(min_length=1)
@@ -38,6 +38,7 @@ class WorkflowState(Artifact):
     completed_stages: list[WorkflowStage] = Field(default_factory=list)
     recommended_next_model_tier: str
     recommended_next_model_name: str
+    recommended_next_models: dict[str, str] = Field(default_factory=dict)
     recommended_reasoning_effort: str
     recommendation_reason: str
     handoff_required: bool = True

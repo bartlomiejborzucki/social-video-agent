@@ -117,9 +117,9 @@ company licence from https://remotion.pro.
 
 No Remotion code is vendored here, and nothing in the core pipeline requires it:
 cutting, captions, vertical reframing, audio and QA are all FFmpeg and libass.
-Remotion is not integrated in v0.1.0; it remains a possible optional future
-layer. **If you work at an organisation above that threshold, confirm your
-licence position before enabling it.**
+Remotion is not integrated in the current runtime; it remains a possible
+optional future layer. **If you work at an organisation above that threshold,
+confirm your licence position before enabling it.**
 
 ---
 

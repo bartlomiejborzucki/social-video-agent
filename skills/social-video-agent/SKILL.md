@@ -3,7 +3,7 @@ name: social-video-agent
 description: Create project-aware Reels and Shorts from recordings with local transcription, an explicit plan and EDL, persistent stages, rendering, and QA. Use when asked to edit, trim, caption, reframe, review or resume a preview, or create delivery variants. Do not use for generated video or simple conversion.
 license: Apache-2.0
 metadata:
-  version: "0.2.0"
+  version: "0.2.1"
 ---
 
 # Project-aware social video editing
@@ -36,8 +36,11 @@ and resume requests.
 
 ## Modes and invariants
 
-Default `guided` route: Sol → Terra → Sol → Terra; Luna is optional delivery,
-and Astra is exceptional escalation only. “Use this model for everything” or
+Default `guided` route uses the OpenAI or Claude recommendation returned by
+workflow status for every active stage, including Stages 4 and 5. OpenAI's
+route is Sol → Terra → Sol → Terra → Luna; Claude alternatives are
+defined in the same central mapping. Astra and its Claude counterpart are
+exceptional escalation only. “Use this model for everything” or
 “Just make it quickly” selects `continuous` but keeps every artifact and check.
 Budgets are `economical`, `balanced`, and `quality`; the single executable
 tier/name mapping is `src/social_video/workflow/model-routing.json`.

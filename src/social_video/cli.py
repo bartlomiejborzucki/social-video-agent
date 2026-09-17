@@ -227,9 +227,14 @@ def _print_workflow(payload: dict[str, Any], *, as_json: bool) -> None:
         for path in payload["missing_artifacts"]:
             console.print(f"  - {escape(path)}")
     if payload["handoff_required"]:
-        model_label = "Zalecany model" if polish else "Recommended model"
+        model_label = "Zalecane modele" if polish else "Recommended models"
         effort_label = "Poziom rozumowania" if polish else "Reasoning"
-        console.print(f"{model_label}: [cyan]{escape(payload['next_model'])}[/cyan]")
+        console.print(f"[bold]{model_label}[/bold]")
+        models = payload.get("next_models") or {"openai": payload["next_model"]}
+        provider_labels = {"openai": "OpenAI", "claude": "Claude"}
+        for provider, model in models.items():
+            label = provider_labels.get(provider, provider.title())
+            console.print(f"  {label}: [cyan]{escape(model)}[/cyan]")
         console.print(f"{effort_label}: {escape(payload['reasoning_effort'])}")
     else:
         console.print(

@@ -1,6 +1,6 @@
 {
   "name": "social-video-agent",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Create project-aware social clips through a persistent staged workflow and deterministic local WSL tools.",
   "author": {
     "name": "Bartlomiej Borzucki",

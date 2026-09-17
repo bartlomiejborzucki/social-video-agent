@@ -4,6 +4,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-17
+
+### Fixed
+
+- Show persisted OpenAI and Claude model recommendations at every guided
+  boundary, including Stage 4 finalization and Stage 5 delivery, while keeping
+  version 1 workflow states resumable.
+
 ## [0.2.0] - 2026-09-17
 
 ### Added

@@ -50,6 +50,7 @@ or concrete `changes_requested` fixes. Do not render final video.
 ## Stage 4 — corrections and finalization
 
 Recommended tier: `execution_balanced`.
+Current recommendations: OpenAI Terra or Claude Sonnet 5, medium effort.
 
 Apply only `qa-editorial.json` fixes. Approval is a no-op; do not perform a new
 full editorial analysis. Update affected EDL/captions/visual plan, render a new
@@ -60,6 +61,7 @@ state.
 ## Stage 5 — optional delivery
 
 Recommended tier: `mechanical_fast`.
+Current recommendations: OpenAI Luna or Claude Haiku 4.5, low effort.
 
 Create only approved mechanical variants: no-captions, resolution variants,
 SRT/VTT, thumbnail/poster, names, and `delivery-manifest.json`. Hash or compare

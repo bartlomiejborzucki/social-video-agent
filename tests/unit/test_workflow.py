@@ -65,23 +65,37 @@ def test_guided_handoffs_persist_and_stage_1_does_not_render(tmp_path: Path) -> 
     assert state.current_stage is WorkflowStage.EDITORIAL_PLAN
     assert state.recommended_next_model_tier == "editorial_strong"
     assert state.recommended_next_model_name == "Sol"
+    assert state.recommended_next_models == {
+        "openai": "Sol",
+        "claude": "Claude Opus 5",
+    }
     assert not (workspace.final / "final.mp4").exists()
 
     _write_stage_1(workspace)
     stage_2 = advance_workflow(workspace, WorkflowStage.EDITORIAL_PLAN)
     assert stage_2.current_stage is WorkflowStage.EXECUTION
     assert stage_2.recommended_next_model_name == "Terra"
+    assert stage_2.recommended_next_models["claude"] == "Claude Sonnet 5"
     assert load_workflow(workspace) == stage_2
 
     _write_stage_2(workspace)
     stage_3 = advance_workflow(workspace, WorkflowStage.EXECUTION)
     assert stage_3.current_stage is WorkflowStage.EDITORIAL_REVIEW
     assert stage_3.recommended_next_model_name == "Sol"
+    assert stage_3.recommended_next_models["claude"] == "Claude Opus 5"
 
     _write_stage_3(workspace)
     stage_4 = advance_workflow(workspace, WorkflowStage.EDITORIAL_REVIEW)
     assert stage_4.current_stage is WorkflowStage.FINALIZATION
     assert stage_4.recommended_next_model_name == "Terra"
+    assert stage_4.recommended_next_models == {
+        "openai": "Terra",
+        "claude": "Claude Sonnet 5",
+    }
+    assert workflow_status(stage_4, language="pl")["next_models"] == {
+        "openai": "Terra",
+        "claude": "Claude Sonnet 5",
+    }
 
 
 def test_stage_plan_records_discovered_style_sources(tmp_path: Path) -> None:
@@ -113,7 +127,16 @@ def test_stage_5_never_changes_edl(tmp_path: Path) -> None:
     advance_workflow(workspace, WorkflowStage.EDITORIAL_REVIEW)
     (workspace.final / "final.mp4").write_bytes(b"final")
     save_artifact(QAReport(output="final.mp4"), workspace.technical_qa)
-    advance_workflow(workspace, WorkflowStage.FINALIZATION)
+    stage_5 = advance_workflow(workspace, WorkflowStage.FINALIZATION)
+    assert stage_5.current_stage is WorkflowStage.DELIVERY
+    assert stage_5.recommended_next_models == {
+        "openai": "Luna",
+        "claude": "Claude Haiku 4.5",
+    }
+    assert workflow_status(stage_5, language="pl")["next_models"] == {
+        "openai": "Luna",
+        "claude": "Claude Haiku 4.5",
+    }
     before = hashlib.sha256(workspace.edl.read_bytes()).hexdigest()
     workspace.delivery_manifest.write_text(
         json.dumps({"files": ["final.mp4", "captions.srt"]}), encoding="utf-8"
@@ -133,6 +156,10 @@ def test_continuous_mode_keeps_artifacts_but_requires_no_model_switch(tmp_path: 
     assert status["language"] == "pl"
     assert status["handoff_required"] is False
     assert status["next_model"] == "current model"
+    assert status["next_models"] == {
+        "openai": "Sol",
+        "claude": "Claude Opus 5",
+    }
     assert status["next_prompt"] == "Kontynuuj social-video-agent z Etapem 1."
     assert status["reason"].startswith("Zrozumienie projektu")
 
@@ -173,6 +200,21 @@ def test_status_reports_required_and_missing_artifacts(tmp_path: Path) -> None:
     assert state.project_context_path in status["required_artifacts"]
     assert state.edit_plan_path in status["missing_artifacts"]
     assert state.project_context_path not in status["missing_artifacts"]
+
+
+def test_version_1_state_gets_provider_recommendations_on_resume(tmp_path: Path) -> None:
+    _, _, workspace, _ = _setup(tmp_path)
+    payload = json.loads(workspace.workflow_state.read_text(encoding="utf-8"))
+    payload["workflow_version"] = 1
+    payload.pop("recommended_next_models")
+    workspace.workflow_state.write_text(json.dumps(payload), encoding="utf-8")
+
+    status = workflow_status(load_workflow(workspace), language="pl")
+
+    assert status["next_models"] == {
+        "openai": "Sol",
+        "claude": "Claude Opus 5",
+    }
 
 
 def test_failed_technical_qa_blocks_stage_handoff(tmp_path: Path) -> None:

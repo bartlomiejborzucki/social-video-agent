@@ -34,10 +34,11 @@ model tier. Stage completion validates artifacts before advancing. Guided mode
 stops at model boundaries; continuous mode uses the current model but retains
 the same artifacts and checks.
 
-The tier-to-model-name mapping exists only in
-`src/social_video/workflow/model-routing.json`. State stores both the stable
-tier and current display name. The application never claims to switch the host
-model automatically.
+The tier-to-provider/model mapping exists only in
+`src/social_video/workflow/model-routing.json`. State stores the stable tier,
+the backward-compatible primary display name, and provider-specific OpenAI and
+Claude recommendations. The application never claims to switch the host model
+or provider automatically.
 
 ## Consequences
 
@@ -47,6 +48,7 @@ model automatically.
 - User instructions can override project defaults and remain visible in the
   edit plan.
 - Changing model names requires one configuration edit rather than a schema
-  migration.
+  migration; version 1 workflow states derive provider recommendations on
+  resume.
 - Static skill documentation is larger, so detailed material remains deferred
   in stage-specific references instead of the always-loaded `SKILL.md`.

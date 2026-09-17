@@ -99,6 +99,12 @@ def workflow_status(state: WorkflowState, *, language: str = "en") -> dict[str, 
     prompt = _next_prompt(state.current_stage, language)
     language_key = "pl" if language.casefold().startswith("pl") else "en"
     reasons = _routing()["reasons"][language_key]
+    current_recommendation = _recommendation(
+        state.current_stage, state.model_budget, state.workflow_mode
+    )
+    # Version 1 states have no provider map. Derive it from the central routing
+    # table so existing workspaces immediately gain the new recommendations.
+    next_models = state.recommended_next_models or current_recommendation["recommended_next_models"]
     reason = (
         "Etapowy workflow jest zakończony."
         if state.current_stage is WorkflowStage.COMPLETE and language_key == "pl"
@@ -112,6 +118,7 @@ def workflow_status(state: WorkflowState, *, language: str = "en") -> dict[str, 
         "completed_stages": [stage.value for stage in state.completed_stages],
         "next_model_tier": state.recommended_next_model_tier,
         "next_model": state.recommended_next_model_name,
+        "next_models": next_models,
         "reasoning_effort": state.recommended_reasoning_effort,
         "reason": reason,
         "handoff_required": state.handoff_required,
@@ -135,6 +142,7 @@ def _recommendation(
         return {
             "recommended_next_model_tier": "none",
             "recommended_next_model_name": "none",
+            "recommended_next_models": {},
             "recommended_reasoning_effort": "none",
             "recommendation_reason": "The staged workflow is complete.",
             "handoff_required": False,
@@ -142,10 +150,13 @@ def _recommendation(
     routing = _routing()
     tier = routing["stages"][budget.value][stage.value]
     model = routing["tiers"][tier]
+    models = model["models"]
+    primary_model = models[routing["primary_provider"]]
     continuous = mode is WorkflowMode.CONTINUOUS
     return {
         "recommended_next_model_tier": tier,
-        "recommended_next_model_name": "current model" if continuous else model["name"],
+        "recommended_next_model_name": "current model" if continuous else primary_model,
+        "recommended_next_models": models,
         "recommended_reasoning_effort": model["reasoning_effort"],
         "recommendation_reason": routing["reasons"]["en"][stage.value],
         "handoff_required": not continuous,

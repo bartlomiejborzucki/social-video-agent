@@ -118,18 +118,20 @@ The root, cache, and state decisions are recorded in
 The default interactive workflow persists state in `edit/workflow-state.json`,
 so changing model or starting a new Codex conversation does not lose progress:
 
-```text
-Stage 0/1  Sol (high)     discovery + editorial plan       → stop
-Stage 2    Terra (medium) EDL + captions + preview + QA    → stop
-Stage 3    Sol (high)     supervising-editor review        → stop
-Stage 4    Terra (medium) approved fixes + final render
-Stage 5    Luna (low)     optional mechanical variants
-```
+| Stage | OpenAI recommendation | Claude alternative | Work |
+|---|---|---|---|
+| 0/1 | Sol (high) | Claude Opus 5 | discovery + editorial plan |
+| 2 | Terra (medium) | Claude Sonnet 5 | EDL + captions + preview + QA |
+| 3 | Sol (high) | Claude Opus 5 | supervising-editor review |
+| 4 | Terra (medium) | Claude Sonnet 5 | approved fixes + final render |
+| 5 | Luna (low) | Claude Haiku 4.5 | optional mechanical variants |
 
-Astra is not a normal step. It is suggested only for a genuinely difficult
-narrative reconstruction or deep technical impasse. Model names are mapped
-from stable conceptual tiers in one configuration file, so future model-name
-changes do not alter workflow schemas.
+Astra and Claude Fable 5.1 are not normal steps. They are suggested only for a
+genuinely difficult narrative reconstruction or deep technical impasse. Claude
+recommendations apply only when that provider is available in the user's host;
+the skill never claims to switch provider or model automatically. Model names
+are mapped from stable conceptual tiers in one configuration file, so future
+model-name changes do not alter workflow schemas.
 
 Initialize and inspect a workflow:
 
@@ -139,8 +141,9 @@ social-video-agent workflow status edit --language pl
 social-video-agent workflow complete 1 --workspace edit --language pl
 ```
 
-At each boundary the agent validates artifacts, saves state, stops, recommends
-the next model, explains why, and gives a short continuation prompt. It does
+At each boundary, including entry to Stages 4 and 5, the agent validates
+artifacts, saves state, stops, shows the OpenAI recommendation and Claude
+alternative, explains why, and gives a short continuation prompt. It does
 not claim to switch the user's model automatically. Ask “Where are we?” or
 “Continue social-video-agent with Stage 2” in a new conversation to resume.
 
@@ -270,7 +273,9 @@ The project is Apache-2.0 and incorporates attributed MIT-licensed work from [br
 - The legacy `edit` command remains a continuous mechanical path; normal skill use now creates a project-aware staged plan and stops at guided handoffs.
 - The multi-short workflow is agent-driven; there is no single `shorts` command yet.
 - WhisperX alignment and speaker diarization are declared optional dependencies but are not connected to the pipeline.
-- Remotion is not enabled. Node is therefore optional in v0.2.0, and no `node_modules` directory should be created on `/mnt/c`.
+- The current renderer is Python + FFmpeg; Remotion is not integrated in v0.2.1.
+  Node is therefore optional. If a future opt-in Remotion layer is added, keep
+  its repository and `node_modules` in the WSL filesystem, not under `/mnt/c`.
 - Face-aware framing follows the most prominent face, not the active speaker.
 - Actual Windows 11 `/mnt/c` acceptance must be recorded for each release; generic Linux CI is not equivalent.
 
