@@ -17,6 +17,7 @@ from pathlib import Path
 from social_video.analysis.scenes import detect_scenes, scene_cut_times
 from social_video.captions.ass import write_ass
 from social_video.captions.chunk import build_caption_track
+from social_video.captions.features import caption_features, highlight_possible
 from social_video.captions.srt import write_srt
 from social_video.editorial.compile import compile_plan
 from social_video.editorial.draft import draft_edit_plan
@@ -184,6 +185,9 @@ def stage_reframe(
             out_height=edl.output_height,
             mode=edl.default_reframe,
             scene_cuts=scene_cuts,
+            # Speaker detection correlates mouth movement with the audio that was
+            # transcribed, which is not always the video file's own first track.
+            audio_source=manifest.by_id(rng.effective_audio_source).resolved_path(),
         )
     save_artifact(edl, workspace.edl)
     record_stage(workspace, "reframe", {"mode": edl.default_reframe.value})
@@ -251,6 +255,8 @@ def stage_render(
     elif edl.brand_profile:
         # Backward-compatible named profiles remain supported; arbitrary names do not.
         load_brand(edl.brand_profile)
+    if contract is not None:
+        _check_audio_policy(edl, contract)
     if (
         renderer is Renderer.FFMPEG
         and contract is not None
@@ -276,15 +282,17 @@ def stage_render(
     caption_track: CaptionTrack | None = None
     remotion_caption_style = None
     base_captions = captions
-    if renderer is Renderer.REMOTION and captions is not None and contract is not None:
+    if captions is not None and contract is not None:
         json_path = captions.with_suffix(".json")
-        if not json_path.is_file():
+        if renderer is Renderer.REMOTION and not json_path.is_file():
             raise ValidationError(
                 f"caption data required for branded Remotion captions is missing: {json_path}"
             )
-        caption_track = load_artifact(CaptionTrack, json_path)
-        remotion_caption_style = contract.brand.captions
-        base_captions = None
+        if json_path.is_file():
+            caption_track = load_artifact(CaptionTrack, json_path)
+        if renderer is Renderer.REMOTION:
+            remotion_caption_style = contract.brand.captions
+            base_captions = None
     manifest_obj = render_edl(edl, manifest, render_target, quality=q, caption_file=base_captions)
     if renderer is Renderer.REMOTION:
         from social_video.remotion import render_motion_design
@@ -306,7 +314,7 @@ def stage_render(
             render_plan.accent_color = contract.brand.accent_colour
             render_plan.text_color = contract.brand.captions.primary_colour
             render_plan.background_color = contract.brand.background_colour
-        render_motion_design(
+        _rendered, applied_caption_features = render_motion_design(
             render_target,
             output,
             render_plan,
@@ -333,11 +341,25 @@ def stage_render(
         manifest_obj.width = final_info.video.width
         manifest_obj.height = final_info.video.height
         manifest_obj.tool_versions["remotion"] = "4.0.525"
+    else:
+        # libass draws the ASS track; it honours the same contracted features.
+        style = contract.brand.captions if contract else None
+        applied_caption_features = caption_features(
+            style,
+            caption_track,
+            highlight=highlight_possible(style, caption_track),
+        )
     if contract is not None:
         manifest_obj.brand_contract_sha256 = contract.project_config_sha256
         manifest_obj.caption_style = contract.brand.captions.model_dump(
             mode="json", exclude={"schema_version"}
         )
+        manifest_obj.caption_renderer = (
+            ("remotion" if renderer is Renderer.REMOTION else "libass")
+            if captions is not None
+            else ""
+        )
+        manifest_obj.caption_features = applied_caption_features if captions is not None else []
     manifest_obj.captions_burned = captions is not None
     manifest_obj.logo_applied = bool(
         contract
@@ -355,6 +377,27 @@ def stage_render(
     return output
 
 
+def _check_audio_policy(edl: EDL, contract: BrandContract) -> None:
+    """Make music_policy and sfx_policy executable instead of decorative."""
+    if edl.audio_bed is not None and contract.music_policy == "none":
+        raise ValidationError(
+            "this EDL mixes a music bed, but the project config sets music_policy: none. "
+            "Set music_policy: optional to allow it, or remove audio_bed."
+        )
+    if edl.audio_bed is None and contract.music_policy == "required":
+        raise ValidationError(
+            "the project config sets music_policy: required, but this EDL has no audio_bed"
+        )
+    if edl.sound_effects and contract.sfx_policy == "none":
+        raise ValidationError(
+            "this EDL places sound effects, but the project config sets sfx_policy: none"
+        )
+    if not edl.sound_effects and contract.sfx_policy == "required":
+        raise ValidationError(
+            "the project config sets sfx_policy: required, but this EDL places no effects"
+        )
+
+
 def stage_qa(
     output: Path,
     edl: EDL,
@@ -363,6 +406,7 @@ def stage_qa(
     captions: CaptionTrack | None = None,
     attempt: int = 1,
     sheets: bool = True,
+    platforms: list[str] | None = None,
 ) -> QAReport:
     caption_problem: str | None = None
     if captions is None and edl.captions:
@@ -432,6 +476,40 @@ def stage_qa(
             tile_width=240,
         )
         report.artifacts.append(str(ending_sheet))
+        # The hook decides whether anything after it is watched, so it gets the
+        # same dense treatment the ending already had.
+        opening_sheet = contact_sheet(
+            output,
+            workspace.qa / "opening-contact-sheet.png",
+            start=0.0,
+            end=min(3.0, probe(output).duration),
+            columns=5,
+            rows=2,
+            tile_width=240,
+        )
+        report.artifacts.append(str(opening_sheet))
+    contract_for_platform = (
+        load_artifact(BrandContract, workspace.brand_contract)
+        if workspace.brand_contract.is_file()
+        else None
+    )
+    configured = contract_for_platform.target_platforms if contract_for_platform else []
+    requested = platforms or configured
+    if requested:
+        from social_video.profiles import load_platform
+        from social_video.qa.platform import platform_checks
+
+        info = probe(output)
+        for name in requested:
+            report.checks.extend(
+                platform_checks(
+                    load_platform(name),
+                    duration=info.duration,
+                    width=info.video.width if info.video else None,
+                    height=info.video.height if info.video else None,
+                    contract=contract_for_platform,
+                )
+            )
     save_artifact(report, workspace.qa / "qa-report.json")
     save_artifact(report, workspace.technical_qa)
     if workspace.brand_contract.is_file():

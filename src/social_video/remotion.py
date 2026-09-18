@@ -9,9 +9,11 @@ import subprocess
 from pathlib import Path
 from uuid import uuid4
 
+from social_video.captions.features import caption_features, highlight_possible
 from social_video.errors import RemotionError, ToolNotFoundError, ValidationError
 from social_video.ffmpeg.probe import probe
 from social_video.ffmpeg.run import run_ffmpeg
+from social_video.imaging import load_image
 from social_video.schemas.brand import CaptionStyle
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.motion import MotionPlan
@@ -32,14 +34,25 @@ def render_motion_design(
     logo_path: Path | None = None,
     logo_usage: str = "none",
     safe_margins: dict[str, float] | None = None,
-) -> Path:
+) -> tuple[Path, list[str]]:
     if base_video.resolve() == output.resolve():
         raise ValidationError("Remotion output must not overwrite its technical base video")
-    for element in plan.elements:
+    plates: dict[str, Path] = {}
+    for index, element in enumerate(plan.elements):
         if element.end * fps > duration_in_frames + 1:
             raise ValidationError(
                 f"motion element {element.type.value!r} ends after the video timeline"
             )
+        # Validate the plan itself before the toolchain, so a bad plate is
+        # reported as a plan problem rather than as a missing Node install.
+        if element.image_asset:
+            plate = Path(element.image_asset).expanduser().resolve()
+            load_image(plate, label=f"motion element {index} image_asset")
+            plates[element.image_asset] = plate
+    plate_sources = {
+        asset: f"motion-plate-{index}{path.suffix.casefold()}"
+        for index, (asset, path) in enumerate(sorted(plates.items()))
+    }
     node = shutil.which("node")
     if node is None:
         raise ToolNotFoundError(
@@ -74,6 +87,8 @@ def render_motion_design(
         if not logo_path.is_file():
             raise ValidationError(f"configured logo does not exist: {logo_path}")
         logo_source = f"brand-logo{logo_path.suffix.casefold()}"
+    highlight = highlight_possible(caption_style, captions)
+    features = caption_features(caption_style, captions, highlight=highlight)
     work = staging_root / f"remotion-{uuid4().hex}"
     public = work / "public"
     try:
@@ -87,6 +102,8 @@ def render_motion_design(
             shutil.copy2(font, public / font_source)
         if logo_path is not None and logo_source is not None:
             shutil.copy2(logo_path, public / logo_source)
+        for asset, name in plate_sources.items():
+            shutil.copy2(plates[asset], public / name)
         props = {
             "source": "base.mp4",
             "durationInFrames": duration_in_frames,
@@ -99,12 +116,13 @@ def render_motion_design(
             "fontFamily": plan.font_family,
             "fontSource": font_source,
             "elements": [
-                item.model_dump(mode="json", exclude={"schema_version"}) for item in plan.elements
+                {
+                    **item.model_dump(mode="json", exclude={"schema_version", "image_asset"}),
+                    "image_source": plate_sources.get(item.image_asset or ""),
+                }
+                for item in plan.elements
             ],
-            "captions": [
-                cue.model_dump(mode="json", exclude={"schema_version", "words"})
-                for cue in (captions.cues if captions else [])
-            ],
+            "captions": _caption_payload(captions, caption_style, highlight=highlight),
             "captionStyle": (
                 caption_style.model_dump(mode="json", exclude={"schema_version"})
                 if caption_style
@@ -140,7 +158,38 @@ def render_motion_design(
         _publish(staged, output)
     finally:
         shutil.rmtree(work, ignore_errors=True)
-    return output
+    return output, features
+
+
+def _caption_payload(
+    captions: CaptionTrack | None,
+    caption_style: CaptionStyle | None,
+    *,
+    highlight: bool,
+) -> list[dict]:
+    """Serialise cues for the compositor, carrying word timings only when used.
+
+    The style's case is applied to each word here, for the same reason the ASS
+    writer does it: the highlighted path renders individual words rather than
+    the cue's already-cased text, so an uppercase contract would otherwise
+    render as spoken whenever highlighting was enabled.
+    """
+    from social_video.captions.chunk import apply_case
+
+    payload: list[dict] = []
+    for cue in captions.cues if captions else []:
+        item = cue.model_dump(mode="json", exclude={"schema_version", "words"})
+        if highlight and caption_style is not None:
+            item["words"] = [
+                {
+                    "text": apply_case(word.text, caption_style.case),
+                    "start": word.start,
+                    "end": word.end,
+                }
+                for word in cue.words
+            ]
+        payload.append(item)
+    return payload
 
 
 def _verify_staged_output(

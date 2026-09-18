@@ -8,6 +8,7 @@ from pathlib import Path
 from social_video.errors import ValidationError
 from social_video.paths import app_home
 from social_video.schemas.brand import BrandProfile, OutputProfile
+from social_video.schemas.platform import PlatformSpec
 
 _BUILTIN = Path(__file__).parent / "data"
 
@@ -48,6 +49,15 @@ def available_profiles(extra: Path | None = None) -> list[str]:
 
 def available_brands(extra: Path | None = None) -> list[str]:
     return _names("brands", extra)
+
+
+def available_platforms(extra: Path | None = None) -> list[str]:
+    return _names("platforms", extra)
+
+
+def load_platform(name: str, extra: Path | None = None) -> PlatformSpec:
+    path = _find(name, "platforms", extra)
+    return _load(PlatformSpec, path)
 
 
 def load_profile(name: str, extra: Path | None = None) -> OutputProfile:

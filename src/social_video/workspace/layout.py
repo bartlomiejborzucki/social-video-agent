@@ -87,6 +87,11 @@ class Workspace:
         return self.root / "context"
 
     @property
+    def generated(self) -> Path:
+        """Plates drawn by a cloud image model. Always provenance-tracked."""
+        return self.assets / "generated"
+
+    @property
     def previews(self) -> Path:
         return self.heavy_root / "previews"
 
@@ -167,6 +172,31 @@ class Workspace:
         return self.root / "delivery-manifest.json"
 
     @property
+    def candidate_set(self) -> Path:
+        """Agent-authored clip candidates for a long recording."""
+        return self.candidates / "candidates.json"
+
+    @property
+    def shorts_index(self) -> Path:
+        return self.candidates / "shorts.json"
+
+    @property
+    def visual_assets(self) -> Path:
+        return self.root / "visuals.json"
+
+    @property
+    def cover(self) -> Path:
+        return self.assets / "cover.jpg"
+
+    @property
+    def cover_design(self) -> Path:
+        return self.root / "cover.json"
+
+    @property
+    def publish_metadata(self) -> Path:
+        return self.root / "publish.json"
+
+    @property
     def packed_transcript(self) -> Path:
         return self.root / "takes-packed.md"
 
@@ -191,6 +221,7 @@ class Workspace:
             self.candidates,
             self.captions,
             self.assets,
+            self.generated,
             self.context,
             self.previews,
             self.qa,

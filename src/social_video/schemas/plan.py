@@ -125,6 +125,25 @@ class ClipCandidate(Artifact):
         return self.end - self.start
 
 
+class ShortEntry(Artifact):
+    """One materialised short: its own workspace, its own EDL."""
+
+    id: str
+    workspace: str
+    edl: str
+    source: str
+    start: float = Field(ge=0.0)
+    end: float = Field(gt=0.0)
+    topic: str = ""
+
+
+class ShortsIndex(Artifact):
+    """Everything materialised from one candidate set."""
+
+    parent_workspace: str
+    shorts: list[ShortEntry] = Field(default_factory=list)
+
+
 class CandidateSet(Artifact):
     """All candidates discovered for one source."""
 

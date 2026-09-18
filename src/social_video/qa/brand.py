@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from social_video.captions.features import ACTIVE_WORD_HIGHLIGHT, ACTIVE_WORD_UNAVAILABLE
 from social_video.ffmpeg.probe import probe
 from social_video.schemas.config import BrandContract
 from social_video.schemas.qa import QACheck, QAReport, QASeverity, RenderManifest
@@ -56,6 +57,66 @@ def check_brand(
         "brand safe margins",
         render.brand_safe_margins == contract.safe_margins,
         f"render={render.brand_safe_margins}, expected={contract.safe_margins}",
+    )
+    applied = set(render.caption_features)
+    if render.captions_burned:
+        # Everything above compares the contract with a copy of itself. These
+        # compare it with what the renderer reported actually drawing.
+        add(
+            "caption renderer evidence",
+            bool(render.caption_renderer and applied),
+            f"renderer={render.caption_renderer or 'unrecorded'}, "
+            f"features={sorted(applied) or 'none recorded'}",
+            warning=True,
+        )
+        add(
+            "caption active-word highlight",
+            not style.highlight_active_word or ACTIVE_WORD_HIGHLIGHT in applied,
+            (
+                "not requested by the contract"
+                if not style.highlight_active_word
+                else "applied"
+                if ACTIVE_WORD_HIGHLIGHT in applied
+                else f"the contract requires an active-word highlight but "
+                f"{render.caption_renderer or 'the renderer'} did not draw one"
+                + (
+                    "; the caption track has no word timings"
+                    if ACTIVE_WORD_UNAVAILABLE in applied
+                    else ""
+                )
+            ),
+        )
+        add(
+            "caption weight",
+            not style.bold or "bold" in applied,
+            "bold applied" if "bold" in applied else "the contract asks for bold captions",
+        )
+    bed = render.audio_bed_applied
+    add(
+        "music policy",
+        (bool(bed) and contract.music_policy != "none")
+        or (not bed and contract.music_policy != "required"),
+        (
+            f"bed at {bed.get('gain_db')} dB, ducked={bed.get('ducked')}"
+            if bed
+            else f"no music bed; policy is {contract.music_policy}"
+        ),
+    )
+    if bed:
+        # A bed this close to the voice competes with it rather than sitting under it.
+        quiet_enough = float(bed.get("gain_db", 0.0)) <= -12.0
+        add(
+            "music sits under the voice",
+            quiet_enough and bool(bed.get("ducked")),
+            f"gain={bed.get('gain_db')} dB, ducked={bed.get('ducked')}; "
+            "expected at most -12 dB and sidechain ducking",
+            warning=True,
+        )
+    add(
+        "sfx policy",
+        (render.sound_effects_applied > 0 and contract.sfx_policy != "none")
+        or (render.sound_effects_applied == 0 and contract.sfx_policy != "required"),
+        f"{render.sound_effects_applied} effect(s); policy is {contract.sfx_policy}",
     )
     background_required = style.background_style.value != "none"
     add(

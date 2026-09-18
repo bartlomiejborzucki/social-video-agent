@@ -322,6 +322,68 @@ class EDLRange(Artifact):
         return max(natural, self.hold_last_frame_until or 0.0)
 
 
+class AudioBed(Artifact):
+    """A music bed mixed under the edit.
+
+    Music is the fastest way to get a social video taken down, so the licence
+    declaration is a required field rather than a policy note: the renderer
+    refuses to mix a track nobody has claimed the rights to. The file is a local
+    path and is never fetched.
+    """
+
+    path: str = Field(min_length=1)
+    #: Bed level relative to the speech it sits under. Positive values are
+    #: refused: a bed louder than the voice is not a bed.
+    gain_db: float = Field(default=-20.0, ge=-60.0, le=0.0)
+    #: Offset into the music file, for starting on a phrase rather than silence.
+    start_at: float = Field(default=0.0, ge=0.0)
+    #: A bed shorter than the edit is an error unless looping is declared, because
+    #: an unintended loop seam is audible and a silent tail looks like a bug.
+    loop: bool = False
+    fade_in: float = Field(default=0.5, ge=0.0, le=10.0)
+    fade_out: float = Field(default=1.5, ge=0.0, le=20.0)
+    #: Duck the bed under speech with a sidechain compressor. Off means the bed
+    #: competes with the voice at a constant level; say why if you turn it off.
+    duck: bool = True
+    duck_ratio: float = Field(default=8.0, ge=1.0, le=20.0)
+    duck_threshold_db: float = Field(default=-30.0, ge=-60.0, le=0.0)
+    duck_release_ms: int = Field(default=400, ge=50, le=4000)
+    #: Required declaration that this track may be used in this deliverable.
+    license_confirmed: bool = False
+    license_note: str = Field(default="", max_length=300)
+    reason: str = Field(min_length=1, max_length=300)
+
+    @model_validator(mode="after")
+    def _check_licence(self) -> AudioBed:
+        if not self.license_confirmed:
+            raise ValueError(
+                "audio_bed requires license_confirmed: true. Declare that this project "
+                "holds the rights to use this track in this deliverable, and record the "
+                "basis in license_note. This tool does not supply or clear music."
+            )
+        return self
+
+
+class SoundEffect(Artifact):
+    """One deliberately placed sound effect.
+
+    Placed by hand at a named moment with a reason. Nothing here ever adds a
+    whoosh on a timer: an effect on every cut is not sound design, it is a tell.
+    """
+
+    path: str = Field(min_length=1)
+    at: float = Field(ge=0.0, description="Position on the output timeline, in seconds.")
+    gain_db: float = Field(default=-6.0, ge=-60.0, le=6.0)
+    license_confirmed: bool = False
+    reason: str = Field(min_length=1, max_length=300)
+
+    @model_validator(mode="after")
+    def _check_licence(self) -> SoundEffect:
+        if not self.license_confirmed:
+            raise ValueError(f"sound effect {self.path!r} requires license_confirmed: true")
+        return self
+
+
 class EDL(Artifact):
     """A complete, renderable edit."""
 
@@ -340,6 +402,8 @@ class EDL(Artifact):
     captions: str | None = Field(default=None, description="Path to a CaptionTrack artifact.")
     brand_profile: str | None = None
     normalize_audio: bool = True
+    audio_bed: AudioBed | None = None
+    sound_effects: list[SoundEffect] = Field(default_factory=list)
     accepted_qa_warnings: list[str] = Field(
         default_factory=list,
         description="Exact QA check names explicitly accepted by the supervising editor.",
@@ -352,6 +416,12 @@ class EDL(Artifact):
                 f"output dimensions must be even for yuv420p, got "
                 f"{self.output_width}x{self.output_height}"
             )
+        duration = sum(r.output_duration for r in self.ranges)
+        for effect in self.sound_effects:
+            if effect.at > duration:
+                raise ValueError(
+                    f"sound effect at {effect.at:.2f}s lands after the {duration:.2f}s output"
+                )
         return self
 
     @property

@@ -1,0 +1,17 @@
+{
+  "name": "shorts",
+  "description": "YouTube Shorts, vertical player.",
+  "aspect_ratios": ["9:16"],
+  "reserved_bottom_pct": 15.0,
+  "reserved_top_pct": 8.0,
+  "reserved_right_pct": 12.0,
+  "reserved_left_pct": 4.0,
+  "min_duration": 3.0,
+  "max_duration": 180.0,
+  "recommended_max_duration": 60.0,
+  "title_max_chars": 100,
+  "description_max_chars": 5000,
+  "hashtag_max": 15,
+  "accuracy_note": "Conservative estimate of the title, channel row and action-button overlays. Verify against a real device before a campaign.",
+  "schema_version": 1
+}

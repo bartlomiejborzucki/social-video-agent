@@ -7,9 +7,18 @@ the app home overrides it.
 
 from social_video.profiles.registry import (
     available_brands,
+    available_platforms,
     available_profiles,
     load_brand,
+    load_platform,
     load_profile,
 )
 
-__all__ = ["available_brands", "available_profiles", "load_brand", "load_profile"]
+__all__ = [
+    "available_brands",
+    "available_platforms",
+    "available_profiles",
+    "load_brand",
+    "load_platform",
+    "load_profile",
+]

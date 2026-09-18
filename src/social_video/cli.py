@@ -32,9 +32,13 @@ app = typer.Typer(
 context_app = typer.Typer(help="Discover and cache target-project brand/editing context.")
 workflow_app = typer.Typer(help="Persist and resume the guided multi-stage editing workflow.")
 config_app = typer.Typer(help="Initialize and validate executable project branding.")
+image_app = typer.Typer(help="Detect an image provider and draw cover/end-card plates.")
+shorts_app = typer.Typer(help="Turn one long recording into several standalone shorts.")
 app.add_typer(context_app, name="context")
 app.add_typer(workflow_app, name="workflow")
 app.add_typer(config_app, name="config")
+app.add_typer(image_app, name="image")
+app.add_typer(shorts_app, name="shorts")
 console = Console()
 err_console = Console(stderr=True)
 
@@ -868,10 +872,259 @@ def render(
     console.print(f"[green]rendered[/green] {rendered}", soft_wrap=True)
 
 
+@image_app.command("status")
+def image_status(
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Report whether this host can generate plates, and on whose account."""
+    from social_video.imagegen import detect_image_provider
+
+    status = detect_image_provider()
+    if as_json:
+        console.print_json(json.dumps(status.to_dict()))
+        return
+    state = "[green]available[/green]" if status.available else "[yellow]unavailable[/yellow]"
+    console.print(f"{state} host={status.host}")
+    console.print(f"  {escape(status.reason)}", soft_wrap=True)
+    if status.provider is not None:
+        console.print(f"  cost: {escape(status.provider.cost_note)}", soft_wrap=True)
+
+
+@image_app.command("plate")
+def image_plate(
+    workspace_dir: Path = typer.Argument(..., help="Edit workspace."),
+    prompt: str = typer.Option(..., "--prompt", help="What the background should show."),
+    kind: str = typer.Option("cover_plate", "--kind", help="cover_plate or end_card_plate."),
+    allow_cloud_image: bool = typer.Option(
+        False,
+        "--allow-cloud-image",
+        help="One-off consent to send this prompt to a cloud image model.",
+    ),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Generate one background plate. The model draws no text: typography is local."""
+    from social_video.imagegen import generate_workspace_plate
+    from social_video.schemas.visuals import VisualKind
+    from social_video.workspace.layout import Workspace
+
+    try:
+        visual_kind = VisualKind(kind)
+    except ValueError:
+        supported = ", ".join(item.value for item in VisualKind)
+        err_console.print(f"[red]error:[/red] unknown plate kind {kind!r}; expected {supported}")
+        raise typer.Exit(1) from None
+    visual = _guard(
+        lambda: generate_workspace_plate(
+            Workspace.at(workspace_dir),
+            visual_kind,
+            prompt,
+            allow_flag=allow_cloud_image,
+        )
+    )
+    if as_json:
+        console.print_json(visual.to_json())
+        return
+    console.print(f"[green]generated[/green] {visual.path}", soft_wrap=True)
+    console.print(f"  {visual.provider.value} {visual.model}, consent={visual.consent}")
+
+
+@app.command()
+def cover(
+    workspace_dir: Path = typer.Argument(..., help="Edit workspace."),
+    title: str = typer.Option(..., "--title", help="Headline drawn on the cover."),
+    subtitle: str | None = typer.Option(None, "--subtitle"),
+    plate: Path | None = typer.Option(
+        None, "--plate", help="Generated background plate. Defaults to the recorded cover plate."
+    ),
+    frame_at: float | None = typer.Option(
+        None, "--frame-at", help="Take the background from the finished video at this second."
+    ),
+    output: Path | None = typer.Option(None, "--output", "-o"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Compose the cover still: brand typography over a real frame or a plate."""
+    from social_video.cover import CoverStyle, compose_cover, extract_frame
+    from social_video.schemas.base import load_artifact, save_artifact
+    from social_video.schemas.config import BrandContract
+    from social_video.schemas.visuals import VisualAssets, VisualKind
+    from social_video.workspace.layout import Workspace
+
+    ws = Workspace.at(workspace_dir)
+    contract = (
+        _guard(lambda: load_artifact(BrandContract, ws.brand_contract))
+        if ws.brand_contract.is_file()
+        else None
+    )
+    style = CoverStyle.from_contract(contract) if contract else CoverStyle()
+    if plate is None and frame_at is None and ws.visual_assets.is_file():
+        assets = _guard(lambda: load_artifact(VisualAssets, ws.visual_assets))
+        plate = next(
+            (
+                Path(item.path)
+                for item in assets.visuals
+                if item.kind is VisualKind.COVER_PLATE and Path(item.path).is_file()
+            ),
+            None,
+        )
+    frame: Path | None = None
+    if plate is None:
+        # A real frame of the speaker is the honest default, and on a host with
+        # no image API it is the only one.
+        source = ws.final / "final.mp4"
+        if not source.is_file():
+            source = ws.previews / "preview.mp4"
+        if not source.is_file():
+            err_console.print(
+                "[red]error:[/red] no rendered video to take a cover frame from; "
+                "render first, or pass --plate"
+            )
+            raise typer.Exit(1)
+        frame_at = frame_at if frame_at is not None else 0.5
+        frame = _guard(lambda: extract_frame(source, frame_at, ws.cache / "cover-frame.jpg"))
+    target = output or ws.cover
+    design = _guard(
+        lambda: compose_cover(
+            target,
+            title=title,
+            subtitle=subtitle,
+            style=style,
+            plate=plate,
+            frame=frame,
+            frame_at=frame_at,
+        )
+    )
+    _guard(lambda: save_artifact(design, ws.cover_design))
+    if as_json:
+        console.print_json(design.to_json())
+        return
+    console.print(f"[green]cover[/green] {design.path} ({design.background})", soft_wrap=True)
+
+
+@shorts_app.command("list")
+def shorts_list(
+    workspace_dir: Path = typer.Argument(..., help="Workspace holding candidates.json."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Show the agent-authored clip candidates, best first."""
+    from social_video.shorts import load_candidates
+    from social_video.workspace.layout import Workspace
+
+    candidates = _guard(lambda: load_candidates(Workspace.at(workspace_dir)))
+    ranked = candidates.ranked()
+    if as_json:
+        console.print_json(
+            json.dumps(
+                [
+                    {
+                        "id": item.id,
+                        "topic": item.topic,
+                        "start": item.start,
+                        "end": item.end,
+                        "duration": round(item.duration, 2),
+                        "selected": item.selected,
+                        "overall": round(item.scores.overall, 3) if item.scores else None,
+                        "reason": item.reason,
+                    }
+                    for item in ranked
+                ]
+            )
+        )
+        return
+    table = Table(title=f"clip candidates in {candidates.source}", box=None, padding=(0, 2))
+    for column in ("id", "span", "duration", "score", "selected", "topic"):
+        table.add_column(column, overflow="fold")
+    for item in ranked:
+        table.add_row(
+            item.id,
+            f"{item.start:.2f}-{item.end:.2f}s",
+            f"{item.duration:.1f}s",
+            f"{item.scores.overall:.2f}" if item.scores else "-",
+            "yes" if item.selected else "",
+            escape(item.topic),
+        )
+    console.print(table)
+    console.print("[dim]Scores are the agent's editorial judgement, not measurements.[/dim]")
+
+
+@shorts_app.command("create")
+def shorts_create(
+    workspace_dir: Path = typer.Argument(..., help="Workspace holding candidates.json."),
+    only: list[str] | None = typer.Option(
+        None, "--only", help="Materialise just this candidate id; repeatable."
+    ),
+    reframe: str | None = typer.Option(None, "--reframe", help="Framing mode for every clip."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Give each selected candidate its own workspace and EDL. Never re-transcribes."""
+    from social_video.schemas.edl import ReframeMode
+    from social_video.shorts import materialize_shorts, shorts_summary
+    from social_video.workspace.layout import Workspace
+
+    mode: ReframeMode | None = None
+    if reframe is not None:
+        try:
+            mode = ReframeMode(reframe)
+        except ValueError:
+            supported = ", ".join(item.value for item in ReframeMode)
+            err_console.print(
+                f"[red]error:[/red] unknown reframe {reframe!r}; expected {supported}"
+            )
+            raise typer.Exit(1) from None
+    index = _guard(
+        lambda: materialize_shorts(Workspace.at(workspace_dir), only=only or None, reframe=mode)
+    )
+    if as_json:
+        console.print_json(index.to_json())
+        return
+    for entry in shorts_summary(index):
+        where = escape(str(entry["workspace"]))
+        console.print(
+            f"[green]{entry['id']}[/green] {entry['duration']}s -> {where}", soft_wrap=True
+        )
+    console.print(
+        f"[dim]{len(index.shorts)} short(s) prepared. Render and QA each one "
+        "in its own workspace.[/dim]"
+    )
+
+
+@app.command()
+def platforms(
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """List publishing destinations and the feed UI they are expected to cover."""
+    from social_video.profiles import available_platforms, load_platform
+
+    specs = [load_platform(name) for name in available_platforms()]
+    if as_json:
+        console.print_json(
+            json.dumps([spec.model_dump(mode="json", exclude={"schema_version"}) for spec in specs])
+        )
+        return
+    table = Table(title="platforms", box=None, padding=(0, 2))
+    for column in ("name", "reserved bottom", "reserved right", "max", "recommended"):
+        table.add_column(column)
+    for spec in specs:
+        table.add_row(
+            spec.name,
+            f"{spec.reserved_bottom_pct:.0f}%",
+            f"{spec.reserved_right_pct:.0f}%",
+            f"{spec.max_duration:.0f}s",
+            f"{spec.recommended_max_duration:.0f}s",
+        )
+    console.print(table)
+    console.print(
+        "[dim]Reserved zones are conservative estimates of the feed UI, not published "
+        "specifications. Edit the JSON to correct them.[/dim]"
+    )
+
+
 @app.command()
 def qa(
     workspace_dir: Path = typer.Argument(..., help="Workspace to check."),
     target: Path | None = typer.Option(None, "--output", help="File to inspect."),
+    platform: list[str] | None = typer.Option(
+        None, "--platform", help="Also check safe zones and limits for this platform; repeatable."
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Inspect a rendered file against its EDL."""
@@ -887,7 +1140,7 @@ def qa(
             raise typer.Exit(1)
         target = candidates[0]
 
-    report = _guard(lambda: stage_qa(target, edl, ws))
+    report = _guard(lambda: stage_qa(target, edl, ws, platforms=platform or None))
     if as_json:
         console.print_json(report.to_json())
         raise typer.Exit(0 if report.passed else 1)
@@ -903,7 +1156,12 @@ def deliver(
     no_captions: bool = typer.Option(False, "--no-captions"),
     srt: bool = typer.Option(False, "--srt"),
     vtt: bool = typer.Option(False, "--vtt"),
-    poster: bool = typer.Option(False, "--poster"),
+    poster: bool = typer.Option(False, "--poster", help="Raw frame grab."),
+    cover: bool = typer.Option(False, "--cover", help="Composed cover still."),
+    publish: bool = typer.Option(False, "--publish", help="Validated publish.json."),
+    platform: list[str] | None = typer.Option(
+        None, "--platform", help="Check delivered video against this platform; repeatable."
+    ),
     resolution: list[str] | None = typer.Option(
         None, "--resolution", help="Additional WIDTHxHEIGHT variant; repeatable."
     ),
@@ -924,6 +1182,9 @@ def deliver(
             srt=srt,
             vtt=vtt,
             poster=poster,
+            cover=cover,
+            publish=publish,
+            platforms=platform or None,
             resolutions=resolution,
         )
     )

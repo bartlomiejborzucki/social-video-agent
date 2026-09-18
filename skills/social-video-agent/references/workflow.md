@@ -55,6 +55,10 @@ Remotion composites the approved motion layer; then FFmpeg/ffprobe QA the final
 `preview.mp4`. Write `qa/qa-technical.json`, stop, and hand off for editorial
 review.
 
+When the contract asks for an active-word highlight, the caption track must
+carry word timings: the renderer records the features it actually drew and brand
+QA fails if a contracted one was dropped.
+
 Generate captions from the compiled brand contract. The EDL stores its
 fingerprint, never an unresolvable project/profile name. Rounded caption boxes
 are rendered by Remotion; an FFmpeg-only run fails rather than silently
@@ -97,7 +101,11 @@ Current recommendations: OpenAI Luna or Claude Haiku 4.5, low effort.
 
 Use `social-video-agent deliver WORKSPACE --output DESTINATION` with desired
 variant flags. Create only approved mechanical variants: no-captions, SRT/VTT,
-thumbnail/poster, names, and `delivery-manifest.json`. Every video gets QA and
+poster, composed `--cover`, validated `--publish` metadata, names, and
+`delivery-manifest.json`. `--platform` adds safe-zone and length checks for the
+destination; see [publishing.md](publishing.md). Composing a cover and writing
+publishing copy are editorial acts: do them in Stage 4 or earlier if the wording
+matters, not as a mechanical afterthought. Every video gets QA and
 every item gets size, format, SHA-256 and status. Verify the EDL hash before and
 after; Stage 5 must not change cuts or story, and `/tmp` is not a delivery target.
 

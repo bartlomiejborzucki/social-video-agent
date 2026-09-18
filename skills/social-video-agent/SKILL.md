@@ -3,7 +3,7 @@ name: social-video-agent
 description: Create project-aware Reels and Shorts from recordings with local transcription, an explicit plan and EDL, persistent stages, rendering, and QA. Use when asked to edit, trim, caption, reframe, review or resume a preview, or create delivery variants. Do not use for generated video or simple conversion.
 license: Apache-2.0
 metadata:
-  version: "0.4.0"
+  version: "0.5.0"
 ---
 
 # Project-aware social video editing
@@ -72,6 +72,18 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
   the story or repair insufficient footage.
 - Stage 2 compiles project config into `brand-contract.json`; render only a
   matching EDL/contract. Stage 4 requires technical QA and `qa/qa-brand.json`.
+- Music and effects are licence-gated and policy-gated: `audio_bed` and every
+  sound effect require `license_confirmed`, the project's `music_policy` and
+  `sfx_policy` decide whether they may exist at all, and nothing is ever placed
+  on a timer. Never source, clear, or describe a track's licence for the user.
+- `speaker` framing correlates mouth movement with the speech envelope. When no
+  face is convincingly the talker it falls back to prominence and records that
+  in the reframe reason; do not describe the result as speaker detection when it
+  declined to pick.
+- Generated imagery is optional and credential-gated. Run `image status` before
+  offering a cover or end-card plate: a ChatGPT or Gemini plan is not API access,
+  and Claude has no image API at all. A plate is a background only; the image
+  model never draws text, and consent is a project policy or an explicit flag.
 - Stage 5 uses `social-video-agent deliver`; preserve the EDL hash and verify
   every delivery-manifest entry.
 
@@ -84,11 +96,14 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 | Model tiers and handoff copy | [model-routing.md](references/model-routing.md) |
 | Artifact fields and endings | [artifacts.md](references/artifacts.md) |
 | Captions, framing, brand style | [style.md](references/style.md) |
+| Music, ducking, sound effects | [audio.md](references/audio.md) |
+| Cover, end card, generated plates | [generated-visuals.md](references/generated-visuals.md) |
+| Platform safe zones and publish copy | [publishing.md](references/publishing.md) |
 | Several clips from long video | [shorts.md](references/shorts.md) |
 | Setup/render failures | [troubleshooting.md](references/troubleshooting.md) |
 
 After project rules and user overrides, default to restraint: meaning, clarity,
 natural rhythm, clean cuts, audio, framing, captions, then effects. Technical
-success is not editorial approval: Stage 3 must inspect the hook, story, cut
-boundaries, final ten seconds, dense final-five-second sheet, last frame, and
-motion/audio ending, then always write valid `qa-editorial.json`.
+success is not editorial approval: Stage 3 must inspect the opening sheet, hook,
+story, cut boundaries, final ten seconds, dense final-five-second sheet, last
+frame, and motion/audio ending, then always write valid `qa-editorial.json`.

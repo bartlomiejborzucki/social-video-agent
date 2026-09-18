@@ -56,6 +56,10 @@ class CapabilityError(SocialVideoError):
     """The installed ffmpeg lacks a filter or library this operation needs."""
 
 
+class ImageGenerationError(SocialVideoError):
+    """A cloud image provider refused, failed, or returned something unusable."""
+
+
 class RemotionError(SocialVideoError):
     """The Remotion compositor failed with a concise actionable diagnostic."""
 

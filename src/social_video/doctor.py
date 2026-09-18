@@ -264,6 +264,29 @@ def _check_fonts(report: DoctorReport) -> None:
     )
 
 
+def _check_image_generation(report: DoctorReport) -> None:
+    """Cover and end-card plates are optional, so this never fails the report."""
+    from social_video.imagegen import detect_image_provider
+
+    status = detect_image_provider()
+    report.add(
+        Check(
+            "image generation",
+            True,
+            False,
+            (
+                f"{status.provider.name.value} ({status.provider.model}) via "
+                f"{status.provider.credential_env}; {status.provider.cost_note}"
+                if status.available and status.provider
+                else f"unavailable: {status.reason}"
+            ),
+            ""
+            if status.available
+            else "Covers still work: they are composed locally over a real frame.",
+        )
+    )
+
+
 def _check_gpu(report: DoctorReport) -> None:
     if os.environ.get("SOCIAL_VIDEO_FORCE_CPU"):
         report.add(Check("gpu", True, False, "CPU MODE (set by SOCIAL_VIDEO_FORCE_CPU)"))
@@ -562,6 +585,7 @@ def run_doctor() -> DoctorReport:
     _check_packages(report)
     _check_fonts(report)
     _check_gpu(report)
+    _check_image_generation(report)
     _check_node(report)
     _check_workspace(report)
     _check_distribution(report)

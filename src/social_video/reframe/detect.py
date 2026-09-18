@@ -14,6 +14,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -38,6 +39,10 @@ class Face:
     width: float
     height: float
     confidence: float
+    #: YuNet's five landmarks: right eye, left eye, nose, right and left mouth
+    #: corner. They come back from the same detection call, so speaker detection
+    #: gets a mouth position without a second model.
+    landmarks: tuple[tuple[float, float], ...] = ()
 
     @property
     def center(self) -> tuple[float, float]:
@@ -46,6 +51,14 @@ class Face:
     @property
     def area(self) -> float:
         return self.width * self.height
+
+    @property
+    def mouth_center(self) -> tuple[float, float] | None:
+        """Midpoint of the two mouth corners, when landmarks are present."""
+        if len(self.landmarks) < 5:
+            return None
+        right, left = self.landmarks[3], self.landmarks[4]
+        return (right[0] + left[0]) / 2.0, (right[1] + left[1]) / 2.0
 
 
 @dataclass(frozen=True)
@@ -88,6 +101,7 @@ def detect_faces(
     end: float | None = None,
     samples_per_second: float = 2.0,
     min_confidence: float = 0.7,
+    on_frame: Callable[[float, object, tuple[Face, ...]], None] | None = None,
 ) -> list[FrameFaces]:
     """Sample a time range and detect faces in each sampled frame.
 
@@ -131,13 +145,31 @@ def detect_faces(
             ok, frame = capture.read()
             if not ok or frame is None:
                 break
-            _, raw = detector.detect(frame)
-            faces: list[Face] = []
-            for row in raw if raw is not None else []:
-                x, y, w, h = (float(v) for v in row[:4])
-                faces.append(Face(x=x, y=y, width=w, height=h, confidence=float(row[-1])))
-            results.append(FrameFaces(t=t, faces=tuple(faces)))
+            found = faces_in_frame(detector, frame)
+            if on_frame is not None:
+                on_frame(t, frame, found)
+            results.append(FrameFaces(t=t, faces=found))
             t += step
         return results
     finally:
         capture.release()
+
+
+def faces_in_frame(detector, frame) -> tuple[Face, ...]:
+    """Run one detection and keep the landmarks the caller may need."""
+    _, raw = detector.detect(frame)
+    faces: list[Face] = []
+    for row in raw if raw is not None else []:
+        x, y, w, h = (float(v) for v in row[:4])
+        points = tuple((float(row[4 + index * 2]), float(row[5 + index * 2])) for index in range(5))
+        faces.append(
+            Face(
+                x=x,
+                y=y,
+                width=w,
+                height=h,
+                confidence=float(row[-1]),
+                landmarks=points,
+            )
+        )
+    return tuple(faces)

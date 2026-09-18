@@ -61,6 +61,11 @@ class ProjectVideoConfig(BaseModel):
     broll_density: float = Field(default=0, ge=0, le=1)
     music_policy: Literal["none", "optional", "required"] = "none"
     sfx_policy: Literal["none", "optional", "required"] = "none"
+    #: Whether this project permits sending a text prompt to a cloud image model
+    #: for cover and end-card plates. Media is never uploaded either way.
+    image_generation_policy: Literal["none", "optional", "required"] = "none"
+    #: Where the finished clip is posted. Drives platform safe-zone checks.
+    target_platforms: list[str] = Field(default_factory=list)
     default_aspect_ratio: Literal["9:16", "1:1", "16:9"] = "9:16"
     default_resolution: str = "1080x1920"
     default_fps_policy: Literal["30", "60", "30000/1001", "60000/1001"] = "30"
@@ -130,6 +135,12 @@ class BrandContract(Artifact):
     resolved_font_file: str | None = None
     resolved_logo_file: str | None = None
     safe_margins: dict[str, float] = Field(default_factory=dict)
+    image_generation_enabled: bool = False
+    target_platforms: list[str] = Field(default_factory=list)
+    #: Compiled from the project config. `required` means an edit without one is
+    #: incomplete; `none` means the renderer refuses to mix one at all.
+    music_policy: Literal["none", "optional", "required"] = "none"
+    sfx_policy: Literal["none", "optional", "required"] = "none"
 
     def validate_assets(self) -> None:
         for label, value in (("font", self.resolved_font_file), ("logo", self.resolved_logo_file)):

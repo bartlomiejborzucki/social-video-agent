@@ -52,6 +52,8 @@ punch_in_intensity: 0.25
 broll_density: 0
 music_policy: none
 sfx_policy: none
+image_generation_policy: none
+target_platforms: []
 default_aspect_ratio: "9:16"
 default_resolution: "1080x1920"
 default_fps_policy: "30"
@@ -160,6 +162,10 @@ def compile_brand_contract(
         ),
         resolved_font_file=str(font_file) if font_file else None,
         resolved_logo_file=str(logo_file) if logo_file else None,
+        image_generation_enabled=config.image_generation_policy != "none",
+        music_policy=config.music_policy,
+        sfx_policy=config.sfx_policy,
+        target_platforms=list(config.target_platforms),
         safe_margins={
             "top": config.safe_margins.get("top", 6),
             "right": config.safe_margins.get("right", 6),

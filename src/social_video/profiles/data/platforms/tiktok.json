@@ -1,0 +1,17 @@
+{
+  "name": "tiktok",
+  "description": "TikTok, vertical feed.",
+  "aspect_ratios": ["9:16"],
+  "reserved_bottom_pct": 20.0,
+  "reserved_top_pct": 10.0,
+  "reserved_right_pct": 14.0,
+  "reserved_left_pct": 4.0,
+  "min_duration": 3.0,
+  "max_duration": 600.0,
+  "recommended_max_duration": 60.0,
+  "title_max_chars": 150,
+  "description_max_chars": 2200,
+  "hashtag_max": 30,
+  "accuracy_note": "Conservative estimate of the description and side-rail overlays. Verify against a real device before a campaign.",
+  "schema_version": 1
+}

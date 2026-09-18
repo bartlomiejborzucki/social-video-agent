@@ -161,11 +161,26 @@ def _reframe_filter(
     return ",".join(parts)
 
 
-def build_audio_graph(edl: EDL, ranges: list[RenderRange]) -> tuple[str, str]:
+@dataclass(frozen=True)
+class AudioMix:
+    """Where the music bed and sound effects landed in the input list."""
+
+    bed_input: int | None = None
+    sfx_inputs: tuple[int, ...] = ()
+
+    @property
+    def active(self) -> bool:
+        return self.bed_input is not None or bool(self.sfx_inputs)
+
+
+def build_audio_graph(
+    edl: EDL, ranges: list[RenderRange], mix: AudioMix | None = None
+) -> tuple[str, str]:
     """Build only the audio half of the graph, for the measurement pass.
 
     Identical to what the render will do to the audio, so the measurement
-    describes the audio that will actually be produced.
+    describes the audio that will actually be produced -- including the music
+    bed, which changes the integrated loudness it is measuring.
     """
     parts: list[str] = []
     labels: list[str] = []
@@ -175,7 +190,86 @@ def build_audio_graph(edl: EDL, ranges: list[RenderRange]) -> tuple[str, str]:
     parts.append(f"{''.join(labels)}concat=n={len(edl.ranges)}:v=0:a=1[ca]")
     total = sum(media.target_duration for media in ranges)
     parts.append(f"[ca]{_final_audio_chain(total)}[cam]")
-    return ";".join(parts), "[cam]"
+    label = _mix_music_and_effects(parts, "[cam]", edl, mix, total)
+    return ";".join(parts), label
+
+
+def _mix_music_and_effects(
+    parts: list[str],
+    label: str,
+    edl: EDL,
+    mix: AudioMix | None,
+    duration: float,
+) -> str:
+    """Mix the bed under the speech, duck it, and place explicit effects.
+
+    The bed is ducked by sidechaining the speech into a compressor rather than
+    by a static volume automation curve, so it gets out of the way of whatever
+    the speaker actually does instead of of where we guessed they would pause.
+    """
+    if mix is None or not mix.active:
+        return label
+    bed = edl.audio_bed
+    if bed is not None and mix.bed_input is not None:
+        chain = [
+            "aresample=48000:async=1:first_pts=0",
+            "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo",
+            f"apad=whole_dur={duration:.9f}",
+            f"atrim=duration={duration:.9f}",
+            "asetpts=N/SR/TB",
+            f"volume={bed.gain_db:.2f}dB",
+        ]
+        if bed.fade_in > 0:
+            chain.append(f"afade=t=in:st=0:d={min(bed.fade_in, duration):.3f}")
+        if bed.fade_out > 0:
+            start = max(0.0, duration - bed.fade_out)
+            chain.append(f"afade=t=out:st={start:.3f}:d={min(bed.fade_out, duration):.3f}")
+        parts.append(f"[{mix.bed_input}:a:0]{','.join(chain)}[bedp]")
+        bed_label = "[bedp]"
+        speech_label = label
+        if bed.duck:
+            parts.append(f"{label}asplit=2[spmain][spkey]")
+            speech_label = "[spmain]"
+            threshold = 10.0 ** (bed.duck_threshold_db / 20.0)
+            parts.append(
+                f"[bedp][spkey]sidechaincompress="
+                f"threshold={threshold:.6f}:ratio={bed.duck_ratio:.2f}:"
+                f"attack=20:release={bed.duck_release_ms}:level_sc=1[bedd]"
+            )
+            bed_label = "[bedd]"
+        parts.append(
+            f"{speech_label}{bed_label}"
+            "amix=inputs=2:duration=first:dropout_transition=0:normalize=0[amixed]"
+        )
+        label = "[amixed]"
+    if mix.sfx_inputs:
+        effect_labels: list[str] = []
+        for number, (effect, input_index) in enumerate(
+            zip(edl.sound_effects, mix.sfx_inputs, strict=True)
+        ):
+            delay = max(0, round(effect.at * 1000))
+            parts.append(
+                f"[{input_index}:a:0]"
+                "aresample=48000:async=1:first_pts=0,"
+                "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
+                f"volume={effect.gain_db:.2f}dB,"
+                f"adelay={delay}|{delay},"
+                f"atrim=duration={duration:.9f},asetpts=N/SR/TB[sfx{number}]"
+            )
+            effect_labels.append(f"[sfx{number}]")
+        parts.append(
+            f"{label}{''.join(effect_labels)}"
+            f"amix=inputs={len(effect_labels) + 1}:duration=first:"
+            "dropout_transition=0:normalize=0[awithsfx]"
+        )
+        label = "[awithsfx]"
+    if not edl.normalize_audio:
+        # Without the loudnorm pass nothing else limits the summed peaks, and a
+        # mix is exactly where clipping appears.
+        parts.append(f"{label}alimiter=limit=0.891[alimited]")
+        label = "[alimited]"
+    parts.append(f"{label}{_final_audio_chain(duration)}[amixout]")
+    return "[amixout]"
 
 
 def _audio_chain(index: int, rng: EDLRange, media: RenderRange) -> str:
@@ -260,6 +354,7 @@ def build_filtergraph(
     fps: str,
     caption_file: Path | None,
     loudnorm: str | None,
+    mix: AudioMix | None = None,
 ) -> tuple[str, str, str]:
     """Build the whole filter graph. Returns (graph, video_label, audio_label)."""
     video_labels: list[str] = []
@@ -335,7 +430,8 @@ def build_filtergraph(
     parts.append(f"[cv]trim=end_frame={total_frames},setpts=N/({fps}*TB)[cvm]")
     parts.append(f"[ca]{_final_audio_chain(total_duration)}[cam]")
 
-    vlabel, alabel = "[cvm]", "[cam]"
+    vlabel = "[cvm]"
+    alabel = _mix_music_and_effects(parts, "[cam]", edl, mix, total_duration)
 
     for number, overlay in enumerate(edl.overlays):
         last_input = max(max(r.video_input, r.audio_input or 0, r.fill_input or 0) for r in ranges)
@@ -366,6 +462,39 @@ def build_filtergraph(
         alabel = "[an]"
 
     return ";".join(parts), vlabel, alabel
+
+
+def _music_inputs(edl: EDL, next_input: int, duration: float) -> tuple[AudioMix, list[str]]:
+    """Add the bed and effect inputs, refusing a bed that cannot cover the edit."""
+    if edl.audio_bed is None and not edl.sound_effects:
+        return AudioMix(), []
+    inputs: list[str] = []
+    bed_input: int | None = None
+    if edl.audio_bed is not None:
+        bed = edl.audio_bed
+        path = Path(bed.path).expanduser()
+        if not path.is_file():
+            raise ValueError(f"audio_bed file does not exist: {path}")
+        available = max(0.0, probe(path).duration - bed.start_at)
+        if not bed.loop and available + 0.05 < duration:
+            raise ValueError(
+                f"audio_bed covers {available:.2f}s from {bed.start_at:.2f}s but the edit is "
+                f"{duration:.2f}s. Use a longer track, or set loop: true and accept the seam."
+            )
+        bed_input = next_input
+        next_input += 1
+        if bed.loop:
+            inputs += ["-stream_loop", "-1"]
+        inputs += ["-ss", f"{bed.start_at:.9f}", "-t", f"{duration:.9f}", "-i", str(path)]
+    sfx_inputs: list[int] = []
+    for effect in edl.sound_effects:
+        path = Path(effect.path).expanduser()
+        if not path.is_file():
+            raise ValueError(f"sound effect file does not exist: {path}")
+        sfx_inputs.append(next_input)
+        next_input += 1
+        inputs += ["-i", str(path)]
+    return AudioMix(bed_input=bed_input, sfx_inputs=tuple(sfx_inputs)), inputs
 
 
 def _atempo_chain(speed: float) -> list[str]:
@@ -474,6 +603,11 @@ def render_edl(
         )
     for overlay in edl.overlays:
         inputs += ["-i", str(overlay.file)]
+    next_input += len(edl.overlays)
+
+    total_output_duration = sum(frames / rate for frames in frame_counts)
+    mix, mix_inputs = _music_inputs(edl, next_input, total_output_duration)
+    inputs += mix_inputs
 
     loudnorm = None
     if edl.normalize_audio:
@@ -482,7 +616,7 @@ def render_edl(
         # selected material happens to be quiet. The measurement decodes audio
         # only, so it costs a fraction of the render it informs -- and it lets
         # loudnorm run in its accurate linear mode rather than guessing.
-        audio_graph, audio_label = build_audio_graph(edl, render_ranges)
+        audio_graph, audio_label = build_audio_graph(edl, render_ranges, mix)
         if quality.two_pass_loudness:
             measured = measure_loudness(inputs, audio_graph, audio_label)
         else:
@@ -498,6 +632,7 @@ def render_edl(
         fps=fps,
         caption_file=caption_file,
         loudnorm=loudnorm,
+        mix=mix,
     )
 
     output = output.resolve()
@@ -582,6 +717,18 @@ def render_edl(
         preset=quality.preset,
         loudness_target_lufs=LOUDNORM_I if loudnorm else None,
         sources_used=edl.source_ids(),
+        audio_bed_applied=(
+            {
+                "path": edl.audio_bed.path,
+                "gain_db": edl.audio_bed.gain_db,
+                "ducked": edl.audio_bed.duck,
+                "looped": edl.audio_bed.loop,
+                "license_confirmed": edl.audio_bed.license_confirmed,
+            }
+            if edl.audio_bed is not None and mix.bed_input is not None
+            else {}
+        ),
+        sound_effects_applied=len(mix.sfx_inputs),
     )
 
 

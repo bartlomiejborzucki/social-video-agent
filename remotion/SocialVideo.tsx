@@ -12,7 +12,13 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import type {CaptionCue, CaptionStyle, MotionElement, SocialVideoProps} from './types';
+import type {
+  CaptionCue,
+  CaptionStyle,
+  CaptionWord,
+  MotionElement,
+  SocialVideoProps,
+} from './types';
 
 const useProjectFont = (family: string, source: string | null): void => {
   const [handle] = useState(() => delayRender('Load project motion-design font'));
@@ -55,6 +61,7 @@ const Caption: React.FC<{
         ? {justifyContent: 'center'}
         : {justifyContent: 'flex-end', paddingBottom: (height * style.margin_pct) / 100};
   const background = style.background_style === 'none' ? 'transparent' : style.background_colour;
+  const words = style.highlight_active_word ? (cue.words ?? []) : [];
   return (
     <AbsoluteFill
       style={{
@@ -85,9 +92,45 @@ const Caption: React.FC<{
           whiteSpace: 'normal',
         }}
       >
-        {cue.text}
+        {words.length > 0 ? (
+          <ActiveWords words={words} cueStart={cue.start} highlight={style.highlight_colour} />
+        ) : (
+          cue.text
+        )}
       </div>
     </AbsoluteFill>
+  );
+};
+
+/**
+ * The active-word highlight the bold-caption brand contract asks for.
+ *
+ * The FFmpeg route has always drawn this with ASS \k timing. Until now the
+ * Remotion route silently dropped the word timings and rendered flat text, so
+ * the default renderer quietly produced something other than the contract.
+ */
+const ActiveWords: React.FC<{
+  words: CaptionWord[];
+  cueStart: number;
+  highlight: string;
+}> = ({words, cueStart, highlight}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  // The sequence is offset to the cue, so add the cue start back to compare
+  // against word times, which are on the output timeline.
+  const now = cueStart + frame / fps;
+  return (
+    <>
+      {words.map((word, index) => {
+        const active = now >= word.start && now < word.end;
+        return (
+          <span key={`${word.start}-${index}`} style={{color: active ? highlight : undefined}}>
+            {index === 0 ? '' : ' '}
+            {word.text}
+          </span>
+        );
+      })}
+    </>
   );
 };
 
@@ -111,6 +154,8 @@ const MotionGraphic: React.FC<{
   const opacity = interpolate(entrance, [0, 1], [0, 1]) * exit;
   const y = interpolate(entrance, [0, 1], [32, 0]);
   const isEnd = element.type === 'end_card';
+  const plate = element.image_source ?? null;
+  const dim = Math.min(90, Math.max(0, element.image_dim_pct ?? 45)) / 100;
   const isLower = element.type === 'lower_third';
   const isCallout = element.type === 'callout';
 
@@ -121,14 +166,30 @@ const MotionGraphic: React.FC<{
         alignItems: isEnd ? 'center' : isCallout ? 'center' : 'flex-start',
         padding: isEnd ? 90 : '140px 72px',
         paddingBottom: isLower ? 260 : undefined,
-        background: isEnd
-          ? `radial-gradient(circle at 50% 35%, ${accent}26 0%, ${background} 58%)`
-          : 'transparent',
+        background:
+          isEnd && !plate
+            ? `radial-gradient(circle at 50% 35%, ${accent}26 0%, ${background} 58%)`
+            : 'transparent',
         fontFamily: font,
         opacity,
         transform: `translateY(${y}px)`,
       }}
     >
+      {plate ? (
+        <>
+          <img
+            src={staticFile(plate)}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+          <AbsoluteFill style={{backgroundColor: background, opacity: dim}} />
+        </>
+      ) : null}
       <div
         style={{
           maxWidth: isCallout ? 820 : 900,

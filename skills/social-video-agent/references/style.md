@@ -34,6 +34,7 @@ Caption settings worth knowing:
   at 1080p and 4K.
 - `margin_pct` defaults to 12%, which clears the platform UI. Reels, Shorts and
   TikTok all overlay the bottom of the frame; captions placed lower get covered.
+  `qa --platform` measures this against the destination's estimated overlay.
 - `max_words_per_cue` / `max_chars_per_cue` bound each cue; breaks still prefer
   sentence and clause boundaries.
 - `case` defaults to as-spoken. Uppercase is a style choice, not a default.
@@ -43,6 +44,11 @@ Caption settings worth knowing:
 Generated from word timings and mapped onto the *output* timeline, so they stay
 in sync no matter how much is cut. A word straddling a cut is kept only for the
 part that survives.
+
+Active-word highlighting is drawn by both renderers: libass with `\k` timing,
+Remotion with per-word spans. Either way it needs word timings in the caption
+data, and brand QA fails when the contract asks for it and the renderer did not
+draw it.
 
 Unicode works: Polish, German, French, Cyrillic are checked against the font
 before rendering. If the chosen font lacks glyphs, `doctor` says so rather than
@@ -56,7 +62,12 @@ letting it render as empty boxes.
   matters more than filling the screen.
 - `center` — fixed centre crop. Predictable, needs no model.
 - `face` — crop follows detected faces. The usual choice for talking heads.
-- `speaker` — for two-person conversations.
+- `speaker` — for two-person conversations. Tracks each face across sampled
+  frames, measures mouth movement, and correlates it with the speech envelope;
+  the face that moves when the audio is loud gets the crop. This is a
+  correlation heuristic, not neural active-speaker detection: when no face is
+  convincingly ahead of the runner-up it says so in the reframe reason and falls
+  back to face prominence rather than following the wrong person silently.
 
 The crop is deliberately lazy. It holds still inside a dead zone, moves
 gradually when it moves, and only jumps at a scene cut. If the result looks

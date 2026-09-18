@@ -18,16 +18,23 @@ edit/
   transcripts/            canonical transcript per source
   takes-packed.md         the compact view you read
   analysis/               scene detection
+  candidates/             candidates.json, shorts.json, one workspace per short
   edit-plan.json          editorial intent
   edl.json                exact ranges and render instructions
   motion-plan.json        intentional Remotion motion-design layer
   brand-contract.json     compiled executable project branding
   qa-editorial.json       mandatory supervising-editor decision
   captions/               caption data, .srt, and .ass
+  visuals.json            provenance for every generated plate
+  cover.json              how the composed cover was built
+  publish.json            title, description, hashtags, alt text
+  assets/cover.jpg        composed cover still
+  assets/generated/       plates drawn by a cloud image model
   previews/preview.mp4    stable preview artifact
   final/final.mp4         stable delivery artifact
   qa/qa-report.json       canonical technical QA report
   qa/qa-brand.json        blocking brand-contract QA
+  qa/opening-contact-sheet.png
   qa/ending-contact-sheet.png
   cache/                  content-addressed; safe to delete
 ```
@@ -120,6 +127,14 @@ may not exceed `max_static_hold`, which defaults to 0.75 seconds. A longer hold
 requires `intentional_hold: true` and a written reason; QA still reports it.
 Without a strategy the EDL fails validation instead of extending the last frame.
 
+### Music and effects
+
+`audio_bed` mixes one local track under the edit and `sound_effects` places
+individual effects at named moments. Both require `license_confirmed: true`, and
+both are refused outright when the project sets `music_policy`/`sfx_policy` to
+`none`. The bed is ducked by sidechaining the speech into a compressor, and the
+mix happens before loudness normalisation. See [audio.md](audio.md).
+
 Edit it by hand freely. Re-render with `social-video-agent render WORKSPACE`.
 
 ## motion-plan.json — motion design
@@ -150,7 +165,11 @@ inspectable and do not leak into editorial decisions:
 }
 ```
 
-Allowed element types are `hook`, `lower_third`, `callout`, and `end_card`.
+Allowed element types are `hook`, `lower_third`, `callout`, and `end_card`. An
+`end_card` may add `image_asset` (a local PNG/JPEG/WebP background) and
+`image_dim_pct`; no other type may, because a plate behind a hook or callout
+covers the person the edit exists for. See
+[generated-visuals.md](generated-visuals.md).
 Every element has a bounded timeline interval and editorial reason; an element
 outside the video duration blocks rendering. An empty list is valid when
 restraint is the professional choice. This plan never changes EDL cuts, audio,
@@ -187,6 +206,24 @@ records its fingerprint; render manifests record the style actually applied.
 background, margin, line-limit, logo, resolution, or aspect mismatch. Accepted
 deviations remain named warnings rather than disappearing.
 
+## candidates.json and shorts.json
+
+For a long recording, `candidates/candidates.json` is the agent-authored
+`CandidateSet`: each span with its topic, transcript, editorial scores, reason
+and `selected` flag. `shorts create` materialises every selected candidate into
+its own workspace under `candidates/<id>/edit` with a single-range EDL and a
+copy of the parent's transcripts, and records the result in `shorts.json`. The
+scores are judgements, not measurements. See [shorts.md](shorts.md).
+
+## visuals.json, cover.json and publish.json
+
+`visuals.json` records every generated plate: provider, model, the exact prompt
+sent, SHA-256, and the consent basis (`project_config` or `explicit_flag`).
+`cover.json` records whether the cover was built over a plate, a real frame (and
+at which second), or a solid brand colour, plus the font and logo used.
+`publish.json` is agent-authored copy validated against the target platforms.
+See [publishing.md](publishing.md).
+
 ## QA report
 
 Checks carry a severity. `error` blocks delivery, `warning` is worth a look,
@@ -194,8 +231,8 @@ Checks carry a severity. `error` blocks delivery, `warning` is worth a look,
 when it is exhausted, report what remains rather than continuing.
 
 `qa/qa-report.json` always records one of `passed`, `passed_with_warnings`, or
-`failed`, artifact paths, audio/video timing, full decode, and `ending visual
-continuity`. The ending check reports the longest near-identical-frame span,
+`failed`, artifact paths, audio/video timing, full decode, `opens on an image`,
+`captions start immediately`, and `ending visual continuity`. The ending check reports the longest near-identical-frame span,
 its start/end, and whether the EDL explicitly approved it.
 
 ## qa-editorial.json — supervising handoff

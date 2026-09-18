@@ -5,6 +5,9 @@ export type MotionElement = {
   text: string;
   secondary_text?: string;
   reason: string;
+  /** Staged public-directory filename of the end-card plate, never a local path. */
+  image_source?: string | null;
+  image_dim_pct?: number;
 };
 
 export type SocialVideoProps = {
@@ -26,7 +29,16 @@ export type SocialVideoProps = {
   safeMargins: {top: number; right: number; bottom: number; left: number};
 };
 
-export type CaptionCue = {index: number; start: number; end: number; text: string; speaker?: string};
+export type CaptionWord = {text: string; start: number; end: number};
+export type CaptionCue = {
+  index: number;
+  start: number;
+  end: number;
+  text: string;
+  speaker?: string;
+  /** Only shipped when the brand contract asks for an active-word highlight. */
+  words?: CaptionWord[];
+};
 export type CaptionStyle = {
   font_family: string;
   font_size_pct: number;
@@ -41,4 +53,6 @@ export type CaptionStyle = {
   position: 'bottom' | 'center' | 'top' | 'lower_third' | 'lower_safe_zone';
   margin_pct: number;
   max_lines: number;
+  highlight_active_word: boolean;
+  highlight_colour: string;
 };

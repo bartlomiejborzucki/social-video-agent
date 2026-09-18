@@ -106,6 +106,15 @@ class RenderManifest(Artifact):
     tool_versions: dict[str, str] = Field(default_factory=dict)
     brand_contract_sha256: str | None = None
     caption_style: dict = Field(default_factory=dict)
+    #: Which compositor drew the captions, and which contracted caption features
+    #: it actually applied. Recording the intent alone would make brand QA
+    #: tautological: it would compare the contract against itself.
+    caption_renderer: str = ""
+    caption_features: list[str] = Field(default_factory=list)
     captions_burned: bool = False
     logo_applied: bool = False
+    #: What was actually mixed under the speech, so policy can be checked
+    #: against evidence rather than against the EDL's own intent.
+    audio_bed_applied: dict = Field(default_factory=dict)
+    sound_effects_applied: int = Field(default=0, ge=0)
     brand_safe_margins: dict[str, float] = Field(default_factory=dict)

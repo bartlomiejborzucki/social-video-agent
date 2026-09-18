@@ -37,6 +37,10 @@ DURATION_TOLERANCE = 0.045
 CLIP_CEILING_DB = -0.5
 #: Loudness this far from target is worth reporting.
 LOUDNESS_TOLERANCE = 2.0
+#: Black at the very start beyond this is a hook the feed never sees.
+OPENING_BLACK_LIMIT = 0.25
+#: A muted autoplay with no caption by this point is a silent frame.
+OPENING_CAPTION_LIMIT = 1.0
 
 _MAX_VOLUME = re.compile(r"max_volume:\s*(-?\d+(?:\.\d+)?)\s*dB")
 _MEAN_VOLUME = re.compile(r"mean_volume:\s*(-?\d+(?:\.\d+)?)\s*dB")
@@ -87,7 +91,10 @@ def check_render(
     _check_audio(report, output, info)
     _check_decode(report, output)
     _check_ending_visual_continuity(report, output, info, edl)
-    _check_black_frames(report, output, info)
+    # One blackdetect pass feeds both the interior and the opening check.
+    black_spans = _black_spans(output)
+    _check_black_frames(report, info, black_spans)
+    _check_opening(report, captions, black_spans)
     if edl is not None:
         _check_cut_boundaries(report, output, edl)
     if captions is not None:
@@ -490,14 +497,17 @@ def _static_span_is_approved(edl: EDL | None, start: float, end: float) -> bool:
     return False
 
 
-def _check_black_frames(report: QAReport, output: Path, info) -> None:
-    """Unexpected black is nearly always a bad cut or a bad crop."""
+def _black_spans(output: Path) -> list[tuple[float, float]]:
     stderr = run_ffmpeg(
         ["-i", str(output), "-vf", "blackdetect=d=0.05:pic_th=0.98", "-f", "null", "-"],
         desc="detect black frames",
         timeout=1800,
     )
-    spans = [(float(a), float(b)) for a, b in _BLACK.findall(stderr)]
+    return [(float(a), float(b)) for a, b in _BLACK.findall(stderr)]
+
+
+def _check_black_frames(report: QAReport, info, spans: list[tuple[float, float]]) -> None:
+    """Unexpected black is nearly always a bad cut or a bad crop."""
     # Black at the very start or end is usually deliberate (a fade); black in
     # the middle is not.
     interior = [(a, b) for a, b in spans if a > 0.25 and b < max(0.0, info.duration - 0.25)]
@@ -512,6 +522,51 @@ def _check_black_frames(report: QAReport, output: Path, info) -> None:
                 else "black at " + ", ".join(f"{a:.2f}-{b:.2f}s" for a, b in interior[:5])
             ),
             at=interior[0][0] if interior else None,
+        )
+    )
+
+
+def _check_opening(
+    report: QAReport, captions: CaptionTrack | None, spans: list[tuple[float, float]]
+) -> None:
+    """The first second decides whether the rest is watched at all.
+
+    The ending already had continuity checks; the opening had none, even though
+    the skill asks the supervising editor to judge the hook. These are the two
+    parts of "does it earn the next five seconds" that are measurable.
+    """
+    opening_black = [(a, b) for a, b in spans if a <= 0.05 and b >= OPENING_BLACK_LIMIT]
+    report.checks.append(
+        QACheck(
+            name="opens on an image",
+            severity=QASeverity.WARNING,
+            passed=not opening_black,
+            message=(
+                "the first frames carry an image"
+                if not opening_black
+                else f"opens on {opening_black[0][1]:.2f}s of black, which is scrolled past"
+            ),
+            at=0.0 if opening_black else None,
+            measured=opening_black[0][1] if opening_black else None,
+            expected=OPENING_BLACK_LIMIT,
+        )
+    )
+    if captions is None or not captions.cues:
+        return
+    first = min(cue.start for cue in captions.cues)
+    report.checks.append(
+        QACheck(
+            name="captions start immediately",
+            severity=QASeverity.WARNING,
+            passed=first <= OPENING_CAPTION_LIMIT,
+            message=(
+                f"first cue at {first:.2f}s"
+                if first <= OPENING_CAPTION_LIMIT
+                else f"first cue at {first:.2f}s; muted autoplay shows nothing until then"
+            ),
+            at=first,
+            measured=first,
+            expected=OPENING_CAPTION_LIMIT,
         )
     )
 

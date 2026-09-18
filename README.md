@@ -228,7 +228,13 @@ graphic is valid when that serves the material better.
 - Project-aware Remotion motion design with exact pinned dependencies, a
   durable `motion-plan.json`, H.264/AAC social export, and real render smoke QA.
 - Profiles for talking heads, education, podcasts, stories, landscape, square, and faster social editing.
-- Mechanical QA for duration, audio, clipping, silence at cuts, black frames, and caption bounds.
+- Mechanical QA for duration, audio, clipping, silence at cuts, black frames,
+  caption bounds, the opening hook, and per-platform safe zones.
+- Composed brand covers, optional credential-gated cover/end-card plates from
+  OpenAI or Gemini image APIs, and validated publishing metadata.
+- Licence-gated music beds with sidechain ducking and hand-placed sound effects.
+- Speaker-aware framing by correlating mouth movement with the speech envelope.
+- One long recording into several standalone shorts, each in its own workspace.
 - Content-addressed transcription caching and immutable source files.
 
 ## CLI
@@ -247,9 +253,23 @@ social-video-agent pack WORKSPACE
 social-video-agent plan INPUT --profile talking-head --goal '45 second Reel'
 social-video-agent edit INPUT --profile talking-head
 social-video-agent render WORKSPACE --quality preview --output /path/to/preview.mp4
-social-video-agent qa WORKSPACE
+social-video-agent qa WORKSPACE --platform reels
 social-video-agent apply-editorial-qa WORKSPACE
+social-video-agent platforms
+social-video-agent shorts list WORKSPACE
+social-video-agent shorts create WORKSPACE --reframe face
+social-video-agent image status
+social-video-agent image plate WORKSPACE --kind cover_plate --prompt '...' --allow-cloud-image
+social-video-agent cover WORKSPACE --title 'Nikt ci tego nie powie'
+social-video-agent deliver WORKSPACE --output DEST --with-captions --cover --publish
 ```
+
+Generated plates are optional and off by default. `image status` reports whether
+this host can reach an image API at all: a ChatGPT or Gemini subscription is not
+API access, and Anthropic has no image API, so on those hosts covers are
+composed from a real frame instead. See
+[generated-visuals.md](skills/social-video-agent/references/generated-visuals.md)
+and [Canva MCP](docs/canva-mcp.md).
 
 `social-video-agent doctor` checks this project's WSL/Linux environment,
 FFmpeg, Python dependencies, ASR, fonts, Node, locked Remotion packages,
@@ -366,7 +386,17 @@ The project is Apache-2.0 and incorporates attributed MIT-licensed work from [br
 ## Known limitations
 
 - The legacy `edit` command remains a continuous mechanical path; normal skill use now creates a project-aware staged plan and stops at guided handoffs.
-- The multi-short workflow is agent-driven; there is no single `shorts` command yet.
+- Candidate selection for multi-short workflows is editorial and stays with the
+  agent; `shorts create` only materialises what was already chosen.
+- Platform reserved zones are conservative estimates of the feed UI, not
+  published specifications. Verify on a real device before a campaign.
+- Music and effects are never sourced or licence-cleared by this tool. It mixes
+  a local file the project already holds the rights to, and records that claim.
+- Speaker framing is audio-correlated mouth motion, not neural active-speaker
+  detection. It declines to choose rather than guessing when two faces move with
+  the audio equally; `LR-ASD` remains the next step recorded in the audit.
+- Generated plates are backgrounds only and need the user's own API key. There is
+  no image generation on a host without one, by design.
 - WhisperX alignment and speaker diarization are declared optional dependencies but are not connected to the pipeline.
 - Remotion currently composites a deliberately small vocabulary of project-aware
   hook, lower-third, callout, and end-card graphics. It does not automatically
@@ -375,7 +405,8 @@ The project is Apache-2.0 and incorporates attributed MIT-licensed work from [br
   supervising-editor review.
 - Legacy workspaces resume with the FFmpeg renderer for compatibility. New
   workflows default to Remotion and require the Stage 0 declaration.
-- Face-aware framing follows the most prominent face, not the active speaker.
+- Face-aware framing follows the most prominent face; `--reframe speaker` adds
+  audio correlation on top of it.
 - Actual Windows 11 `/mnt/c` acceptance must be recorded for each release; generic Linux CI is not equivalent.
 
 See [CHANGELOG.md](CHANGELOG.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md) for public project policies.

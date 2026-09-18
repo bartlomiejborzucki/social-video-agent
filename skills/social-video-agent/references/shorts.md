@@ -23,8 +23,23 @@ For a recording that contains several standalone moments rather than one piece.
 5. **Refine boundaries.** Start on the first word of the thought, not mid-
    sentence. End after the point lands, before the speaker starts the next one.
    Boundaries snap to word edges automatically.
-6. **Render each clip separately**, each with its own EDL, framing, and captions.
-7. **QA each one.**
+6. **Write `candidates/candidates.json`** with the span, topic, transcript,
+   scores and reason for each candidate, and `selected: true` on the ones you
+   are keeping.
+7. **Materialise them.** Each selected candidate gets its own workspace and EDL,
+   and the parent's transcripts are copied in rather than recognised again:
+
+   ```bash
+   social-video-agent shorts list WORKSPACE
+   social-video-agent shorts create WORKSPACE --reframe face
+   ```
+
+8. **Render, QA and deliver each clip in its own workspace**, with its own
+   framing, captions, cover and publishing copy.
+
+Anything under three seconds is refused: that is a fragment, not a short. An
+unreviewed candidate set produces nothing, because choosing which moments stand
+alone is the editorial decision this whole workflow exists for.
 
 ## Choosing
 

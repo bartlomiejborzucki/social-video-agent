@@ -15,7 +15,7 @@ import logging
 from pathlib import Path
 
 from social_video.ffmpeg.probe import probe
-from social_video.reframe.detect import detect_faces
+from social_video.reframe.detect import FrameFaces, detect_faces
 from social_video.reframe.smooth import SmoothingConfig, dedupe_keyframes, smooth_positions
 from social_video.schemas.edl import CropKeyframe, ReframeMode, ReframePlan
 
@@ -48,6 +48,7 @@ def plan_reframe(
     mode: ReframeMode = ReframeMode.FACE,
     scene_cuts: list[float] | None = None,
     smoothing: SmoothingConfig | None = None,
+    audio_source: Path | None = None,
 ) -> ReframePlan:
     """Decide how to fit a range of a source onto a vertical canvas."""
     info = probe(source)
@@ -80,19 +81,26 @@ def plan_reframe(
             reason="centre crop",
         )
 
-    if mode is ReframeMode.SPEAKER:
-        # Say so rather than quietly doing something else. Choosing the active
-        # speaker needs audio-visual speaker detection, which is not built yet;
-        # until it is, this picks the most prominent face, which is right for a
-        # single subject and a guess for a conversation.
-        log.warning(
-            "speaker-aware framing is not implemented yet; falling back to "
-            "face-prominence framing, which picks the largest face rather than "
-            "the one currently talking"
-        )
-
+    speaker_note = ""
+    chosen_track = None
     try:
-        samples = detect_faces(source, start=start, end=end)
+        if mode is ReframeMode.SPEAKER:
+            from social_video.reframe.speaker import analyse_speaker
+
+            samples, tracks, choice = analyse_speaker(
+                source, start=start, end=end, audio_source=audio_source
+            )
+            if choice.confident:
+                chosen_track = next((t for t in tracks if t.id == choice.track_id), None)
+            # Naming the fallback is the point: a crop that silently follows the
+            # wrong person in a two-hander is worse than one that says it guessed.
+            speaker_note = (
+                f"speaker mode: {choice.reason}; "
+                if choice.confident
+                else f"speaker mode fell back to face prominence: {choice.reason}; "
+            )
+        else:
+            samples = detect_faces(source, start=start, end=end)
     except Exception as exc:  # detection is best-effort; framing must still happen
         log.warning("face detection failed (%s); falling back to a centre crop", exc)
         return ReframePlan(
@@ -102,6 +110,13 @@ def plan_reframe(
             keyframes=[CropKeyframe(t=0.0, x=centre_x, y=centre_y)],
             reason=f"centre crop: face detection unavailable ({exc})",
         )
+
+    if chosen_track is not None:
+        chosen: list = []
+        for index, sample in enumerate(samples):
+            face = chosen_track.faces.get(index)
+            chosen.append(sample if face is None else _only(sample, face))
+        samples = chosen
 
     hits = [s for s in samples if s.primary is not None]
     if not hits:
@@ -156,16 +171,16 @@ def plan_reframe(
         crop_height=crop_h,
         keyframes=keyframes,
         reason=(
-            (
-                "speaker mode requested, resolved by face prominence; "
-                if mode is ReframeMode.SPEAKER
-                else ""
-            )
-            + f"face-aware crop from {src_w}x{src_h}; faces found in "
+            speaker_note + f"face-aware crop from {src_w}x{src_h}; faces found in "
             f"{coverage:.0%} of {len(samples)} sampled frames; "
             f"{len(keyframes)} keyframe(s) after smoothing and dead zone"
         ),
     )
+
+
+def _only(sample: FrameFaces, face) -> FrameFaces:
+    """Keep just the tracked speaker, so the existing crop logic follows them."""
+    return FrameFaces(t=sample.t, faces=(face,))
 
 
 def _reset_at_cuts(
