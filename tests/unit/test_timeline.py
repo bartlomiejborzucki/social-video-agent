@@ -69,3 +69,60 @@ class TestTimeline:
         tl = Timeline(edl_with((10.0, 12.0), (30.0, 33.0)))
         sl = tl.slices[1]
         assert sl.to_source(sl.to_output(31.0)) == pytest.approx(31.0)
+
+
+def test_frame_padding_is_expressed_in_frames_not_seconds() -> None:
+    """A duration of "0.033333333" is under 1/30, and ffmpeg floors the pad.
+
+    Ranges needing exactly one cloned frame silently got none, so the output
+    came out short of its own EDL by one frame per affected cut. Padding is
+    counted in frames so no rate can round it away.
+    """
+    from pathlib import Path
+
+    from social_video.edl.render import RenderRange, build_filtergraph
+    from social_video.ffmpeg.probe import MediaInfo, VideoStream
+    from social_video.schemas.edl import EDL, EDLRange
+
+    video = VideoStream(
+        index=0,
+        codec="h264",
+        width=320,
+        height=180,
+        rotation=0,
+        frame_rate="30/1",
+        nominal_frame_rate="30/1",
+        pix_fmt="yuv420p",
+        color_transfer="",
+        nb_frames=66,
+        duration=2.2,
+        time_base="1/15360",
+    )
+    info = MediaInfo(
+        path=Path("talk.mp4"),
+        duration=2.2,
+        size_bytes=1,
+        format_name="mp4",
+        video=video,
+        audio=(),
+    )
+    # 0.27s of source is 8.1 frames at 30 fps, but the range owns 9 frames of
+    # output: exactly the case that needs one cloned frame.
+    edl = EDL(ranges=[EDLRange(source="talk", start=0.20, end=0.47)])
+    ranges = [
+        RenderRange(
+            video_input=0,
+            audio_input=None,
+            video_info=info,
+            audio_info=info,
+            fill_input=None,
+            fill_info=None,
+            target_frames=9,
+            target_duration=9 / 30,
+        )
+    ]
+    graph, _, _ = build_filtergraph(
+        edl, ranges, canvas=(320, 568), fps="30/1", caption_file=None, loudnorm=None
+    )
+    assert "stop_duration" not in graph
+    assert "tpad=stop_mode=clone:stop=1" in graph

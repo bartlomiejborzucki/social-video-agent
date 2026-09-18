@@ -82,6 +82,12 @@ class RenderRange:
     target_duration: float
 
 
+#: One cloned frame of headroom before a range is trimmed to its exact length.
+#: Expressed in frames because tpad's duration form is rounded down by ffmpeg,
+#: which turns "one frame" into "no frames" at some rates.
+CLONE_HEADROOM_FRAMES = 1
+
+
 def allocate_range_frames(edl: EDL, fps: str) -> list[int]:
     """Round cumulative boundaries, so per-cut rounding cannot accumulate."""
     rate = float(Fraction(fps))
@@ -379,7 +385,7 @@ def build_filtergraph(
             media.target_frames,
             max(1, round(rng.primary_visual_output_duration * rate)),
         )
-        vchain.append(f"tpad=stop_mode=clone:stop_duration={1 / rate:.9f}")
+        vchain.append(f"tpad=stop_mode=clone:stop={CLONE_HEADROOM_FRAMES}")
         vchain.append(f"trim=end_frame={primary_frames}")
         vchain.append(f"setpts=N/({fps}*TB)")
         primary_label = f"[vp{index}]"
@@ -404,7 +410,7 @@ def build_filtergraph(
             fill_chain.extend(
                 [
                     f"fps={fps}",
-                    f"tpad=stop_mode=clone:stop_duration={1 / rate:.9f}",
+                    f"tpad=stop_mode=clone:stop={CLONE_HEADROOM_FRAMES}",
                     f"trim=end_frame={fill_frames}",
                     f"setpts=N/({fps}*TB)",
                 ]
@@ -413,9 +419,13 @@ def build_filtergraph(
             parts.append(f"[{media.fill_input}:v:0]{','.join(fill_chain)}{fill_label}")
             parts.append(f"{primary_label}{fill_label}concat=n=2:v=1:a=0[v{index}]")
         else:
-            remaining = max(0.0, media.target_duration - primary_frames / rate)
+            # Pad in whole frames, never in seconds. A duration of "0.033333333"
+            # is a hair under 1/30, and ffmpeg 7 derives the pad length with a
+            # floor, so a range needing exactly one cloned frame silently got
+            # none and the output came out short. Frames are exact.
+            remaining_frames = max(0, media.target_frames - primary_frames)
             parts.append(
-                f"{primary_label}tpad=stop_mode=clone:stop_duration={remaining:.9f},"
+                f"{primary_label}tpad=stop_mode=clone:stop={remaining_frames},"
                 f"trim=end_frame={media.target_frames},setpts=N/({fps}*TB)[v{index}]"
             )
         video_labels.append(f"[v{index}]")

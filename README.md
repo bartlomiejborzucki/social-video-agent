@@ -221,6 +221,7 @@ graphic is valid when that serves the material better.
 ## What works
 
 - Local transcription with faster-whisper, downloaded on first transcription and cached under `~/.cache/social-video-agent/models/`.
+- Frame-exact output length on ffmpeg 6 and 7, checked by CI on both.
 - Horizontal and vertical sources, compatible CFR 30/29.97/60/59.94 exports,
   multiple audio tracks, sample-derived AAC timestamps, and deterministic EDL rendering.
 - Face-aware 9:16 framing with restrained movement.

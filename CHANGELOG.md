@@ -51,6 +51,13 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ### Fixed
 
+- Renders came out short of their own EDL on ffmpeg 7. Frame padding was
+  expressed as a duration, and `0.033333333` is a hair under 1/30 of a second,
+  so ffmpeg's floor turned "clone one frame" into "clone none". Any range whose
+  source did not quite cover its allocated frames lost one, which put an
+  ordinary multi-cut edit past the 45 ms QA tolerance on a current distribution.
+  Padding is now counted in whole frames, and CI runs the render-timing suite on
+  ffmpeg 7 as well so the next such regression is visible.
 - The default Remotion renderer silently dropped the contracted active-word
   caption highlight: word timings were excluded from its props, so the
   `bold-caption` contract rendered as flat text while brand QA passed. Remotion
