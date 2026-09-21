@@ -52,6 +52,23 @@ class ValidationError(SocialVideoError):
     """
 
 
+class ConfigMigrationError(ValidationError):
+    """A project config still carries pre-0.4 values that cannot be converted.
+
+    Raised instead of guessing: every value it reports encodes an editorial
+    decision, so the message names each field and what to write instead.
+    """
+
+
+class RemotionLicenseError(ValidationError):
+    """Remotion was requested without a usable license declaration.
+
+    Carries the whole instruction: which declarations exist, how to record one
+    for the project, and how to opt out of Remotion. The CLI never decides
+    eligibility, so the message has to be enough for the user to decide.
+    """
+
+
 class CapabilityError(SocialVideoError):
     """The installed ffmpeg lacks a filter or library this operation needs."""
 

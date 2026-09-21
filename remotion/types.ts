@@ -24,20 +24,47 @@ export type SocialVideoProps = {
   elements: MotionElement[];
   captions: CaptionCue[];
   captionStyle: CaptionStyle | null;
+  captionLayout: CaptionLayout | null;
   logoSource: string | null;
   logoUsage: 'none' | 'optional' | 'required';
   safeMargins: {top: number; right: number; bottom: number; left: number};
 };
 
 export type CaptionWord = {text: string; start: number; end: number};
+
+/**
+ * One line, already wrapped and already measured in Python.
+ *
+ * The compositor does not wrap, clamp or shorten captions. It used to, with
+ * `-webkit-line-clamp` plus `overflow: hidden`, which silently replaced the
+ * end of a long Polish phrase with an ellipsis nobody spoke.
+ */
+export type CaptionLine = {
+  text: string;
+  width_px: number;
+  /** Only shipped when the brand contract asks for an active-word highlight. */
+  words?: CaptionWord[];
+};
+
 export type CaptionCue = {
   index: number;
   start: number;
   end: number;
   text: string;
   speaker?: string;
-  /** Only shipped when the brand contract asks for an active-word highlight. */
-  words?: CaptionWord[];
+  /** Pre-wrapped lines; exactly what gets drawn, in order. */
+  lines: CaptionLine[];
+  /** Per-cue size in pixels: a cue that needed shrinking carries a smaller one. */
+  font_size_px: number;
+};
+
+export type CaptionLayout = {
+  box_width_px: number;
+  text_width_px: number;
+  padding_x: number;
+  padding_top: number;
+  padding_bottom: number;
+  line_height: number;
 };
 export type CaptionStyle = {
   font_family: string;
@@ -53,6 +80,7 @@ export type CaptionStyle = {
   position: 'bottom' | 'center' | 'top' | 'lower_third' | 'lower_safe_zone';
   margin_pct: number;
   max_lines: number;
+  max_chars_per_cue: number;
   highlight_active_word: boolean;
   highlight_colour: string;
 };

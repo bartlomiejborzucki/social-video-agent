@@ -4,8 +4,12 @@ from pathlib import Path
 
 import pytest
 
+from social_video.config_migration import LEGACY_ALIASES
 from social_video.errors import ValidationError
+from social_video.project_config import compile_brand_contract
 from social_video.project_context import discover_project_context, resolve_project_root
+from social_video.schemas.config import ProjectVideoConfig
+from social_video.schemas.project_context import ProjectConfig
 from social_video.workspace.layout import Workspace
 
 
@@ -208,3 +212,135 @@ def test_symlinked_file_outside_project_is_not_read(tmp_path: Path) -> None:
 
     assert sources.sources == []
     assert context.style_sources == []
+
+
+def test_discovery_and_executable_config_schemas_stay_in_step() -> None:
+    """`context inspect` must not reject a field `config validate` compiles."""
+    discovery = set(ProjectConfig.model_fields)
+    executable = set(ProjectVideoConfig.model_fields)
+
+    assert executable - discovery == set()
+    assert discovery - executable == set(LEGACY_ALIASES)
+
+
+def test_same_config_passes_context_inspect_and_config_validate(tmp_path: Path) -> None:
+    project = tmp_path / "both-paths"
+    _write(project / "assets/Lato.ttf", "fixture-font")
+    _write(project / "assets/logo.svg", "<svg></svg>")
+    _write(project / "docs/brandbook.md", "Brand font: Lato.")
+    _write(
+        project / ".social-video/config.yaml",
+        "\n".join(
+            [
+                "schema_version: 1",
+                "brand_name: Both Paths",
+                "font: Lato",
+                "font_file: assets/Lato.ttf",
+                "logo_file: assets/logo.svg",
+                "logo_usage: optional",
+                "brandbook: docs/brandbook.md",
+                "image_generation_policy: optional",
+                "target_platforms: [reels, shorts]",
+                "music_policy: optional",
+                "sfx_policy: none",
+                "punch_in_intensity: 0.25",
+                "broll_density: 0",
+                "safe_margins: {top: 6, bottom: 15}",
+                'default_aspect_ratio: "9:16"',
+                'default_resolution: "1080x1920"',
+                'default_fps_policy: "30"',
+            ]
+        ),
+    )
+
+    context, _ = _discover(project, tmp_path)
+    contract = compile_brand_contract(
+        project / ".social-video/config.yaml",
+        Workspace.at(tmp_path / "contract-workspace"),
+        project_root=project,
+    )
+
+    assert context.explicit_config == ".social-video/config.yaml"
+    assert context.visual_style["image_generation_policy"] == "optional"
+    assert context.output_requirements["target_platforms"] == ["reels", "shorts"]
+    assert context.logos == ["assets/logo.svg"]
+    assert context.fonts == ["Lato", "assets/Lato.ttf"]
+    assert context.config["image_generation_policy"] == "optional"
+    assert contract.image_generation_enabled is True
+    assert contract.target_platforms == ["reels", "shorts"]
+
+
+def test_reports_project_keeps_the_scan_on_brand_sources(tmp_path: Path) -> None:
+    project = tmp_path / "reports-project"
+    _write(project / "AGENTS.md", "Project instructions.")
+    _write(
+        project / ".social-video/config.yaml",
+        "\n".join(
+            [
+                "brand_name: Acme",
+                "brandbook: docs/brandbook.md",
+                "editing_guide: docs/przewodnik-montazu.md",
+                "logo_file: assets/logo.svg",
+            ]
+        ),
+    )
+    _write(project / "docs/brandbook.md", "Brand font: Inter.")
+    _write(project / "docs/przewodnik-montazu.md", "Montaż: spokojne cięcia.")
+    _write(project / "assets/logo.svg", "<svg></svg>")
+    # Noise a reports-heavy project actually contains.
+    _write(project / ".codex/skills/report-writer/SKILL.md", "---\nname: report-writer\n---\n")
+    _write(
+        project / ".codex/skills/report-writer/references/style.md",
+        "Brand tone of voice, typography, colour palette, caption style guidance.",
+    )
+    _write(project / "skills/local-helper/SKILL.md", "---\nname: local-helper\n---\n")
+    _write(project / "skills/local-helper/references/brand.md", "Brand guidelines for the tool.")
+    _write(project / "reports/brand-audit-2026-q1.zip", "PK fixture")
+    _write(project / "reports/raport-montaz.zip", "PK fixture")
+    _write(project / "docs/q3-financial-report.pdf", "%PDF fixture")
+    _write(
+        project / "docs/meeting-notes.md",
+        "Notes on the video call, social plans, the colour of the office, a vendor logo, "
+        "the caption of a chart, editing a doc, tone, voice, font and the brand of laptop.",
+    )
+
+    context, sources = _discover(project, tmp_path)
+    paths = [source.path for source in sources.sources]
+
+    assert paths == [
+        ".social-video/config.yaml",
+        "AGENTS.md",
+        "assets/logo.svg",
+        "docs/brandbook.md",
+        "docs/przewodnik-montazu.md",
+    ]
+    assert context.style_sources == [
+        ".social-video/config.yaml",
+        "docs/brandbook.md",
+        "docs/przewodnik-montazu.md",
+    ]
+    assert not any(path.endswith(".zip") for path in paths)
+    assert not any("skills/" in path for path in paths)
+
+
+def test_config_named_guide_outranks_the_filename_heuristic(tmp_path: Path) -> None:
+    project = tmp_path / "named-guide"
+    _write(project / "docs/montaz.md", "Montaż: spokojne cięcia.")
+    _write(project / "social-video.yaml", "editing_guide: docs/montaz.md")
+
+    _, sources = _discover(project, tmp_path)
+    guide = next(source for source in sources.sources if source.path == "docs/montaz.md")
+
+    assert guide.confidence.value == "explicit"
+    assert "referenced by explicit social-video configuration" in guide.signals
+
+
+def test_newer_release_config_field_degrades_to_context(tmp_path: Path) -> None:
+    """Discovery reports an unrecognised key; `config validate` is the gate."""
+    project = tmp_path / "forward-compatible"
+    _write(project / "social-video.yaml", "brand_name: Acme\nfuture_policy: enabled")
+
+    context, _ = _discover(project, tmp_path)
+
+    assert context.brand == {"name": "Acme"}
+    assert context.config["future_policy"] == "enabled"

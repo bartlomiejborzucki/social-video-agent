@@ -17,6 +17,7 @@ const defaults: SocialVideoProps = {
   elements: [],
   captions: [],
   captionStyle: null,
+  captionLayout: null,
   logoSource: null,
   logoUsage: 'none',
   safeMargins: {top: 6, right: 6, bottom: 12, left: 6},

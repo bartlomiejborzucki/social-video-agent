@@ -2,7 +2,7 @@
 
 - The primary Windows environment is Codex running inside WSL2. Keep the repository and high-I/O work in the Linux filesystem, normally under `~/projects`.
 - Windows source and destination media may use `/mnt/c`, `/mnt/d`, or pasted drive-letter paths. Use the centralized path helper; never add ad-hoc string conversion.
-- Use Linux `ffmpeg`, `ffprobe`, Python, Node, and Remotion. Remotion is the default compositor for new workflows; Stage 0 must record a license declaration before discovery or media work. Never call `ffmpeg.exe` or add a PowerShell-to-WSL launcher.
+- Use Linux `ffmpeg`, `ffprobe`, Python, Node, and Remotion. Remotion is the default compositor for new workflows; Stage 0 must record a license declaration before discovery or media work. Never call `ffmpeg.exe`, Windows Python or Windows Node, and never mix Windows and Linux binaries in one render. A Windows-hosted agent reaches the engine only through `scripts/windows/social-video-agent.ps1`, the one reviewed adapter; do not add a second launcher, and do not build `wsl.exe` command strings anywhere else.
 - Source media is immutable. Write all intermediates and outputs to a workspace or explicit destination.
 - Keep the skill root separate from the target project root. Project-context discovery is bounded to the target root, runs before editorial planning, and persists under that edit's `context/` directory.
 - Project branding is executable: validate config into `brand-contract.json`, render from that contract, and require brand QA at Stage 4. Never substitute an unknown EDL profile name or silently approximate a required asset.

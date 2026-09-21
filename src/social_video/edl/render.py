@@ -29,6 +29,8 @@ from uuid import uuid4
 from social_video.edl.loudness import loudnorm_filter, measure_loudness
 from social_video.edl.timeline import Timeline
 from social_video.edl.validate import validate_edl
+from social_video.edl.voice import NO_CLEANUP, VoiceCleanup, measure_voice, plan_cleanup
+from social_video.errors import ValidationError
 from social_video.ffmpeg.filters import (
     LOUDNORM_I,
     TONEMAP_CHAIN,
@@ -179,14 +181,11 @@ class AudioMix:
         return self.bed_input is not None or bool(self.sfx_inputs)
 
 
-def build_audio_graph(
-    edl: EDL, ranges: list[RenderRange], mix: AudioMix | None = None
-) -> tuple[str, str]:
-    """Build only the audio half of the graph, for the measurement pass.
+def build_speech_graph(edl: EDL, ranges: list[RenderRange]) -> tuple[str, str]:
+    """The cut speech alone: no bed, no effects, no cleanup, no normalisation.
 
-    Identical to what the render will do to the audio, so the measurement
-    describes the audio that will actually be produced -- including the music
-    bed, which changes the integrated loudness it is measuring.
+    This is what voice cleanup measures. Measuring the finished mix instead
+    would describe the music as if it were room noise.
     """
     parts: list[str] = []
     labels: list[str] = []
@@ -196,7 +195,32 @@ def build_audio_graph(
     parts.append(f"{''.join(labels)}concat=n={len(edl.ranges)}:v=0:a=1[ca]")
     total = sum(media.target_duration for media in ranges)
     parts.append(f"[ca]{_final_audio_chain(total)}[cam]")
-    label = _mix_music_and_effects(parts, "[cam]", edl, mix, total)
+    return ";".join(parts), "[cam]"
+
+
+def build_audio_graph(
+    edl: EDL,
+    ranges: list[RenderRange],
+    mix: AudioMix | None = None,
+    *,
+    cleanup: str | None = None,
+) -> tuple[str, str]:
+    """Build only the audio half of the graph, for the measurement pass.
+
+    Identical to what the render will do to the audio, so the measurement
+    describes the audio that will actually be produced -- including the music
+    bed, which changes the integrated loudness it is measuring, and the voice
+    cleanup, which changes it too.
+    """
+    speech, label = build_speech_graph(edl, ranges)
+    parts = [speech]
+    total = sum(media.target_duration for media in ranges)
+    if cleanup:
+        # Cleanup sits on the speech, before the bed: denoising a mix would
+        # treat the music as noise, and compressing it would pump with it.
+        parts.append(f"{label}{cleanup}[acleaned]")
+        label = "[acleaned]"
+    label = _mix_music_and_effects(parts, label, edl, mix, total)
     return ";".join(parts), label
 
 
@@ -361,6 +385,7 @@ def build_filtergraph(
     caption_file: Path | None,
     loudnorm: str | None,
     mix: AudioMix | None = None,
+    cleanup: str | None = None,
 ) -> tuple[str, str, str]:
     """Build the whole filter graph. Returns (graph, video_label, audio_label)."""
     video_labels: list[str] = []
@@ -441,7 +466,11 @@ def build_filtergraph(
     parts.append(f"[ca]{_final_audio_chain(total_duration)}[cam]")
 
     vlabel = "[cvm]"
-    alabel = _mix_music_and_effects(parts, "[cam]", edl, mix, total_duration)
+    speech_label = "[cam]"
+    if cleanup:
+        parts.append(f"{speech_label}{cleanup}[acleaned]")
+        speech_label = "[acleaned]"
+    alabel = _mix_music_and_effects(parts, speech_label, edl, mix, total_duration)
 
     for number, overlay in enumerate(edl.overlays):
         last_input = max(max(r.video_input, r.audio_input or 0, r.fill_input or 0) for r in ranges)
@@ -529,6 +558,7 @@ def render_edl(
     *,
     quality: Quality = FINAL,
     caption_file: Path | None = None,
+    audio_cleanup_policy: str = "none",
 ) -> RenderManifest:
     """Render an EDL to a file. Returns a manifest describing what was made."""
     warnings = validate_edl(edl, manifest)
@@ -619,6 +649,9 @@ def render_edl(
     mix, mix_inputs = _music_inputs(edl, next_input, total_output_duration)
     inputs += mix_inputs
 
+    cleanup = _plan_voice_cleanup(
+        edl, render_ranges, inputs, policy=audio_cleanup_policy, quality=quality
+    )
     loudnorm = None
     if edl.normalize_audio:
         # Measure before normalising. loudnorm emits NaN on digitally silent
@@ -626,7 +659,7 @@ def render_edl(
         # selected material happens to be quiet. The measurement decodes audio
         # only, so it costs a fraction of the render it informs -- and it lets
         # loudnorm run in its accurate linear mode rather than guessing.
-        audio_graph, audio_label = build_audio_graph(edl, render_ranges, mix)
+        audio_graph, audio_label = build_audio_graph(edl, render_ranges, mix, cleanup=cleanup.chain)
         if quality.two_pass_loudness:
             measured = measure_loudness(inputs, audio_graph, audio_label)
         else:
@@ -643,6 +676,7 @@ def render_edl(
         caption_file=caption_file,
         loudnorm=loudnorm,
         mix=mix,
+        cleanup=cleanup.chain,
     )
 
     output = output.resolve()
@@ -739,7 +773,46 @@ def render_edl(
             else {}
         ),
         sound_effects_applied=len(mix.sfx_inputs),
+        audio_cleanup_policy=audio_cleanup_policy,
+        audio_cleanup_applied=cleanup.evidence(),
     )
+
+
+def _plan_voice_cleanup(
+    edl: EDL,
+    render_ranges: list[RenderRange],
+    inputs: list[str],
+    *,
+    policy: str,
+    quality: Quality,
+) -> VoiceCleanup:
+    """Measure the cut speech and decide the chain, or leave the audio alone.
+
+    A failed measurement never silently becomes "no cleanup" under a
+    `required` policy: the point of that policy is that the project expects the
+    repair to have happened.
+    """
+    if policy == "none":
+        return NO_CLEANUP
+    speech_graph, speech_label = build_speech_graph(edl, render_ranges)
+    lra = None
+    if quality.two_pass_loudness and edl.normalize_audio:
+        measured = measure_loudness(inputs, speech_graph, speech_label)
+        lra = measured.input_lra if measured and not measured.is_silent else None
+    measurement = measure_voice(inputs, speech_graph, speech_label, loudness_range_lu=lra)
+    if measurement is None:
+        if policy == "required":
+            raise ValidationError(
+                "audio_cleanup_policy is 'required', but this edit's speech could not be "
+                "measured, so no repair can be justified. Set audio_cleanup_policy to "
+                "'measured' to continue without the guarantee, or 'none' to render the "
+                "audio exactly as recorded."
+            )
+        log.info("voice could not be measured; leaving the audio as recorded")
+        return NO_CLEANUP
+    plan = plan_cleanup(measurement)
+    log.info("%s", plan.summary())
+    return plan
 
 
 def _publish_atomic(staged: Path, output: Path) -> None:

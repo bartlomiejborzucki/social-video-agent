@@ -1,10 +1,26 @@
-"""Which image model, if any, this host can actually reach.
+"""Which image API *this CLI* can reach, and what it cannot see at all.
 
-Detection is credential-based on purpose. A ChatGPT or Gemini subscription is
-not API access: the ChatGPT app draws images, the API does not come with it, and
-neither Codex CLI nor Gemini CLI exposes an image tool. The only honest signal
-is whether a usable key is present. The host is a hint used to pick between two
-available keys and to write a diagnostic the user can act on.
+There are four ways imagery can be made, and only two of them are visible from
+a Python process:
+
+* a **native image tool** the host hands to the agent (ChatGPT, Codex). It
+  needs no API key of the user's own, it cannot be called from a script,
+  subprocess or Node, and nothing in this module can detect it. Only the agent
+  knows whether the tool is in its own tool list this session.
+* **Canva**, over an MCP connection that belongs to the agent for the same
+  reason.
+* **OpenAI's image API**, with ``OPENAI_API_KEY``.
+* **Gemini's image API**, with ``GEMINI_API_KEY`` or ``GOOGLE_API_KEY``.
+
+This module answers only the last two, and says so. The previous version
+answered "no image generation is possible" when no key was present, which is
+false on a host whose agent has a native image tool -- and it justified that
+answer with a claim about subscriptions. Absence of a credential is evidence
+about this CLI, not about the session.
+
+Availability is never inferred from a subscription or a host name. The host is
+used only to choose between two keys that are both present, and to write a
+diagnostic the user can act on.
 """
 
 from __future__ import annotations
@@ -13,27 +29,33 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from social_video.schemas.visuals import ImageProviderName
+from social_video.schemas.visuals import CapabilityState, ImageProviderName
 
 #: Cheapest current model per provider that still renders a usable plate.
 DEFAULT_MODELS = {
-    ImageProviderName.OPENAI: "gpt-image-1-mini",
-    ImageProviderName.GEMINI: "gemini-2.5-flash-image",
+    ImageProviderName.OPENAI_API: "gpt-image-1-mini",
+    ImageProviderName.GEMINI_API: "gemini-2.5-flash-image",
 }
 
 COST_NOTES = {
-    ImageProviderName.OPENAI: "billed per image on the API key, separately from any ChatGPT plan",
-    ImageProviderName.GEMINI: "AI Studio free tier applies until its daily quota is spent",
+    ImageProviderName.OPENAI_API: (
+        "billed per image on the API key, separately from any ChatGPT plan"
+    ),
+    ImageProviderName.GEMINI_API: "AI Studio free tier applies until its daily quota is spent",
 }
 
+#: Accepted spellings of SOCIAL_VIDEO_IMAGE_PROVIDER from before the rename.
+_PROVIDER_ALIASES = {"openai": "openai_api", "gemini": "gemini_api"}
+
+#: Only these two can be driven from here. The native tool is the agent's.
 _CREDENTIALS: dict[ImageProviderName, tuple[str, ...]] = {
-    ImageProviderName.OPENAI: ("OPENAI_API_KEY",),
-    ImageProviderName.GEMINI: ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+    ImageProviderName.OPENAI_API: ("OPENAI_API_KEY",),
+    ImageProviderName.GEMINI_API: ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
 }
 
 _ENDPOINTS = {
-    ImageProviderName.OPENAI: "https://api.openai.com/v1/images/generations",
-    ImageProviderName.GEMINI: (
+    ImageProviderName.OPENAI_API: "https://api.openai.com/v1/images/generations",
+    ImageProviderName.GEMINI_API: (
         "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     ),
 }
@@ -47,12 +69,12 @@ _HOSTS = (
 
 #: Used when no host preference applies. Gemini first: its free tier is the
 #: only one of the two that can cost nothing.
-_FALLBACK_ORDER = (ImageProviderName.GEMINI, ImageProviderName.OPENAI)
+_FALLBACK_ORDER = (ImageProviderName.GEMINI_API, ImageProviderName.OPENAI_API)
 
 #: Host preference when more than one key is present.
 _HOST_PREFERENCE = {
-    "codex": ImageProviderName.OPENAI,
-    "gemini_cli": ImageProviderName.GEMINI,
+    "codex": ImageProviderName.OPENAI_API,
+    "gemini_cli": ImageProviderName.GEMINI_API,
 }
 
 
@@ -69,9 +91,22 @@ class ImageProvider:
         return COST_NOTES[self.name]
 
 
+#: What this CLI is able to check. Stated in every status so an absent key is
+#: never read as "image generation is impossible in this session".
+CHECKED_SCOPE = "local_api_integrations_only"
+
+#: What only the agent can establish, because these are its own tools.
+AGENT_MUST_DETERMINE = ("native_imagegen", "canva")
+
+
 @dataclass(frozen=True)
 class ImageProviderStatus:
-    """What the agent needs to decide between generating a plate and not."""
+    """Whether *this CLI* can generate a plate, and what it did not check.
+
+    ``available`` is deliberately narrow: it means this CLI holds a usable API
+    credential and can draw a plate itself. It says nothing about the agent's
+    native image tool, which this process cannot see.
+    """
 
     available: bool
     host: str
@@ -79,9 +114,20 @@ class ImageProviderStatus:
     provider: ImageProvider | None = None
     candidates: tuple[str, ...] = ()
 
+    @property
+    def cli_can_generate(self) -> bool:
+        return self.available
+
     def to_dict(self) -> dict[str, object]:
         return {
+            "cli_can_generate": self.available,
+            # Kept for callers written against the old shape; same meaning as
+            # cli_can_generate, and explicitly not a session-wide verdict.
             "available": self.available,
+            "checked": CHECKED_SCOPE,
+            "native_imagegen": CapabilityState.UNKNOWN_TO_CLI.value,
+            "canva": CapabilityState.UNKNOWN_TO_CLI.value,
+            "agent_must_determine": list(AGENT_MUST_DETERMINE),
             "host": self.host,
             "reason": self.reason,
             "provider": self.provider.name.value if self.provider else None,
@@ -89,7 +135,25 @@ class ImageProviderStatus:
             "credential_env": self.provider.credential_env if self.provider else None,
             "cost_note": self.provider.cost_note if self.provider else "",
             "credentials_found": list(self.candidates),
+            "openai_api": _state(ImageProviderName.OPENAI_API, self.candidates).value,
+            "gemini_api": _state(ImageProviderName.GEMINI_API, self.candidates).value,
         }
+
+
+def _state(name: ImageProviderName, candidates: tuple[str, ...]) -> CapabilityState:
+    wanted = set(_CREDENTIALS.get(name, ()))
+    return CapabilityState.AVAILABLE if wanted & set(candidates) else CapabilityState.UNAVAILABLE
+
+
+def local_api_capabilities(
+    env: Mapping[str, str] | None = None,
+) -> dict[str, CapabilityState]:
+    """The two capabilities a Python process can honestly report on."""
+    status = detect_image_provider(env)
+    return {
+        "openai_api": _state(ImageProviderName.OPENAI_API, status.candidates),
+        "gemini_api": _state(ImageProviderName.GEMINI_API, status.candidates),
+    }
 
 
 def detect_host(env: Mapping[str, str] | None = None) -> str:
@@ -114,6 +178,8 @@ def detect_image_provider(env: Mapping[str, str] | None = None) -> ImageProvider
     candidates = tuple(variable for variable, _ in found.values())
 
     requested = (environment.get("SOCIAL_VIDEO_IMAGE_PROVIDER") or "").strip().casefold()
+    # The short spellings predate the native tool and keep working.
+    requested = _PROVIDER_ALIASES.get(requested, requested)
     if requested in {"none", "off", "disabled"}:
         return ImageProviderStatus(
             available=False,
@@ -125,15 +191,22 @@ def detect_image_provider(env: Mapping[str, str] | None = None) -> ImageProvider
         try:
             chosen = ImageProviderName(requested)
         except ValueError:
-            supported = ", ".join(item.value for item in ImageProviderName)
+            chosen = None  # type: ignore[assignment]
+        if chosen not in _CREDENTIALS:
+            supported = ", ".join(item.value for item in _CREDENTIALS)
+            reason = (
+                f"SOCIAL_VIDEO_IMAGE_PROVIDER={requested!r} is not an API this CLI can "
+                f"call (expected one of: {supported}, none)"
+            )
+            if chosen is ImageProviderName.CHATGPT_NATIVE:
+                reason = (
+                    "SOCIAL_VIDEO_IMAGE_PROVIDER cannot select chatgpt_native: the native "
+                    "image tool belongs to the agent, which calls it itself and registers "
+                    "the result with `image register`. This variable only chooses between "
+                    f"the API integrations this CLI can call ({supported}, none)."
+                )
             return ImageProviderStatus(
-                available=False,
-                host=host,
-                reason=(
-                    f"SOCIAL_VIDEO_IMAGE_PROVIDER={requested!r} is not supported "
-                    f"(expected one of: {supported}, none)"
-                ),
-                candidates=candidates,
+                available=False, host=host, reason=reason, candidates=candidates
             )
         if chosen not in found:
             expected = " or ".join(_CREDENTIALS[chosen])
@@ -173,22 +246,34 @@ def detect_image_provider(env: Mapping[str, str] | None = None) -> ImageProvider
     )
 
 
+#: Appended to every "no credential" reason. The CLI must never present its own
+#: blindness as a session-wide verdict: on a host whose agent has a native
+#: image tool, generation is available without any key of the user's own.
+NATIVE_CAVEAT = (
+    "Only local API integrations were checked. A native image tool provided to the "
+    "agent by its host is not visible from this process and is not ruled out: if the "
+    "agent has one, it should call it directly and register the file with "
+    "`image register`."
+)
+
+
 def _no_credentials_reason(host: str) -> str:
     keys = "GEMINI_API_KEY (AI Studio free tier) or OPENAI_API_KEY (billed per image)"
     if host == "claude":
-        return (
-            "this host is Claude, and Anthropic exposes no image-generation API. "
-            "Use the typographic end card and a frame-based cover, or set "
-            f"{keys} to enable generated plates."
+        detail = (
+            "no image API credential is set, and Anthropic's API has no image-generation "
+            f"endpoint this CLI can call. Set {keys} to let the CLI draw plates itself."
         )
-    if host == "codex":
-        return (
-            "a ChatGPT plan does not include API image generation and Codex CLI has no "
-            f"image tool. Set {keys} to enable generated plates."
+    elif host == "codex":
+        detail = (
+            "no image API credential is set, so this CLI cannot call an image API itself. "
+            f"Set {keys} to let it, or let the agent use its own image tool."
         )
-    if host == "gemini_cli":
-        return (
-            "Gemini CLI has no built-in image tool. Set GEMINI_API_KEY from AI Studio "
-            "to enable generated plates on its free tier."
+    elif host == "gemini_cli":
+        detail = (
+            "no image API credential is set. Set GEMINI_API_KEY from AI Studio to let the "
+            "CLI draw plates itself on its free tier."
         )
-    return f"no image credentials found. Set {keys} to enable generated plates."
+    else:
+        detail = f"no image API credential is set. Set {keys} to let the CLI draw plates."
+    return f"{detail} {NATIVE_CAVEAT}"

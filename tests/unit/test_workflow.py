@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from social_video.errors import ValidationError
+from social_video.errors import RemotionLicenseError, ValidationError
 from social_video.pipeline import stage_plan
 from social_video.profiles import load_profile
 from social_video.schemas.base import save_artifact
@@ -233,7 +233,7 @@ def test_stage_0_blocks_remotion_before_creating_workspace_without_attestation(
     source.write_bytes(b"fixture")
     workspace = Workspace.at(tmp_path / "blocked/edit")
 
-    with pytest.raises(ValidationError, match="Stage 0 cannot continue"):
+    with pytest.raises(RemotionLicenseError, match="no recorded Remotion license"):
         create_workflow([source], workspace, project_root=project)
 
     assert not workspace.root.exists()

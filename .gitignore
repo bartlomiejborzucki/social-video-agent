@@ -52,6 +52,11 @@ tmp/
 .vscode/
 *.swp
 
+# Local agent settings: machine-specific paths and permissions, not shared
+# configuration. Relying on a global ignore file only works on one machine.
+.claude/settings.local.json
+.codex/settings.local.json
+
 # OS
 .DS_Store
 Thumbs.db

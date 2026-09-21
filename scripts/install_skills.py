@@ -17,20 +17,78 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 REPO = Path(__file__).resolve().parent.parent
 SKILLS = REPO / "skills"
 
 
 def targets() -> dict[str, Path]:
-    """Where each host looks for user-level skills."""
+    """Where each host looks for user-level skills.
+
+    On WSL the Windows home is included too, so a native Windows Codex agent
+    can find the skill while the engine stays in Linux. Only the skill folder
+    crosses: FFmpeg, Node, Python and Remotion are never duplicated on Windows,
+    because in the hybrid mode every media operation is delegated back into WSL.
+    """
     home = Path.home()
-    return {
+    found = {
         "Claude Code": home / ".claude" / "skills",
         "Agent Skills (Codex, and others)": home / ".agents" / "skills",
     }
+    windows_home = windows_user_home()
+    if windows_home is not None:
+        found["Windows agent (native Codex)"] = windows_home / ".agents" / "skills"
+    return found
+
+
+def windows_user_home() -> Path | None:
+    """The Windows user's home as seen from WSL, or None when not applicable.
+
+    Resolved from Windows itself rather than assembled from a username: a
+    redirected or domain profile is not under ``/mnt/c/Users/<name>``, and
+    guessing would install the skill where nothing looks for it.
+    """
+    from social_video.paths import is_wsl  # local import: keeps --list cheap
+
+    if not is_wsl():
+        return None
+    powershell = shutil.which("powershell.exe") or shutil.which("pwsh.exe")
+    if powershell is None:
+        return None
+    try:
+        result = subprocess.run(
+            [powershell, "-NoProfile", "-NonInteractive", "-Command", "$HOME"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except OSError:
+        return None
+    raw = (result.stdout or "").strip()
+    if result.returncode != 0 or not raw:
+        return None
+    converter = shutil.which("wslpath")
+    if converter is None:
+        return None
+    converted = subprocess.run(
+        [converter, "-u", raw],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=30,
+    )
+    path = Path((converted.stdout or "").strip())
+    return path if converted.returncode == 0 and path.is_dir() else None
 
 
 def link(source: Path, destination: Path) -> str:
@@ -105,7 +163,13 @@ def main() -> int:
 
     if installed_any:
         print()
-        print("Restart your agent so it picks up the new skill.")
+        print("Restart your agent, or start a new session, so it picks up the skill list.")
+        if windows_user_home() is not None:
+            print(
+                "Windows agent: only the skill folder was installed there. The engine stays "
+                "in WSL and is reached through scripts/windows/social-video-agent.ps1; do "
+                "not install FFmpeg, Node, Python or Remotion on the Windows side."
+            )
         if not shutil.which("social-video-agent"):
             print(
                 "Note: the `social-video-agent` command is not on PATH. Install the package "

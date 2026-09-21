@@ -9,6 +9,7 @@ from pathlib import Path
 
 import yaml
 
+from social_video.config_migration import migrate_project_config
 from social_video.errors import ValidationError
 from social_video.paths import normalize_user_path
 from social_video.schemas.base import save_artifact
@@ -35,23 +36,39 @@ caption_style:
   text_color: "#FFFFFF"
   background_color: "#28BCA5"
   background_style: rounded_box
-  corner_radius: 45
+  corner_radius: 24
   outline_color: "#394463"
-  outline_or_shadow: outline
+  # `none` on top of a background box: an outline thickens every glyph and
+  # costs the line width that long words need.
+  outline_or_shadow: none
+  # Percent of output height. 3.6% is ~69 px at 1080x1920, which fits an
+  # ordinary Polish phrase in two lines. Larger values do not, and captions
+  # are never truncated to make them fit.
+  font_size_pct: 3.6
   max_lines: 2
-  max_words_per_cue: 6
+  max_words_per_cue: 4
+  max_chars_per_cue: 24
   position: lower_safe_zone
-  bottom_margin_pct: 15
+  bottom_margin_pct: 22
 safe_margins:
   top: 6
   right: 6
-  bottom: 15
+  bottom: 22
   left: 6
 editing_profile: calm-expert
 punch_in_intensity: 0.25
 broll_density: 0
 music_policy: none
 sfx_policy: none
+# Voice cleanup. `measured` repairs only what this recording measures as
+# broken -- rumble, mains hum, an audible noise floor, hot sibilants, a wide
+# loudness range -- each with a ceiling that keeps it the same voice. Every
+# render reports what it changed. Set `none` to render the audio as recorded,
+# or pass `--no-audio-cleanup` to one render.
+audio_cleanup_policy: measured
+# Whether this project permits sending a prompt to an image tool. That covers
+# the agent's own native ImageGen as well as an API: the prompt leaves the
+# machine either way. `none` blocks every route; media is never uploaded.
 image_generation_policy: none
 target_platforms: []
 default_aspect_ratio: "9:16"
@@ -85,13 +102,8 @@ def load_project_config(path: Path) -> ProjectVideoConfig:
         raise ValidationError(f"cannot read project video config {path}: {exc}") from exc
     if not isinstance(raw, dict):
         raise ValidationError(f"project video config must be a mapping: {path}")
-    # Controlled migration for the pre-v0.4 discovery-only keys.
-    migrated = dict(raw)
-    migrated.setdefault("schema_version", 1)
-    if "logo" in migrated and "logo_file" not in migrated:
-        migrated["logo_file"] = migrated.pop("logo")
-    if "preferred_output_directory" in migrated and "delivery_output" not in migrated:
-        migrated["delivery_output"] = migrated.pop("preferred_output_directory")
+    # Renames carry over silently; a stale editorial value raises instead.
+    migrated = migrate_project_config(raw, source=str(path))
     try:
         config = ProjectVideoConfig.model_validate(migrated)
     except Exception as exc:
@@ -123,6 +135,7 @@ def compile_brand_contract(
         captions=CaptionStyle(
             font_family=config.font,
             font_file=str(font_file) if font_file else None,
+            font_size_pct=style.font_size_pct,
             bold=style.font_weight == "bold",
             primary_colour=style.text_color,
             background_colour=style.background_color,
@@ -138,6 +151,7 @@ def compile_brand_contract(
             case=CaptionCase(style.case),
             max_lines=style.max_lines,
             max_words_per_cue=style.max_words_per_cue,
+            max_chars_per_cue=style.max_chars_per_cue,
         ),
         accent_colour=(config.brand_colors or [style.background_color])[0],
         logo_path=str(logo_file) if logo_file else None,
@@ -165,6 +179,7 @@ def compile_brand_contract(
         image_generation_enabled=config.image_generation_policy != "none",
         music_policy=config.music_policy,
         sfx_policy=config.sfx_policy,
+        audio_cleanup_policy=config.audio_cleanup_policy,
         target_platforms=list(config.target_platforms),
         safe_margins={
             "top": config.safe_margins.get("top", 6),

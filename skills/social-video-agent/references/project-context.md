@@ -21,10 +21,19 @@ scanner fingerprints the ranked sources and otherwise reuses cached context.
 
 ## Progressive inspection
 
-The deterministic scanner ranks likely sources by filename, location, type,
-and bounded keyword inspection. It skips `.git`, dependencies, virtual
-environments, builds, coverage, caches, models, renders, and frame directories.
-It reads only a small top-ranked set with size/depth/count limits.
+The deterministic scanner ranks likely sources by filename, type, location,
+and bounded keyword inspection. It skips every dot directory except
+`.social-video`, installed agent-skill trees (any directory holding a
+`SKILL.md`), dependencies, virtual environments, builds, coverage, caches,
+models, renders, and frame directories. Only text, brand-capable documents and
+reusable assets are candidates, so report archives never enter the scan.
+
+A candidate needs one real signal about this project's brand: a matching
+filename, a reusable asset name, or several brand-specific phrases in its text.
+Sitting in `docs/` is a location, not evidence, so an unrelated report does not
+become a style source. Files named by the project config outrank the heuristic
+and are always explicit. It reads only a small top-ranked set with
+size/depth/count limits.
 
 Inspect high-confidence sources first:
 

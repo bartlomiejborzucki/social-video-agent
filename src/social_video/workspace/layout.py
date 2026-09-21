@@ -185,6 +185,16 @@ class Workspace:
         return self.root / "visuals.json"
 
     @property
+    def runtime_record(self) -> Path:
+        """Stage 0's record of the agent side, the engine side and the paths."""
+        return self.root / "runtime.json"
+
+    @property
+    def visual_capabilities(self) -> Path:
+        """What this session can do about imagery, and which source it chose."""
+        return self.root / "visual-capabilities.json"
+
+    @property
     def cover(self) -> Path:
         return self.assets / "cover.jpg"
 

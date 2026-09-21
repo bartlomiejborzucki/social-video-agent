@@ -86,6 +86,86 @@ class DoctorReport:
         }
 
 
+def _check_runtime(report: DoctorReport) -> None:
+    """Report the agent side and the engine side separately.
+
+    In the hybrid mode these are two machines, and a single "it works" line
+    cannot say which half is broken. Each prerequisite gets its own check so a
+    missing WSL install, a WSL 1 distribution and a missing engine inside a
+    working distribution read differently.
+    """
+    from social_video.runtime import Problem, RuntimeMode, detect_runtime
+
+    status = detect_runtime()
+    report.add(
+        Check(
+            "runtime mode",
+            status.usable,
+            status.mode is RuntimeMode.WINDOWS_AGENT_WSL_RUNTIME,
+            f"{status.mode.value}"
+            + (" (pinned)" if status.explicit else " (detected)")
+            + f"; {status.detail}",
+            "" if status.usable else status.detail,
+        )
+    )
+    report.add(
+        Check(
+            "agent environment",
+            True,
+            False,
+            f"agent on {status.agent_platform}; editing engine on "
+            f"{status.to_dict()['engine_platform']}",
+        )
+    )
+    if status.mode is not RuntimeMode.WINDOWS_AGENT_WSL_RUNTIME:
+        return
+    problems = set(status.problems)
+    report.add(
+        Check(
+            "wsl2",
+            Problem.WSL_MISSING not in problems and Problem.WSL_BROKEN not in problems,
+            True,
+            f"{len(status.distributions)} distribution(s) found"
+            if status.distributions
+            else "wsl.exe unusable",
+            "Install WSL2 with `wsl --install`; nothing is installed for you."
+            if Problem.WSL_MISSING in problems
+            else "",
+        )
+    )
+    report.add(
+        Check(
+            "wsl distribution",
+            status.distribution is not None,
+            True,
+            f"{status.distribution.name} (WSL {status.distribution.version})"
+            if status.distribution
+            else status.detail,
+            "" if status.distribution else status.detail,
+        )
+    )
+    report.add(
+        Check(
+            "wsl engine",
+            status.engine_version is not None,
+            True,
+            f"social-video-agent {status.engine_version}"
+            if status.engine_version
+            else status.detail,
+            "" if status.engine_version else status.detail,
+        )
+    )
+    report.add(
+        Check(
+            "agent-only capabilities",
+            True,
+            False,
+            "native ImageGen and Canva MCP are the agent's own tools and are not "
+            "visible from here; the agent must check its own tool list each session",
+        )
+    )
+
+
 def _check_platform(report: DoctorReport) -> None:
     system = platform.system()
     detail = (
@@ -578,6 +658,7 @@ def _check_encoding(report: DoctorReport) -> None:
 def run_doctor() -> DoctorReport:
     """Run every diagnostic."""
     report = DoctorReport()
+    _check_runtime(report)
     _check_platform(report)
     _check_python_environment(report)
     _check_encoding(report)

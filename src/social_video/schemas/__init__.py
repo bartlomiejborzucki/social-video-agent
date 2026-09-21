@@ -53,6 +53,10 @@ from social_video.schemas.project_context import (
     ProjectContext,
 )
 from social_video.schemas.qa import QACheck, QAReport, QASeverity, RenderManifest
+from social_video.schemas.remotion_license import (
+    REMOTION_LICENSE_URL,
+    RemotionLicenseDeclaration,
+)
 from social_video.schemas.source import SourceEntry, SourceManifest
 from social_video.schemas.transcript import (
     TokenType,
@@ -64,6 +68,7 @@ from social_video.schemas.workflow import ModelBudget, WorkflowMode, WorkflowSta
 
 __all__ = [
     "EDL",
+    "REMOTION_LICENSE_URL",
     "SCHEMA_VERSION",
     "Artifact",
     "BrandContract",
@@ -103,6 +108,7 @@ __all__ = [
     "QASeverity",
     "ReframeMode",
     "ReframePlan",
+    "RemotionLicenseDeclaration",
     "RenderManifest",
     "SourceEntry",
     "SourceManifest",

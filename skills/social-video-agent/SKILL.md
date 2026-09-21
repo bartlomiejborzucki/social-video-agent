@@ -3,7 +3,8 @@ name: social-video-agent
 description: Create project-aware Reels and Shorts from recordings with local transcription, an explicit plan and EDL, persistent stages, rendering, and QA. Use when asked to edit, trim, caption, reframe, review or resume a preview, or create delivery variants. Do not use for generated video or simple conversion.
 license: Apache-2.0
 metadata:
-  version: "0.5.0"
+  version: "0.6.0"
+  last_updated: "2026-09-21"
 ---
 
 # Project-aware social video editing
@@ -17,23 +18,48 @@ mistake this installed skill's directory for the user's project.
    current directory or nearest Git root. Stay within it.
 2. If the edit workspace contains `workflow-state.json`, read it and resume its
    `current_stage`; chat history is not state.
-3. Otherwise, before discovery, ingest, probing, or transcription, explain that
-   Remotion is the default motion-design renderer and obtain one explicit
-   declaration: `free_license_eligible` or `company_license_confirmed`. If the
-   user cannot make either declaration, stop the default workflow. Only a user
-   who explicitly opts out may continue with `--renderer ffmpeg`. Read
+3. Otherwise, before discovery, ingest, probing, or transcription, check
+   `social-video-agent remotion-license status --project-root PROJECT --json`.
+   If it reports a usable declaration, say which one and continue. If not,
+   explain that Remotion is the default motion-design renderer and ask for one
+   explicit declaration: `free_license_eligible` or
+   `company_license_confirmed`. Never decide eligibility, and never supply the
+   acknowledgement yourself; record the user's own answer:
+
+   ```bash
+   social-video-agent remotion-license attest DECLARATION \
+     --project-root PROJECT --accept-terms
+   ```
+
+   If the user cannot make either declaration, stop the default workflow. Only a
+   user who explicitly opts out may continue with `--renderer ffmpeg`. Read
    [workflow.md](references/workflow.md) for the exact boundary.
 4. Then read [project-context.md](references/project-context.md) and run Stage 0
    discovery as part of Stage 1:
 
    ```bash
    social-video-agent workflow init INPUT --project-root PROJECT \
-     --remotion-license DECLARATION --language USER_LANGUAGE
+     --language USER_LANGUAGE
    ```
+
+   The project declaration is reused automatically. Pass
+   `--remotion-license DECLARATION` only to declare for this one edit, which
+   overrides the stored statement without replacing it.
 
    If project config exists, run `social-video-agent config validate PROJECT
    --workspace WORKSPACE`. Treat `brand-contract.json` as executable input and
-   stop on a missing required asset or component-version mismatch.
+   stop on a missing required asset or component-version mismatch. Captions are
+   never shortened to fit: the contract's `font_size_pct`, `max_words_per_cue`
+   and `max_chars_per_cue` decide the geometry, validation refuses a geometry
+   whose text cannot be drawn, and a cue that still does not fit fails the
+   render rather than losing its ending. Rebuild the caption track after
+   changing any of those; cue length is part of the contract.
+
+   Audio: `audio_cleanup_policy` defaults to `measured`, so the render repairs
+   only what it measures as broken in that recording and reports every change.
+   Always tell the user what was changed and that `--no-audio-cleanup` or
+   `audio_cleanup_policy: none` renders the audio as recorded. Never describe
+   it as enhancement, and never claim clipping can be repaired.
 
 6. Read [workflow.md](references/workflow.md) plus only the active stage's
    relevant reference below. Use [model-routing.md](references/model-routing.md)
@@ -62,8 +88,17 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
   media/brand files without explicit cloud configuration.
 - Reason over `takes-packed.md`; never invent timestamps or improvised FFmpeg
   command strings.
-- On Windows use Linux tools inside WSL2 and centralized path normalization;
-  never use `ffmpeg.exe` or a PowerShell/WSL bridge.
+- Media tools are always the Linux ones inside WSL2, with centralized path
+  normalization. Never `ffmpeg.exe`, Windows Python or Windows Node, and never
+  mix Windows and Linux binaries in one render. Two runtime modes are
+  supported: in `wsl-native` the agent is already inside WSL, so there is no
+  boundary and no bridge; in `windows-agent-wsl-runtime` the agent is a native
+  Windows process and delegates every editing operation through the one
+  supported adapter, `scripts/windows/social-video-agent.ps1` — never an
+  improvised `wsl.exe` command string. `runtime_mode: auto` detects which,
+  from the real platform rather than from a terminal preference. Read
+  [hybrid-runtime.md](references/hybrid-runtime.md) only when the agent is on
+  Windows.
 - Never hide missing privacy-safe footage with an automatic long freeze, loop,
   zoom, transition, or synthetic motion.
 - For every Remotion workflow, Stage 2 writes `motion-plan.json`. Use discovered
@@ -80,10 +115,22 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
   face is convincingly the talker it falls back to prominence and records that
   in the reframe reason; do not describe the result as speaker detection when it
   declined to pick.
-- Generated imagery is optional and credential-gated. Run `image status` before
-  offering a cover or end-card plate: a ChatGPT or Gemini plan is not API access,
-  and Claude has no image API at all. A plate is a background only; the image
-  model never draws text, and consent is a project policy or an explicit flag.
+- Generated imagery has four possible sources and you can see two that the CLI
+  cannot. Prefer the user's own material or a real frame; then Canva when a
+  company template is genuinely called for; then your host's native image tool;
+  then an image API with a key; then a locally composed background. Availability
+  is not a reason to use something.
+- `image status` reports only the API integrations the CLI can reach. It cannot
+  see your native image tool or an MCP connection, so a missing `OPENAI_API_KEY`
+  never means imagery is impossible — check your own tool list. Never claim your
+  host has no image tool, and never assume it has one because of a subscription.
+- Your native tool is yours to call: take the guarded prompt from
+  `image prompt`, pass it verbatim, save the file outside any cloud-synced
+  folder, then `image register` it. Record no model name unless the tool gives
+  one. Consent still applies, because the prompt still leaves the machine, and
+  `image_generation_policy: none` outranks every one-off.
+- A plate is a background only. Captions, headlines, CTAs and logos are rendered
+  locally by Remotion, so never ask an image tool for Polish text in a graphic.
 - Stage 5 uses `social-video-agent deliver`; preserve the EDL hash and verify
   every delivery-manifest entry.
 
@@ -101,6 +148,7 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 | Platform safe zones and publish copy | [publishing.md](references/publishing.md) |
 | Several clips from long video | [shorts.md](references/shorts.md) |
 | Setup/render failures | [troubleshooting.md](references/troubleshooting.md) |
+| Agent on Windows, engine in WSL2 | [hybrid-runtime.md](references/hybrid-runtime.md) |
 
 After project rules and user overrides, default to restraint: meaning, clarity,
 natural rhythm, clean cuts, audio, framing, captions, then effects. Technical

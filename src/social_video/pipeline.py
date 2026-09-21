@@ -242,6 +242,7 @@ def stage_render(
     renderer: Renderer = Renderer.FFMPEG,
     motion_plan: MotionPlan | None = None,
     remotion_license_attestation: RemotionLicenseAttestation | None = None,
+    audio_cleanup: bool = True,
 ) -> Path:
     contract: BrandContract | None = None
     if workspace.brand_contract.is_file():
@@ -293,7 +294,20 @@ def stage_render(
         if renderer is Renderer.REMOTION:
             remotion_caption_style = contract.brand.captions
             base_captions = None
-    manifest_obj = render_edl(edl, manifest, render_target, quality=q, caption_file=base_captions)
+    # The project decides whether the voice is repaired; `audio_cleanup=False`
+    # is the per-render escape hatch, so one render can be compared with the
+    # untouched audio without editing the contract.
+    cleanup_policy = (
+        contract.audio_cleanup_policy if contract is not None and audio_cleanup else "none"
+    )
+    manifest_obj = render_edl(
+        edl,
+        manifest,
+        render_target,
+        quality=q,
+        caption_file=base_captions,
+        audio_cleanup_policy=cleanup_policy,
+    )
     if renderer is Renderer.REMOTION:
         from social_video.remotion import render_motion_design
 
@@ -314,7 +328,7 @@ def stage_render(
             render_plan.accent_color = contract.brand.accent_colour
             render_plan.text_color = contract.brand.captions.primary_colour
             render_plan.background_color = contract.brand.background_colour
-        _rendered, applied_caption_features = render_motion_design(
+        _rendered, applied_caption_features, caption_layout = render_motion_design(
             render_target,
             output,
             render_plan,
@@ -343,6 +357,9 @@ def stage_render(
         manifest_obj.tool_versions["remotion"] = "4.0.525"
     else:
         # libass draws the ASS track; it honours the same contracted features.
+        # It wraps internally and has no truncation mode, so there is no
+        # measured layout to record for this route.
+        caption_layout = None
         style = contract.brand.captions if contract else None
         applied_caption_features = caption_features(
             style,
@@ -360,6 +377,8 @@ def stage_render(
             else ""
         )
         manifest_obj.caption_features = applied_caption_features if captions is not None else []
+        if caption_layout is not None and captions is not None:
+            manifest_obj.caption_layout = caption_layout.evidence()
     manifest_obj.captions_burned = captions is not None
     manifest_obj.logo_applied = bool(
         contract

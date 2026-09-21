@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -77,17 +77,34 @@ class ProjectContext(Artifact):
 
 
 class ProjectConfig(BaseModel):
-    """Optional explicit ``social-video.yaml`` values; every field is optional."""
+    """Optional explicit ``social-video.yaml`` values; every field is optional.
 
-    model_config = ConfigDict(extra="forbid")
+    This is the discovery-side reading of the same file that
+    :class:`~social_video.schemas.config.ProjectVideoConfig` compiles. It stays
+    deliberately permissive -- a pre-0.4 config is still valid context even
+    when it cannot yet be rendered -- but it must recognise every field the
+    executable contract has, or ``context inspect`` rejects a config that
+    ``config validate`` accepts. ``tests/unit/test_project_context.py`` locks
+    the two field sets together; the only extras here are the legacy names in
+    ``config_migration.LEGACY_ALIASES``.
+
+    Unknown keys are kept rather than rejected, so a config written by a newer
+    release degrades to context instead of breaking discovery outright.
+    """
+
+    model_config = ConfigDict(extra="allow")
 
     brand_name: str | None = None
     schema_version: int | None = None
     language: str | None = None
     content_language: str | None = None
     editing_profile: str | None = None
-    model_budget: Literal["economical", "balanced", "quality"] | None = None
-    workflow_mode: Literal["guided", "continuous"] | None = None
+    # Deliberately looser than the executable contract: discovery reports what
+    # the file says, and `config validate` is the gate that rejects it.
+    model_budget: str | None = None
+    workflow_mode: str | None = None
+    runtime_mode: str | None = None
+    wsl_distribution: str | None = None
     caption_style: dict[str, Any] | None = None
     font: str | None = None
     font_file: str | None = None
@@ -101,6 +118,9 @@ class ProjectConfig(BaseModel):
     broll_density: str | float | None = None
     music_policy: str | None = None
     sfx_policy: str | None = None
+    audio_cleanup_policy: str | None = None
+    image_generation_policy: str | None = None
+    target_platforms: list[str] | None = None
     default_aspect_ratio: str | None = None
     default_resolution: str | None = None
     default_fps_policy: str | None = None

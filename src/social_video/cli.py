@@ -34,11 +34,15 @@ workflow_app = typer.Typer(help="Persist and resume the guided multi-stage editi
 config_app = typer.Typer(help="Initialize and validate executable project branding.")
 image_app = typer.Typer(help="Detect an image provider and draw cover/end-card plates.")
 shorts_app = typer.Typer(help="Turn one long recording into several standalone shorts.")
+license_app = typer.Typer(
+    help="Record, inspect, refresh or revoke this project's Remotion license declaration."
+)
 app.add_typer(context_app, name="context")
 app.add_typer(workflow_app, name="workflow")
 app.add_typer(config_app, name="config")
 app.add_typer(image_app, name="image")
 app.add_typer(shorts_app, name="shorts")
+app.add_typer(license_app, name="remotion-license")
 console = Console()
 err_console = Console(stderr=True)
 
@@ -104,6 +108,184 @@ def config_validate(
     else:
         console.print(f"[green]valid[/green] {config}")
         console.print(f"[green]compiled[/green] {workspace.brand_contract}")
+
+
+@config_app.command("migrate")
+def config_migrate(
+    project_root: Path = typer.Argument(Path(), help="Target project root."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Report every pre-0.4 value that still needs a human decision."""
+    import yaml
+
+    from social_video.config_migration import LEGACY_ALIASES, plan_migration
+    from social_video.project_config import find_project_config
+
+    root = project_root.resolve()
+    config = find_project_config(root)
+    if config is None:
+        err_console.print("[red]error:[/red] no .social-video/config.yaml or social-video.yaml")
+        raise typer.Exit(1)
+
+    def _plan():
+        raw = yaml.safe_load(config.read_text(encoding="utf-8")) or {}
+        if not isinstance(raw, dict):
+            raise SocialVideoError(f"project video config must be a mapping: {config}")
+        return raw, plan_migration(raw)
+
+    raw, (_, issues) = _guard(_plan)
+    renames = {
+        legacy: current
+        for legacy, current in LEGACY_ALIASES.items()
+        if legacy in raw and current not in raw
+    }
+    payload = {
+        "config": str(config),
+        "status": "needs_decisions" if issues else "ready",
+        "automatic_renames": renames,
+        "issues": [
+            {
+                "field": issue.field,
+                "value": issue.value,
+                "reason": issue.reason,
+                "instruction": issue.instruction,
+            }
+            for issue in issues
+        ],
+    }
+    if as_json:
+        console.print_json(json.dumps(payload, default=str))
+    else:
+        for legacy, current in renames.items():
+            console.print(f"[cyan]rename[/cyan] {legacy} -> {current} (applied automatically)")
+        for issue in issues:
+            value = escape(repr(issue.value))
+            console.print(f"[yellow]decide[/yellow] {escape(issue.field)}: {value}")
+            console.print(f"  why: {escape(issue.reason)}", soft_wrap=True)
+            console.print(f"  fix: {escape(issue.instruction)}", soft_wrap=True)
+        if not issues:
+            console.print(f"[green]ready[/green] {config} needs no manual migration")
+    if issues:
+        raise typer.Exit(1)
+
+
+# ---------------------------------------------------------------------------
+# Remotion license declaration
+# ---------------------------------------------------------------------------
+
+
+@license_app.command("attest")
+def remotion_license_attest(
+    declaration: str = typer.Argument(
+        ..., help="free_license_eligible or company_license_confirmed. Nothing else."
+    ),
+    project_root: Path = typer.Option(Path(), "--project-root", help="Target project root."),
+    accept_terms: bool = typer.Option(
+        False,
+        "--accept-terms",
+        help="Records that you read the linked terms and are declaring this yourself.",
+    ),
+    declared_by: str | None = typer.Option(None, "--declared-by", help="Who is declaring."),
+    note: str | None = typer.Option(None, "--note", help="Kept for the record; never read back."),
+    replace: bool = typer.Option(False, "--replace", help="Replace an existing declaration."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Record this project's Remotion license declaration for later sessions."""
+    from social_video.remotion_license import attest
+
+    recorded = _guard(
+        lambda: attest(
+            project_root,
+            declaration,
+            accept_terms=accept_terms,
+            declared_by=declared_by,
+            note=note,
+            replace=replace,
+        )
+    )
+    _print_license(project_root, recorded.attestation.value, as_json=as_json, action="recorded")
+
+
+@license_app.command("status")
+def remotion_license_status(
+    project_root: Path = typer.Option(Path(), "--project-root", help="Target project root."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Report the stored declaration, and whether a workflow may rely on it."""
+    from social_video.remotion_license import declaration_status
+
+    status = _guard(lambda: declaration_status(project_root))
+    declaration = status.declaration
+    payload = {
+        "path": str(status.path),
+        "present": status.present,
+        "usable": status.usable,
+        "code": status.code,
+        "detail": status.detail,
+        "attestation": declaration.attestation.value if declaration else None,
+        "declared_at": declaration.declared_at if declaration else None,
+        "declared_by": declaration.declared_by if declaration else None,
+        "license_terms_url": declaration.license_terms_url if declaration else None,
+        "component_versions": declaration.component_versions if declaration else {},
+        "revoked_at": declaration.revoked_at if declaration else None,
+        "revocation_reason": declaration.revocation_reason if declaration else None,
+        "note": declaration.note if declaration else None,
+    }
+    if as_json:
+        console.print_json(json.dumps(payload, ensure_ascii=False))
+        return
+    mark = "[green]usable[/green]" if status.usable else "[yellow]unusable[/yellow]"
+    console.print(f"{mark} {escape(status.path.as_posix())}", soft_wrap=True)
+    console.print(f"  {escape(status.detail)}", soft_wrap=True)
+    if declaration is not None:
+        console.print(f"  declaration: [cyan]{escape(declaration.attestation.value)}[/cyan]")
+        console.print(f"  terms: {escape(declaration.license_terms_url)}", soft_wrap=True)
+        if declaration.declared_by:
+            console.print(f"  declared by: {escape(declaration.declared_by)}")
+        versions = ", ".join(f"{k}={v}" for k, v in sorted(declaration.component_versions.items()))
+        if versions:
+            console.print(f"  declared under: {escape(versions)}", soft_wrap=True)
+    console.print("  eligibility is never inferred by this tool; the declaration is yours.")
+
+
+@license_app.command("refresh")
+def remotion_license_refresh(
+    project_root: Path = typer.Option(Path(), "--project-root", help="Target project root."),
+    accept_terms: bool = typer.Option(
+        False, "--accept-terms", help="Re-confirm the terms as they stand today."
+    ),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Re-confirm the existing declaration against today's terms and build."""
+    from social_video.remotion_license import refresh
+
+    recorded = _guard(lambda: refresh(project_root, accept_terms=accept_terms))
+    _print_license(project_root, recorded.attestation.value, as_json=as_json, action="refreshed")
+
+
+@license_app.command("revoke")
+def remotion_license_revoke(
+    project_root: Path = typer.Option(Path(), "--project-root", help="Target project root."),
+    reason: str | None = typer.Option(None, "--reason", help="Why it is withdrawn."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Withdraw the declaration; Remotion workflows stop until it is made again."""
+    from social_video.remotion_license import revoke
+
+    recorded = _guard(lambda: revoke(project_root, reason=reason))
+    _print_license(project_root, recorded.attestation.value, as_json=as_json, action="revoked")
+
+
+def _print_license(project_root: Path, attestation: str, *, as_json: bool, action: str) -> None:
+    from social_video.remotion_license import declaration_path
+
+    path = declaration_path(project_root)
+    if as_json:
+        console.print_json(
+            json.dumps({"status": action, "attestation": attestation, "path": str(path)})
+        )
+        return
+    console.print(f"[green]{action}[/green] {escape(attestation)} -> {escape(path.as_posix())}")
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +478,18 @@ def _print_workflow(payload: dict[str, Any], *, as_json: bool) -> None:
         console.print(f"Renderer: [cyan]{escape(payload['renderer'])}[/cyan]")
     if payload.get("remotion_license_attestation"):
         license_label = "Deklaracja licencji Remotion" if polish else "Remotion license declaration"
-        console.print(f"{license_label}: {escape(payload['remotion_license_attestation'])}")
+        source = payload.get("remotion_license_source")
+        suffix = f" ({escape(source)})" if source else ""
+        console.print(f"{license_label}: {escape(payload['remotion_license_attestation'])}{suffix}")
+        if source == "cli_flag":
+            hint = (
+                "Zapisz deklarację dla projektu, aby kolejne sesje jej nie powtarzały: "
+                "`social-video-agent remotion-license attest DECLARATION --accept-terms`"
+                if polish
+                else "Record it for the project so later sessions reuse it: "
+                "`social-video-agent remotion-license attest DECLARATION --accept-terms`"
+            )
+            console.print(f"[dim]{escape(hint)}[/dim]", soft_wrap=True)
     if payload["missing_artifacts"]:
         missing_label = "Brakujące artefakty etapu:" if polish else "Missing for this stage:"
         console.print(f"[yellow]{missing_label}[/yellow]")
@@ -801,6 +994,11 @@ def render(
         "--remotion-license",
         help="License declaration when rendering without workflow-state.json.",
     ),
+    audio_cleanup: bool = typer.Option(
+        True,
+        "--audio-cleanup/--no-audio-cleanup",
+        help="Apply the project's measured voice cleanup. Off renders the audio as recorded.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Render the EDL already in a workspace. Deterministic and repeatable."""
@@ -827,12 +1025,14 @@ def render(
             err_console.print("[red]error:[/red] output must not overwrite source media")
             raise typer.Exit(1)
     captions = Path(edl.captions) if edl.captions else None
+    license_root: Path | None = None
     if ws.workflow_state.is_file():
         workflow = _guard(lambda: load_workflow(ws))
         selected_renderer = _guard(lambda: Renderer(renderer)) if renderer else workflow.renderer
         attestation = workflow.remotion_license_attestation
         if remotion_license:
             attestation = _guard(lambda: RemotionLicenseAttestation(remotion_license))
+        license_root = Path(workflow.target_project_root)
     else:
         selected_renderer = _guard(lambda: Renderer(renderer or "remotion"))
         attestation = (
@@ -840,6 +1040,14 @@ def render(
             if remotion_license
             else None
         )
+    if selected_renderer is Renderer.REMOTION and attestation is None:
+        # Same precedence as `workflow init`: an explicit flag, then this
+        # edit's own state, then the declaration recorded for the project.
+        from social_video.project_context import resolve_project_root
+        from social_video.remotion_license import resolve_attestation
+
+        root = license_root or _guard(resolve_project_root)
+        attestation = _guard(lambda: resolve_attestation(root)[0])
     motion_plan = (
         _guard(lambda: load_artifact(MotionPlan, ws.motion_plan))
         if selected_renderer is Renderer.REMOTION and attestation is not None
@@ -856,8 +1064,10 @@ def render(
             renderer=selected_renderer,
             motion_plan=motion_plan,
             remotion_license_attestation=attestation,
+            audio_cleanup=audio_cleanup,
         )
     )
+    cleanup = _rendered_audio_cleanup(ws, rendered)
     if as_json:
         console.print_json(
             json.dumps(
@@ -865,29 +1075,227 @@ def render(
                     "output": str(rendered),
                     "quality": quality,
                     "renderer": selected_renderer.value,
-                }
+                    "audio_cleanup": cleanup,
+                },
+                ensure_ascii=False,
             )
         )
         return
     console.print(f"[green]rendered[/green] {rendered}", soft_wrap=True)
+    _print_audio_cleanup(cleanup)
+
+
+def _rendered_audio_cleanup(workspace, rendered: Path) -> dict:
+    """Read back what the render recorded about the audio, if anything."""
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.qa import RenderManifest
+
+    path = workspace.renders / f"{rendered.stem}.manifest.json"
+    if not path.is_file():
+        return {}
+    try:
+        manifest = load_artifact(RenderManifest, path)
+    except SocialVideoError:
+        return {}
+    return {"policy": manifest.audio_cleanup_policy, **manifest.audio_cleanup_applied}
+
+
+def _print_audio_cleanup(cleanup: dict) -> None:
+    """Say plainly whether the audio was changed, and how to get it back.
+
+    Silence here would be the wrong default: a listener who is told nothing
+    cannot tell a repaired recording from the one they made.
+    """
+    if not cleanup or cleanup.get("policy") in (None, "none"):
+        return
+    applied = cleanup.get("applied") or []
+    if not applied:
+        console.print("[dim]audio: left as recorded; nothing measured above its threshold[/dim]")
+        return
+    console.print("[yellow]audio was changed[/yellow] by measured voice cleanup:")
+    for step in applied:
+        console.print(
+            f"  - {escape(str(step.get('reason', step.get('name', ''))))}", soft_wrap=True
+        )
+    if (cleanup.get("measured") or {}).get("clipped"):
+        clipping = next(
+            (step for step in cleanup.get("skipped") or [] if step.get("name") == "clipping"),
+            None,
+        )
+        if clipping is not None:
+            console.print(f"  [yellow]![/yellow] {escape(str(clipping['reason']))}", soft_wrap=True)
+    console.print(
+        "[dim]  to undo: re-render with --no-audio-cleanup, or set "
+        "audio_cleanup_policy: none in .social-video/config.yaml[/dim]",
+        soft_wrap=True,
+    )
 
 
 @image_app.command("status")
 def image_status(
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Report whether this host can generate plates, and on whose account."""
-    from social_video.imagegen import detect_image_provider
+    """Report which image APIs this CLI can reach. It cannot see agent tools."""
+    from social_video.imagegen import AGENT_MUST_DETERMINE, detect_image_provider
 
     status = detect_image_provider()
     if as_json:
         console.print_json(json.dumps(status.to_dict()))
         return
-    state = "[green]available[/green]" if status.available else "[yellow]unavailable[/yellow]"
+    state = (
+        "[green]this CLI can generate[/green]"
+        if status.available
+        else "[yellow]this CLI cannot generate[/yellow]"
+    )
     console.print(f"{state} host={status.host}")
     console.print(f"  {escape(status.reason)}", soft_wrap=True)
     if status.provider is not None:
         console.print(f"  cost: {escape(status.provider.cost_note)}", soft_wrap=True)
+    console.print(
+        "  [dim]checked: local API integrations only. A native image tool given to the "
+        "agent by its host, and an MCP connection to Canva, are not visible from this "
+        f"process: {', '.join(AGENT_MUST_DETERMINE)} must be established by the "
+        "agent.[/dim]",
+        soft_wrap=True,
+    )
+
+
+@image_app.command("prompt")
+def image_prompt(
+    description: str = typer.Option(..., "--prompt", help="What the background should show."),
+) -> None:
+    """Print the guarded prompt to pass to an image tool, verbatim.
+
+    The agent's native tool cannot be called from here, so this is how the
+    no-text guardrail still reaches it: fetch the prompt, pass it unchanged,
+    then hand it back to `image register`.
+    """
+    from social_video.imagegen import build_prompt
+
+    console.print(_guard(lambda: build_prompt(description)), soft_wrap=True)
+
+
+@image_app.command("register")
+def image_register(
+    workspace_dir: Path = typer.Argument(..., help="Edit workspace."),
+    file: Path = typer.Option(..., "--file", help="Image the agent's own tool produced."),
+    prompt: str = typer.Option(..., "--prompt", help="The exact prompt that produced it."),
+    kind: str = typer.Option("cover_plate", "--kind", help="cover_plate or end_card_plate."),
+    provider: str = typer.Option(
+        "chatgpt_native",
+        "--provider",
+        help="chatgpt_native (the host's own tool), openai_api or gemini_api.",
+    ),
+    model: str | None = typer.Option(
+        None, "--model", help="Only if the tool reports one. Never invent a name."
+    ),
+    purpose: str = typer.Option("", "--purpose", help="What the plate is for in this edit."),
+    allow_cloud_image: bool = typer.Option(
+        False, "--allow-cloud-image", help="One-off consent for this image."
+    ),
+    user_request: bool = typer.Option(
+        False,
+        "--user-request",
+        help="The user asked for this specific image. Does not cover the next one.",
+    ),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Adopt an image the agent's own tool drew, with its provenance.
+
+    A native image tool belongs to the agent, not to this process, so this CLI
+    does not pretend to have called it. Register the file instead: it is copied
+    into the workspace, hashed, and recorded with the tool that really drew it.
+    """
+    from social_video.imagegen import register_visual
+    from social_video.schemas.visuals import ImageProviderName, VisualKind
+    from social_video.workspace.layout import Workspace
+
+    visual_kind = _enum_option(VisualKind, kind, "plate kind")
+    provider_name = _enum_option(ImageProviderName, provider, "provider")
+    visual = _guard(
+        lambda: register_visual(
+            Workspace.at(workspace_dir),
+            visual_kind,
+            file,
+            prompt=prompt,
+            provider=provider_name,
+            model=model,
+            purpose=purpose,
+            allow_flag=allow_cloud_image,
+            user_request=user_request,
+        )
+    )
+    if as_json:
+        console.print_json(visual.to_json())
+        return
+    console.print(f"[green]registered[/green] {visual.path}", soft_wrap=True)
+    console.print(
+        f"  {visual.provider.value} via {visual.tool.value}"
+        f"{f', model {visual.model}' if visual.model else ', model not reported'}"
+        f", consent={visual.consent}"
+    )
+    console.print(f"  sha256={visual.sha256}")
+
+
+@image_app.command("capabilities")
+def image_capabilities(
+    workspace_dir: Path = typer.Argument(..., help="Edit workspace."),
+    chosen_source: str = typer.Option(
+        ...,
+        "--chosen-source",
+        help="existing_asset, video_frame, canva, chatgpt_native, openai_api, "
+        "gemini_api or local_composition.",
+    ),
+    reason: str = typer.Option(
+        ..., "--reason", help="Why this source serves the edit, not that it was available."
+    ),
+    native_imagegen: str = typer.Option(
+        "unknown_to_cli",
+        "--native-imagegen",
+        help="available or unavailable, as the agent observes its own tool list.",
+    ),
+    canva: str = typer.Option(
+        "unknown_to_cli", "--canva", help="available or unavailable, per the MCP connection."
+    ),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Record what this session can do about imagery, and which source was chosen.
+
+    The agent supplies what only it can see -- its native image tool and its
+    Canva connection -- and the CLI fills in the API credentials it can check.
+    """
+    from social_video.imagegen import record_capabilities
+    from social_video.schemas.visuals import CapabilityState, ImageSource
+    from social_video.workspace.layout import Workspace
+
+    source = _enum_option(ImageSource, chosen_source, "chosen source")
+    record = _guard(
+        lambda: record_capabilities(
+            Workspace.at(workspace_dir),
+            chosen_source=source,
+            reason=reason,
+            native_imagegen=_enum_option(CapabilityState, native_imagegen, "native-imagegen"),
+            canva=_enum_option(CapabilityState, canva, "canva"),
+        )
+    )
+    if as_json:
+        console.print_json(record.to_json())
+        return
+    console.print(f"[green]recorded[/green] source={escape(record.chosen_source.value)}")
+    for name in ("native_imagegen", "canva", "openai_api", "gemini_api"):
+        console.print(f"  {name}: {getattr(record, name).value}")
+    console.print(f"  policy: {record.policy}")
+    console.print(f"  reason: {escape(record.reason)}", soft_wrap=True)
+
+
+def _enum_option(enum, value: str, label: str):
+    """Turn a CLI string into an enum member, or exit with the valid choices."""
+    try:
+        return enum(value)
+    except ValueError:
+        supported = ", ".join(item.value for item in enum)
+        err_console.print(f"[red]error:[/red] unknown {label} {value!r}; expected {supported}")
+        raise typer.Exit(1) from None
 
 
 @image_app.command("plate")
@@ -895,30 +1303,33 @@ def image_plate(
     workspace_dir: Path = typer.Argument(..., help="Edit workspace."),
     prompt: str = typer.Option(..., "--prompt", help="What the background should show."),
     kind: str = typer.Option("cover_plate", "--kind", help="cover_plate or end_card_plate."),
+    purpose: str = typer.Option("", "--purpose", help="What the plate is for in this edit."),
     allow_cloud_image: bool = typer.Option(
         False,
         "--allow-cloud-image",
         help="One-off consent to send this prompt to a cloud image model.",
     ),
+    user_request: bool = typer.Option(
+        False,
+        "--user-request",
+        help="The user asked for this specific image. Does not cover the next one.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Generate one background plate. The model draws no text: typography is local."""
+    """Generate one background plate here. The model draws no text: typography is local."""
     from social_video.imagegen import generate_workspace_plate
     from social_video.schemas.visuals import VisualKind
     from social_video.workspace.layout import Workspace
 
-    try:
-        visual_kind = VisualKind(kind)
-    except ValueError:
-        supported = ", ".join(item.value for item in VisualKind)
-        err_console.print(f"[red]error:[/red] unknown plate kind {kind!r}; expected {supported}")
-        raise typer.Exit(1) from None
+    visual_kind = _enum_option(VisualKind, kind, "plate kind")
     visual = _guard(
         lambda: generate_workspace_plate(
             Workspace.at(workspace_dir),
             visual_kind,
             prompt,
+            purpose=purpose,
             allow_flag=allow_cloud_image,
+            user_request=user_request,
         )
     )
     if as_json:

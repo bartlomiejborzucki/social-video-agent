@@ -111,10 +111,20 @@ class RenderManifest(Artifact):
     #: tautological: it would compare the contract against itself.
     caption_renderer: str = ""
     caption_features: list[str] = Field(default_factory=list)
+    #: Measured caption geometry, as drawn. `caption_style` above is the
+    #: contract's own intent, so it cannot show a caption that overflowed or
+    #: was shortened; these numbers can. Empty for renderers that do not
+    #: measure (libass wraps internally and never truncates).
+    caption_layout: dict = Field(default_factory=dict)
     captions_burned: bool = False
     logo_applied: bool = False
     #: What was actually mixed under the speech, so policy can be checked
     #: against evidence rather than against the EDL's own intent.
     audio_bed_applied: dict = Field(default_factory=dict)
     sound_effects_applied: int = Field(default=0, ge=0)
+    #: The voice-cleanup policy in force, and what the measurement justified.
+    #: Recorded so a listener can tell what was changed and turn it off, and so
+    #: QA can check the repair against its ceilings rather than against intent.
+    audio_cleanup_policy: str = "none"
+    audio_cleanup_applied: dict = Field(default_factory=dict)
     brand_safe_margins: dict[str, float] = Field(default_factory=dict)

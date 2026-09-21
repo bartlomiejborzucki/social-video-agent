@@ -200,11 +200,21 @@ re-cut. Captions are burned last so nothing composites over them.
 ## brand-contract.json and brand QA
 
 `config validate` resolves project config into exact font/logo paths, caption
-colors, box style, margins, line/word limits, dimensions and CFR. The EDL
-records its fingerprint; render manifests record the style actually applied.
-`qa/qa-brand.json` compares those facts and blocks Stage 4 on font, color,
-background, margin, line-limit, logo, resolution, or aspect mismatch. Accepted
-deviations remain named warnings rather than disappearing.
+colors, box style, margins, size, line/word/character limits, dimensions and
+CFR. It refuses a caption geometry whose own text cannot be drawn at the
+configured resolution. The EDL records its fingerprint; render manifests record
+the style actually applied plus `caption_layout`: the measured box width, the
+widest line drawn, the requested and smallest font size, and the cues that were
+shrunk, lost text, or gained an ellipsis. `qa/qa-brand.json` compares those
+facts and blocks Stage 4 on font, size, color, background, outline, radius,
+margin, line/word/character limit, truncation, overflow, logo, resolution, or
+aspect mismatch. Accepted deviations remain named warnings rather than
+disappearing.
+
+Captions are never shortened to fit. Cue length is part of the contract, so
+rebuild the caption track after changing `max_chars_per_cue`,
+`max_words_per_cue` or `font_size_pct`; re-chunking uses the same transcript
+and timeline and does not touch the EDL or the cuts.
 
 ## candidates.json and shorts.json
 

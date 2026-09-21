@@ -12,6 +12,14 @@ from social_video.schemas.brand import BrandProfile, CaptionBackgroundStyle, Cap
 
 
 class CaptionConfig(BaseModel):
+    """Caption presentation, in units that survive a change of resolution.
+
+    The defaults are the reference values for a 9:16 short: a caption that is
+    small enough for an ordinary Polish phrase to fit two lines at 1080x1920,
+    cued short enough that the sentence breaks on words rather than on the
+    frame edge, and clear of the platform UI at the bottom.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     case: Literal["as_spoken", "upper", "lower"] = "as_spoken"
@@ -19,15 +27,25 @@ class CaptionConfig(BaseModel):
     text_color: str = "#FFFFFF"
     background_color: str = "#000000"
     background_style: CaptionBackgroundStyle = CaptionBackgroundStyle.NONE
-    corner_radius: int = Field(default=0, ge=0, le=200)
+    corner_radius: int = Field(default=24, ge=0, le=200)
     outline_color: str = "#000000"
-    outline_or_shadow: CaptionOutlineStyle = CaptionOutlineStyle.OUTLINE
+    #: `none` by default: an outline on top of a background box thickens every
+    #: glyph and costs the line width that long words need.
+    outline_or_shadow: CaptionOutlineStyle = CaptionOutlineStyle.NONE
+    #: Percentage of output height, so the size means the same at 720p and
+    #: 1080p. 3.6% of a 1920-pixel frame is ~69 px, which fits roughly 13
+    #: Polish characters per line inside a 9:16 safe area. The old renderer
+    #: default of 5% is ~96 px, which does not, and used to be clamped away.
+    font_size_pct: float = Field(default=3.6, ge=1.5, le=12.0)
     max_lines: int = Field(default=2, ge=1, le=4)
     max_words_per_cue: int = Field(default=4, ge=1, le=20)
+    #: Hard limit on cue length. This is what splits a long sentence into
+    #: several cues at word and clause boundaries, before any layout happens.
+    max_chars_per_cue: int = Field(default=24, ge=8, le=60)
     position: Literal["bottom", "center", "top", "lower_third", "lower_safe_zone"] = (
         "lower_safe_zone"
     )
-    bottom_margin_pct: float = Field(default=12, ge=0, le=45)
+    bottom_margin_pct: float = Field(default=22, ge=0, le=45)
 
     @field_validator("text_color", "background_color", "outline_color")
     @classmethod
@@ -61,6 +79,12 @@ class ProjectVideoConfig(BaseModel):
     broll_density: float = Field(default=0, ge=0, le=1)
     music_policy: Literal["none", "optional", "required"] = "none"
     sfx_policy: Literal["none", "optional", "required"] = "none"
+    #: Voice cleanup. `measured` is the default: the render measures this
+    #: recording and applies only the repairs the measurement justifies, each
+    #: with a ceiling that keeps the result the same voice. `none` leaves the
+    #: audio exactly as recorded; `required` fails an edit it cannot measure.
+    #: Every render reports what it changed and how to turn it off.
+    audio_cleanup_policy: Literal["none", "measured", "required"] = "measured"
     #: Whether this project permits sending a text prompt to a cloud image model
     #: for cover and end-card plates. Media is never uploaded either way.
     image_generation_policy: Literal["none", "optional", "required"] = "none"
@@ -72,6 +96,15 @@ class ProjectVideoConfig(BaseModel):
     delivery_output: str | None = None
     model_budget: Literal["economical", "balanced", "quality"] | None = None
     workflow_mode: Literal["guided", "continuous"] | None = None
+    #: Where the agent runs relative to the editing engine. `auto` detects it
+    #: from the real platform, not from a terminal preference, and is the
+    #: default so nothing changes for an agent already running inside WSL.
+    runtime_mode: Literal[
+        "auto", "wsl-native", "windows-agent-wsl-runtime", "linux-native", "macos-native"
+    ] = "auto"
+    #: Names the WSL distribution to delegate into, for a machine with more
+    #: than one. Ignored outside the hybrid mode.
+    wsl_distribution: str | None = None
     brandbook: str | None = None
     editing_guide: str | None = None
     intro: str | None = None
@@ -106,7 +139,32 @@ class ProjectVideoConfig(BaseModel):
             raise ValueError("default_resolution does not match default_aspect_ratio")
         if self.logo_usage == "required" and not self.logo_file:
             raise ValueError("logo_usage=required requires logo_file")
+        self._reject_unfittable_captions(width, height)
         return self
+
+    def _reject_unfittable_captions(self, width: int, height: int) -> None:
+        """Refuse a caption geometry whose own text cannot be drawn.
+
+        This is where the old defect became unrenderable rather than merely
+        ugly: a config that asks for more text than the frame can hold used to
+        validate and then lose its last words to the compositor's line clamp.
+        """
+        from social_video.captions.fit import contract_fit_error
+
+        style = self.caption_style
+        error = contract_fit_error(
+            font_size_pct=style.font_size_pct,
+            max_chars_per_cue=style.max_chars_per_cue,
+            max_lines=style.max_lines,
+            boxed=style.background_style.value != "none",
+            width=width,
+            height=height,
+            horizontal_margin_pct=(
+                self.safe_margins.get("left", 6.0) + self.safe_margins.get("right", 6.0)
+            ),
+        )
+        if error:
+            raise ValueError(error)
 
     @property
     def resolution(self) -> tuple[int, int]:
@@ -141,6 +199,9 @@ class BrandContract(Artifact):
     #: incomplete; `none` means the renderer refuses to mix one at all.
     music_policy: Literal["none", "optional", "required"] = "none"
     sfx_policy: Literal["none", "optional", "required"] = "none"
+    #: Compiled from the project config. `measured` cleans only what this
+    #: recording measures as broken; `none` renders the audio as recorded.
+    audio_cleanup_policy: Literal["none", "measured", "required"] = "measured"
 
     def validate_assets(self) -> None:
         for label, value in (("font", self.resolved_font_file), ("logo", self.resolved_logo_file)):

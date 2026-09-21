@@ -30,6 +30,13 @@ class RemotionLicenseAttestation(str, Enum):
     COMPANY_LICENSE_CONFIRMED = "company_license_confirmed"
 
 
+class RemotionLicenseSource(str, Enum):
+    """Where this edit's declaration came from, so the record stays auditable."""
+
+    CLI_FLAG = "cli_flag"
+    PROJECT_DECLARATION = "project_declaration"
+
+
 class WorkflowStage(str, Enum):
     EDITORIAL_PLAN = "stage_1_editorial_plan"
     EXECUTION = "stage_2_execution"
@@ -58,6 +65,9 @@ class WorkflowState(Artifact):
     renderer: Renderer = Renderer.FFMPEG
     remotion_license_attestation: RemotionLicenseAttestation | None = None
     remotion_license_checked_at: str | None = None
+    #: Absent in workflows created before the project declaration existed;
+    #: such a state keeps its own attestation and never has to re-declare.
+    remotion_license_source: RemotionLicenseSource | None = None
     project_context_path: str
     edit_plan_path: str
     motion_plan_path: str = ""

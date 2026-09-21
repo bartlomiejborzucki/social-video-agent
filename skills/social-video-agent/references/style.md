@@ -31,13 +31,29 @@ Presentation only; they never influence what is cut. `default`, `bold-caption`
 Caption settings worth knowing:
 
 - `font_size_pct` is a percentage of output height, so it means the same thing
-  at 1080p and 4K.
-- `margin_pct` defaults to 12%, which clears the platform UI. Reels, Shorts and
-  TikTok all overlay the bottom of the frame; captions placed lower get covered.
-  `qa --platform` measures this against the destination's estimated overlay.
-- `max_words_per_cue` / `max_chars_per_cue` bound each cue; breaks still prefer
-  sentence and clause boundaries.
+  at 1080p and 4K. The 9:16 reference is `3.6` (~69 px at 1080x1920). Do not
+  raise it without checking that real phrases still fit: 5% is ~96 px, which is
+  wider than the frame for most Polish phrases.
+- `margin_pct` clears the platform UI; the 9:16 reference is `22`. Reels, Shorts
+  and TikTok all overlay the bottom of the frame; captions placed lower get
+  covered. `qa --platform` measures this against the destination's estimated
+  overlay.
+- `max_words_per_cue` (reference `4`) and `max_chars_per_cue` (reference `24`)
+  bound each cue; breaks still prefer sentence and clause boundaries. These are
+  the first line of defence against overflow: a cue is short because it was
+  split, not because it was shortened.
+- `outline_or_shadow: none` is the reference on a background box. An outline
+  thickens every glyph and costs the line width long words need.
 - `case` defaults to as-spoken. Uppercase is a style choice, not a default.
+
+Captions are never truncated to fit. Layout is measured against the project
+font in Python and handed to Remotion as explicit lines, so nothing is wrapped
+or clamped in the browser. A cue that does not fit is wrapped, then shrunk to
+at most 72% of the contracted size, then refused with its text named. Brand QA
+checks what was drawn: lost text, an added ellipsis, a line wider than the box,
+a cue longer than the contract, or a style that does not match the contract.
+`config validate` refuses a caption geometry whose own text cannot be drawn at
+the configured resolution.
 
 ## Captions
 

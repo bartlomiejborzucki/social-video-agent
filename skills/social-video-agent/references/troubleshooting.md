@@ -13,6 +13,14 @@ Stage 2, and confirm `brand-contract.json` exists. An EDL from before 0.4 has no
 contract fingerprint and must be recompiled; do not type the project name into
 `brand_profile`.
 
+**`config validate` rejects a config that `context inspect` accepted.** The
+file predates 0.4, when it was discovery context rather than executable input.
+Run `social-video-agent config migrate PROJECT`: it names every field that
+still needs a decision and what to write. Descriptive values
+(`punch_in_intensity: restrained`) and fractional margins are never converted
+automatically, because both change the rendered result. The error names every
+field and the full list is in the repository's `docs/migrations/`.
+
 **Configured font/logo is missing.** Assets resolve relative to the target
 project, never the installed skill. Install the font inside WSL or set
 `font_file`; fix `logo_file` when `logo_usage: required`. Ubuntu bootstrap
@@ -37,6 +45,14 @@ confirmed you meet the current free-license terms, or
 `company_license_confirmed` after obtaining the appropriate license. If neither
 applies, the normal workflow stops. An explicit `--renderer ffmpeg` opt-out is
 available for the core non-Remotion renderer.
+
+**Stage 0 asks again in a new session.** Record the declaration for the project
+instead of for one edit: `social-video-agent remotion-license attest
+DECLARATION --project-root PROJECT --accept-terms`. `remotion-license status`
+shows what is stored and whether it is usable. The CLI asks again on purpose
+after a revocation, a change of terms URL, a new release line, or a year;
+`remotion-license refresh --accept-terms` re-confirms the same statement. A
+`--remotion-license` flag always wins for that one edit.
 
 **Remotion says `motion-plan.json` is missing.** Stage 2 has not completed its
 visual plan. Create the validated artifact described in `artifacts.md`; do not

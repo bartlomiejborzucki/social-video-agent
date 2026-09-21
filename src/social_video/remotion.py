@@ -9,12 +9,18 @@ import subprocess
 from pathlib import Path
 from uuid import uuid4
 
-from social_video.captions.features import caption_features, highlight_possible
+from social_video.captions.features import (
+    CAPTION_LAYOUT_ESTIMATED,
+    CAPTION_LAYOUT_MEASURED,
+    caption_features,
+    highlight_possible,
+)
+from social_video.captions.fit import CaptionLayout, layout_captions
 from social_video.errors import RemotionError, ToolNotFoundError, ValidationError
 from social_video.ffmpeg.probe import probe
 from social_video.ffmpeg.run import run_ffmpeg
 from social_video.imaging import load_image
-from social_video.schemas.brand import CaptionStyle
+from social_video.schemas.brand import CaptionCase, CaptionStyle
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.motion import MotionPlan
 
@@ -34,7 +40,7 @@ def render_motion_design(
     logo_path: Path | None = None,
     logo_usage: str = "none",
     safe_margins: dict[str, float] | None = None,
-) -> tuple[Path, list[str]]:
+) -> tuple[Path, list[str], CaptionLayout | None]:
     if base_video.resolve() == output.resolve():
         raise ValidationError("Remotion output must not overwrite its technical base video")
     plates: dict[str, Path] = {}
@@ -89,6 +95,23 @@ def render_motion_design(
         logo_source = f"brand-logo{logo_path.suffix.casefold()}"
     highlight = highlight_possible(caption_style, captions)
     features = caption_features(caption_style, captions, highlight=highlight)
+    # Lay the captions out before touching the filesystem or the toolchain, so
+    # a cue that cannot be drawn in full is reported as a contract problem
+    # rather than discovered as clipped text in a finished render.
+    layout = (
+        layout_captions(
+            list(captions.cues),
+            caption_style,
+            width=width,
+            height=height,
+            safe_margins=safe_margins,
+            font_file=font,
+        )
+        if caption_style is not None and captions is not None and captions.cues
+        else None
+    )
+    if layout is not None:
+        features.append(CAPTION_LAYOUT_MEASURED if layout.measured else CAPTION_LAYOUT_ESTIMATED)
     work = staging_root / f"remotion-{uuid4().hex}"
     public = work / "public"
     try:
@@ -122,10 +145,22 @@ def render_motion_design(
                 }
                 for item in plan.elements
             ],
-            "captions": _caption_payload(captions, caption_style, highlight=highlight),
+            "captions": _caption_payload(layout, captions, caption_style, highlight=highlight),
             "captionStyle": (
                 caption_style.model_dump(mode="json", exclude={"schema_version"})
                 if caption_style
+                else None
+            ),
+            "captionLayout": (
+                {
+                    "box_width_px": round(layout.box_width_px, 2),
+                    "text_width_px": round(layout.text_width_px, 2),
+                    "padding_x": layout.padding_x,
+                    "padding_top": layout.padding_top,
+                    "padding_bottom": layout.padding_bottom,
+                    "line_height": layout.line_height,
+                }
+                if layout is not None
                 else None
             ),
             "logoSource": logo_source,
@@ -158,16 +193,22 @@ def render_motion_design(
         _publish(staged, output)
     finally:
         shutil.rmtree(work, ignore_errors=True)
-    return output, features
+    return output, features, layout
 
 
 def _caption_payload(
+    layout: CaptionLayout | None,
     captions: CaptionTrack | None,
     caption_style: CaptionStyle | None,
     *,
     highlight: bool,
 ) -> list[dict]:
-    """Serialise cues for the compositor, carrying word timings only when used.
+    """Serialise cues as measured lines, so the compositor never has to wrap.
+
+    Each cue carries the exact lines to draw and the exact size to draw them
+    at. The compositor has no wrapping, clamping or ellipsis rule, which is how
+    the old line-clamp defect is prevented structurally rather than by choosing
+    a smaller font and hoping.
 
     The style's case is applied to each word here, for the same reason the ASS
     writer does it: the highlighted path renders individual words rather than
@@ -176,18 +217,35 @@ def _caption_payload(
     """
     from social_video.captions.chunk import apply_case
 
+    if layout is None or captions is None:
+        return []
+    by_index = {cue.index: cue for cue in captions.cues}
     payload: list[dict] = []
-    for cue in captions.cues if captions else []:
+    for drawn in layout.cues:
+        cue = by_index[drawn.index]
         item = cue.model_dump(mode="json", exclude={"schema_version", "words"})
-        if highlight and caption_style is not None:
-            item["words"] = [
-                {
-                    "text": apply_case(word.text, caption_style.case),
-                    "start": word.start,
-                    "end": word.end,
-                }
-                for word in cue.words
-            ]
+        item["font_size_px"] = drawn.font_size_px
+        case = caption_style.case if caption_style else CaptionCase.AS_SPOKEN
+        item["lines"] = [
+            {
+                **line.payload(with_words=False),
+                **(
+                    {
+                        "words": [
+                            {
+                                "text": apply_case(word.text, case),
+                                "start": word.start,
+                                "end": word.end,
+                            }
+                            for word in line.words
+                        ]
+                    }
+                    if highlight
+                    else {}
+                ),
+            }
+            for line in drawn.lines
+        ]
         payload.append(item)
     return payload
 

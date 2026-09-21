@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from social_video.captions.features import caption_features, highlight_possible
+from social_video.captions.fit import layout_captions
 from social_video.qa.brand import check_brand
 from social_video.remotion import _caption_payload
 from social_video.schemas.brand import BrandProfile, CaptionCase, CaptionStyle
@@ -13,8 +14,11 @@ from social_video.schemas.config import BrandContract
 from social_video.schemas.motion import MotionElement, MotionElementType
 from social_video.schemas.qa import RenderManifest
 
+SAFE_MARGINS = {"top": 6.0, "right": 6.0, "bottom": 22.0, "left": 6.0}
 
-def _track(with_words: bool = True) -> CaptionTrack:
+
+def _track(with_words: bool = True, *, text: str = "TO JEST ŻART") -> CaptionTrack:
+    """One cue. `text` is what gets drawn; the words carry only the timings."""
     words = [
         CaptionWord(text="to", start=0.0, end=0.4),
         CaptionWord(text="jest", start=0.4, end=0.7),
@@ -26,26 +30,52 @@ def _track(with_words: bool = True) -> CaptionTrack:
                 index=1,
                 start=0.0,
                 end=1.0,
-                text="TO JEST ŻART",
+                text=text,
                 words=words if with_words else [],
             )
         ]
     )
 
 
+def _payload(style: CaptionStyle, track: CaptionTrack, *, highlight: bool) -> list[dict]:
+    layout = layout_captions(
+        list(track.cues), style, width=1080, height=1920, safe_margins=SAFE_MARGINS
+    )
+    return _caption_payload(layout, track, style, highlight=highlight)
+
+
+def _words(payload: list[dict]) -> list[str]:
+    return [word["text"] for line in payload[0]["lines"] for word in line["words"]]
+
+
 def test_word_timings_are_only_shipped_when_the_highlight_is_used() -> None:
     style = CaptionStyle(highlight_active_word=True, case=CaptionCase.UPPER)
     track = _track()
-    with_highlight = _caption_payload(track, style, highlight=True)
-    without = _caption_payload(track, style, highlight=False)
-    assert [word["text"] for word in with_highlight[0]["words"]] == ["TO", "JEST", "ŻART"]
-    assert "words" not in without[0]
+
+    with_highlight = _payload(style, track, highlight=True)
+    without = _payload(style, track, highlight=False)
+
+    assert _words(with_highlight) == ["TO", "JEST", "ŻART"]
+    assert all("words" not in line for line in without[0]["lines"])
 
 
 def test_the_style_case_reaches_individual_words() -> None:
     style = CaptionStyle(highlight_active_word=True, case=CaptionCase.AS_SPOKEN)
-    payload = _caption_payload(_track(), style, highlight=True)
-    assert [word["text"] for word in payload[0]["words"]] == ["to", "jest", "żart"]
+
+    payload = _payload(style, _track(text="to jest żart"), highlight=True)
+
+    assert _words(payload) == ["to", "jest", "żart"]
+
+
+def test_the_drawn_lines_reproduce_the_cue_text_exactly() -> None:
+    """The invariant the line clamp used to break: drawn text == cue text."""
+    style = CaptionStyle(highlight_active_word=True, case=CaptionCase.UPPER)
+    track = _track()
+
+    payload = _payload(style, track, highlight=True)
+
+    assert " ".join(line["text"] for line in payload[0]["lines"]) == "TO JEST ŻART"
+    assert " ".join(_words(payload)) == "TO JEST ŻART"
 
 
 def test_a_highlight_needs_word_timings_not_just_the_setting() -> None:

@@ -59,7 +59,40 @@ social-video-agent edit '/mnt/c/Users/User/Videos/Mój film.mp4' \
 
 For a source under `/mnt/c` or `/mnt/d`, high-I/O intermediate data is stored under `~/.cache/social-video-agent/workspaces/` in Linux. Only the requested final file is copied to the Windows destination. Override the cache root with `SOCIAL_VIDEO_HOME`.
 
-Native Windows is not the primary supported runtime. There is no PowerShell launcher, `wsl.exe` bridge, native Windows execution engine, Docker service, MCP server, or cloud backend.
+### Two supported runtime modes
+
+The editing engine is always the Linux one. What changes is where the *agent*
+runs:
+
+| Mode | Agent | Engine | When |
+|---|---|---|---|
+| `wsl-native` | inside WSL2 | inside WSL2 | the original setup; nothing about it changes |
+| `windows-agent-wsl-runtime` | native Windows (Codex) | inside WSL2 | the agent keeps its own tools — ImageGen, Canva MCP, Windows Chrome — and delegates all media work to WSL |
+| `linux-native`, `macos-native` | one machine | same machine | unchanged |
+
+`runtime_mode: auto` (the default) decides from the real platform of the agent
+process, whether `wsl.exe` runs, whether the chosen distribution reports WSL 2,
+and whether the engine is installed inside it. It never reads a terminal
+preference: which shell an editor opens says nothing about where the agent runs.
+Pin it with `runtime_mode:` in the project config or `SOCIAL_VIDEO_RUNTIME_MODE`,
+and name a distribution with `wsl_distribution:` or
+`SOCIAL_VIDEO_WSL_DISTRIBUTION` when more than one is installed.
+
+In the hybrid mode the only supported bridge is
+[`scripts/windows/social-video-agent.ps1`](scripts/windows/social-video-agent.ps1).
+It passes arguments as an array (never a command string), uses no
+`Invoke-Expression` and no `sh -lc`, propagates stdout, stderr and the exit
+code, and refuses to fall back to `ffmpeg.exe`, Windows Python or Windows Node —
+a run that mixed Windows and Linux binaries would not be the run that was
+reviewed. If WSL or the engine is missing it names which one and stops; it never
+installs anything. There is still no native Windows execution engine, Docker
+service, MCP server, or cloud backend.
+
+`social-video-agent doctor` reports the agent side and the engine side
+separately, and distinguishes a missing WSL install, a broken one, a WSL 1
+distribution, an ambiguous choice of distribution and a missing engine inside a
+working distribution. Capabilities that only the agent can see — its native
+image tool, a Canva connection — are reported as exactly that.
 
 ### Remotion is enabled by default
 
@@ -79,6 +112,31 @@ See the [current Remotion license](https://www.remotion.dev/license). The CLI
 does not decide legal eligibility. Users who explicitly do not want Remotion
 may select `--renderer ffmpeg`, but that is an opt-out from the default visual
 pipeline.
+
+Declare once per project rather than once per edit:
+
+```bash
+social-video-agent remotion-license attest free_license_eligible \
+  --project-root . --accept-terms
+social-video-agent remotion-license status --project-root . --json
+social-video-agent remotion-license refresh --project-root . --accept-terms
+social-video-agent remotion-license revoke --project-root . --reason "yearly review"
+```
+
+The statement is stored in `.social-video/remotion-license.json` — beside the
+project config, never inside it, because `config.yaml` is branding and this is
+a licensing statement. It records the declaration, the acknowledgement, the
+date, the component versions and the terms URL, and nothing else: eligibility
+is never derived from company size, revenue or any other data, and there is no
+field in which such data could be supplied. `--accept-terms` is the user's own
+act; an assistant must ask and use the answer given.
+
+`workflow init` and `render` take an explicit `--remotion-license` flag first
+(a one-edit declaration), then the edit's own `workflow-state.json` when
+resuming, then the project's stored declaration; with none of those they stop
+and print how to record one. The CLI asks again after a revocation, a change of
+terms URL, a new release line, or a year. See the
+[declaration migration](docs/migrations/0.6-remotion-license-declaration.md).
 
 ## Project-aware editing
 
@@ -119,6 +177,17 @@ social-video-agent config init .
 social-video-agent config validate . --workspace edit
 ```
 
+A config written before 0.4 stays valid discovery context. To compile it into a
+contract, `config migrate` lists every value that needs a human decision --
+`punch_in_intensity: restrained` has no one correct number, and a margin of
+`0.15` meant 15% when margins were fractions but means a hairline now that they
+are percentages. Renames are applied for you; editorial values are never
+guessed:
+
+```bash
+social-video-agent config migrate .
+```
+
 `.social-video/config.yaml` (or `social-video.yaml`) may specify only the
 fields the project needs, for example:
 
@@ -132,15 +201,19 @@ caption_style:
   text_color: "#FFFFFF"
   background_color: "#28BCA5"
   background_style: rounded_box
-  corner_radius: 45
+  corner_radius: 24
   outline_color: "#394463"
+  outline_or_shadow: none
+  font_size_pct: 3.6
   max_lines: 2
-  max_words_per_cue: 6
+  max_words_per_cue: 4
+  max_chars_per_cue: 24
   position: lower_safe_zone
-  bottom_margin_pct: 15
+  bottom_margin_pct: 22
 editing_profile: calm-expert
 music_policy: none
 sfx_policy: none
+audio_cleanup_policy: measured
 default_aspect_ratio: "9:16"
 default_resolution: "1080x1920"
 default_fps_policy: "30"
@@ -151,6 +224,74 @@ Validation resolves local assets and writes `edit/brand-contract.json`. Stage 2
 renders from this contract; it does not merely copy branding into context.
 Rounded backgrounds are drawn deterministically by Remotion. Stage 4 requires
 both technical QA and `edit/qa/qa-brand.json`.
+
+### Voice cleanup is measured, not applied
+
+`audio_cleanup_policy: measured` is the default, and it is not a one-button
+"enhance voice". Before mixing anything under the speech the render measures
+this recording: the per-window RMS distribution (the noise floor is the 10th
+percentile, speech the 90th, their difference the usable SNR), energy below
+60 Hz where no voice lives, a narrow band at 50 and 60 Hz for mains hum,
+5-9 kHz for sibilance, and peak level for clipping. Only what crosses its own
+threshold is applied, and each repair has a ceiling:
+
+| Measured | Applied | Ceiling |
+| --- | --- | --- |
+| below-60 Hz energy within 15 dB of the voice | high-pass at 80 Hz | two poles |
+| a narrow mains band within 18 dB of the voice, and concentrated enough to be a tone rather than rumble | notch at the fundamental only | -15 dB |
+| SNR under 20 dB over an audible noise floor | `afftdn` | 10 dB of reduction |
+| 5-9 kHz within 8 dB of the voice | de-esser | intensity 0.15 |
+| loudness range over 12 LU | compressor | 2:1 |
+| peaks at or above -0.1 dBFS | nothing | reported, never repaired |
+
+A well-recorded voice therefore comes out untouched, and the manifest records
+that every check was made and every one was below its threshold. Clipping is
+reported rather than repaired, because reconstructing a flattened waveform is
+invention. Harmonics of a mains hum are left alone for the same reason:
+notching 100 or 120 Hz thins the voice.
+
+Every render says what it changed and how to undo it:
+
+```text
+rendered /project/edit/final/final.mp4
+audio was changed by measured voice cleanup:
+  - high-pass 80 Hz: energy below 60 Hz is -12.1 dB under the voice, above the -15 dB threshold
+  - notch 50 Hz: a narrow band there is -13.1 dB under the voice and concentrated enough to be a tone rather than rumble
+  - denoise 10 dB: the noise floor is -46.9 dBFS, only 9.3 dB under speech
+  to undo: re-render with --no-audio-cleanup, or set audio_cleanup_policy: none in .social-video/config.yaml
+```
+
+The measurement, the applied steps, the skipped steps with their reasons and
+the ceilings all land in the render manifest, and brand QA checks the repair
+against them. Source media is never modified, so the untouched audio is always
+one re-render away.
+
+### Captions are never shortened to fit
+
+The values above are the reference geometry for a 9:16 short, and they are the
+defaults for any key a config omits:
+
+| Key | Reference | Why |
+| --- | --- | --- |
+| `font_size_pct` | `3.6` | ~69 px at 1080x1920, which fits an ordinary Polish phrase in two lines. 5% is ~96 px and does not. |
+| `max_words_per_cue` | `4` | the sentence breaks on words, before the frame edge can |
+| `max_chars_per_cue` | `24` | the hard cue-length limit that forces the split |
+| `outline_or_shadow` | `none` | an outline on a background box thickens every glyph and costs line width |
+| `corner_radius` | `24` | proportionate to the smaller box |
+| `bottom_margin_pct` | `22` | clears the platform UI at the bottom of the frame |
+
+Layout is measured in Python against the project font's own metrics and handed
+to the compositor as explicit lines, so the browser never wraps, clamps or
+ellipsizes anything. When a cue does not fit, the order of resort is: wrap at
+word boundaries, then shrink that cue's font (down to 72% of the contracted
+size), then fail with the cue and its text named. Nothing is ever truncated,
+and `config validate` refuses a geometry whose own text cannot be drawn.
+
+Brand QA checks the geometry that was drawn, not the one that was asked for:
+whether any cue lost text, whether any gained an ellipsis the transcript did
+not have, whether the widest line stayed inside the box, whether a cue was
+longer than the contract allows, and whether the applied style matches the
+contract field by field.
 
 Private local brand assets may remain gitignored. Discovery reads them locally
 but never copies them into this plugin or uploads them.
@@ -260,15 +401,40 @@ social-video-agent platforms
 social-video-agent shorts list WORKSPACE
 social-video-agent shorts create WORKSPACE --reframe face
 social-video-agent image status
+social-video-agent image prompt --prompt '...'
 social-video-agent image plate WORKSPACE --kind cover_plate --prompt '...' --allow-cloud-image
+social-video-agent image register WORKSPACE --file /tmp/plate.png --prompt '...'
+social-video-agent image capabilities WORKSPACE --chosen-source video_frame --reason '...' 
 social-video-agent cover WORKSPACE --title 'Nikt ci tego nie powie'
 social-video-agent deliver WORKSPACE --output DEST --with-captions --cover --publish
 ```
 
-Generated plates are optional and off by default. `image status` reports whether
-this host can reach an image API at all: a ChatGPT or Gemini subscription is not
-API access, and Anthropic has no image API, so on those hosts covers are
-composed from a real frame instead. See
+Generated plates are optional and off by default, and there are four possible
+sources. Two of them — a **native image tool** the host gives its agent
+(ChatGPT/Codex `ImageGen`) and a **Canva** MCP connection — belong to the agent:
+no Python process can call them, and they need no API key of the user's own. The
+other two are the OpenAI and Gemini image APIs, which this CLI calls itself when
+`OPENAI_API_KEY` or `GEMINI_API_KEY` is set.
+
+`image status` therefore reports `cli_can_generate` and says plainly that it
+checked `local_api_integrations_only`, with `native_imagegen: unknown_to_cli`.
+**A missing API key is not evidence that imagery is unavailable**; only the agent
+can settle that, by looking at its own tool list. Nothing is inferred from a
+subscription in either direction.
+
+When the agent uses its own tool it takes the guarded prompt from `image
+prompt`, calls the tool, and hands the file to `image register`, which copies it
+into the workspace, hashes it and records the provenance — naming the tool that
+really drew it and leaving the model empty when the tool reports none. Consent
+is required either way, because the prompt still leaves the machine, and
+`image_generation_policy: none` blocks every route. Preference order: the user's
+own material or a real frame, then Canva when a template is called for, then the
+native tool, then an API with a key, then a locally composed background.
+
+Every word in the finished video is rendered locally by Remotion. Image tools
+draw backgrounds, illustrations and textures — never captions, headlines, CTAs
+or logos, which is the only way Polish diacritics, the brand contract and the
+safe area all survive. See
 [generated-visuals.md](skills/social-video-agent/references/generated-visuals.md)
 and [Canva MCP](docs/canva-mcp.md).
 
@@ -364,8 +530,11 @@ SHA-256 values, plus the identical EDL hash from before and after delivery.
 social-video-agent config init .
 # Edit .social-video/config.yaml and point font_file/logo_file at local assets.
 social-video-agent config validate . --workspace edit
+# Once per project; later edits and sessions reuse this declaration.
+social-video-agent remotion-license attest free_license_eligible \
+  --project-root . --accept-terms
 social-video-agent workflow init interview.mp4 --project-root . --workspace edit \
-  --remotion-license free_license_eligible --language pl
+  --language pl
 # Stages 1-4 create/approve edit-plan.json, edl.json, captions, preview and final.
 social-video-agent qa edit --output edit/final/final.mp4
 social-video-agent workflow complete 4 --workspace edit --language pl

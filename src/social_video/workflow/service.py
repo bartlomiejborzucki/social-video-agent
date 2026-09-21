@@ -15,6 +15,7 @@ from social_video.errors import ValidationError
 from social_video.paths import normalize_user_path
 from social_video.project_config import compile_brand_contract, find_project_config
 from social_video.project_context import discover_project_context, resolve_project_root
+from social_video.remotion_license import resolve_attestation
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.delivery import DeliveryManifest
 from social_video.schemas.editorial_qa import EditorialQA
@@ -25,6 +26,7 @@ from social_video.schemas.qa import QAReport
 from social_video.schemas.workflow import (
     ModelBudget,
     RemotionLicenseAttestation,
+    RemotionLicenseSource,
     Renderer,
     WorkflowMode,
     WorkflowStage,
@@ -53,18 +55,17 @@ def create_workflow(
     refresh_context: bool = False,
 ) -> WorkflowState:
     versions = validate_component_versions()
-    if renderer is Renderer.REMOTION and remotion_license_attestation is None:
-        raise ValidationError(
-            "Remotion is the default renderer, but Stage 0 cannot continue without a "
-            "license declaration. Confirm --remotion-license free_license_eligible if "
-            "you are an individual, a for-profit organization with up to 3 employees, "
-            "a non-profit, or evaluating non-commercially; otherwise confirm "
-            "--remotion-license company_license_confirmed after obtaining a Company "
-            "License. Terms: https://www.remotion.dev/license. To avoid using Remotion, "
-            "explicitly select --renderer ffmpeg."
+    # The gate runs before discovery, ingest or probing, so only the project
+    # root is resolved first -- that reads nothing from the project.
+    target = resolve_project_root(project_root)
+    license_source: RemotionLicenseSource | None = (
+        RemotionLicenseSource.CLI_FLAG if remotion_license_attestation is not None else None
+    )
+    if renderer is Renderer.REMOTION:
+        remotion_license_attestation, license_source = resolve_attestation(
+            target, explicit=remotion_license_attestation
         )
     workspace.ensure()
-    target = resolve_project_root(project_root)
     context, _ = discover_project_context(target, workspace, refresh=refresh_context)
     config_path = find_project_config(target)
     executable_config = config_path is not None and _is_executable_config(config_path)
@@ -87,6 +88,7 @@ def create_workflow(
         renderer=renderer,
         remotion_license_attestation=remotion_license_attestation,
         remotion_license_checked_at=now if remotion_license_attestation else None,
+        remotion_license_source=license_source if remotion_license_attestation else None,
         project_context_path=str(workspace.project_context),
         edit_plan_path=str(workspace.edit_plan),
         motion_plan_path=str(workspace.motion_plan),
@@ -103,7 +105,73 @@ def create_workflow(
         **_recommendation(WorkflowStage.EDITORIAL_PLAN, model_budget, workflow_mode),
     )
     save_artifact(state, workspace.workflow_state)
+    _record_runtime(workspace, target, state, context.config)
     return state
+
+
+def _record_runtime(
+    workspace: Workspace,
+    project_root: Path,
+    state: WorkflowState,
+    config: dict[str, Any],
+) -> None:
+    """Write Stage 0's picture of the two machines, for resume and diagnosis.
+
+    Session-dependent capabilities -- the agent's own image tool, a Canva MCP
+    connection -- are written as `unknown_to_cli` in their own block. Only the
+    agent can observe them, and they belong to the session rather than to the
+    project, so they are never recorded here as a durable fact.
+    """
+    import shutil
+
+    from social_video.paths import app_home, is_wsl_mount_path
+    from social_video.runtime import detect_runtime
+    from social_video.schemas.runtime import RuntimeRecord, ToolAvailability
+
+    runtime = detect_runtime(
+        configured_mode=str(config.get("runtime_mode") or "auto"),
+        configured_distribution=(
+            str(config["wsl_distribution"]) if config.get("wsl_distribution") else None
+        ),
+    )
+    tools = ToolAvailability(
+        cli=True,  # this code is the CLI
+        ffmpeg=shutil.which("ffmpeg") is not None,
+        ffprobe=shutil.which("ffprobe") is not None,
+        python=True,
+        node=shutil.which("node") is not None,
+        remotion=(Path(__file__).resolve().parents[3] / "node_modules/remotion").is_dir(),
+        local_transcription=_transcription_available(),
+    )
+    record = RuntimeRecord(
+        runtime_mode=runtime.mode.value,
+        agent_platform=runtime.agent_platform,
+        engine_platform=str(runtime.to_dict()["engine_platform"]),
+        wsl_distribution=runtime.distribution.name if runtime.distribution else None,
+        wsl_version=runtime.distribution.version if runtime.distribution else None,
+        engine_version=runtime.engine_version,
+        windows_project_path=str(project_root) if is_wsl_mount_path(project_root) else None,
+        project_path=str(project_root),
+        cache_root=str(app_home()),
+        tools=tools,
+        image_generation_policy=str(config.get("image_generation_policy") or "none"),
+        remotion_license_attestation=(
+            state.remotion_license_attestation.value
+            if state.remotion_license_attestation is not None
+            else None
+        ),
+        recorded_at=_now(),
+        problems=[item.value for item in runtime.problems],
+    )
+    save_artifact(record, workspace.runtime_record)
+
+
+def _transcription_available() -> bool:
+    try:
+        import faster_whisper  # noqa: F401
+    except ImportError:
+        return False
+    return True
 
 
 def load_workflow(workspace: Workspace) -> WorkflowState:
@@ -171,6 +239,11 @@ def workflow_status(state: WorkflowState, *, language: str = "en") -> dict[str, 
         "remotion_license_attestation": (
             state.remotion_license_attestation.value
             if state.remotion_license_attestation is not None
+            else None
+        ),
+        "remotion_license_source": (
+            state.remotion_license_source.value
+            if state.remotion_license_source is not None
             else None
         ),
     }

@@ -14,6 +14,7 @@ import {
 } from 'remotion';
 import type {
   CaptionCue,
+  CaptionLayout,
   CaptionStyle,
   CaptionWord,
   MotionElement,
@@ -38,9 +39,21 @@ const useProjectFont = (family: string, source: string | null): void => {
   }, [family, handle, source]);
 };
 
+/**
+ * Draw one cue exactly as Python measured it.
+ *
+ * There is deliberately no wrapping, clamping, ellipsis or overflow rule here.
+ * The previous implementation used `display: -webkit-box` with
+ * `WebkitLineClamp` and `overflow: hidden`, which is a UI idiom for shortening
+ * a label: at 5% of a 1920px frame an ordinary Polish phrase overflowed two
+ * lines and the browser replaced its ending with `...`. A subtitle is a
+ * transcript, so the lines and the per-cue size arrive pre-computed and this
+ * component only paints them.
+ */
 const Caption: React.FC<{
   cue: CaptionCue;
   style: CaptionStyle;
+  layout: CaptionLayout;
   font: string;
   height: number;
   width: number;
@@ -48,6 +61,7 @@ const Caption: React.FC<{
 }> = ({
   cue,
   style,
+  layout,
   font,
   height,
   width,
@@ -60,8 +74,9 @@ const Caption: React.FC<{
       : position === 'center'
         ? {justifyContent: 'center'}
         : {justifyContent: 'flex-end', paddingBottom: (height * style.margin_pct) / 100};
-  const background = style.background_style === 'none' ? 'transparent' : style.background_colour;
-  const words = style.highlight_active_word ? (cue.words ?? []) : [];
+  const boxed = style.background_style !== 'none';
+  const background = boxed ? style.background_colour : 'transparent';
+  const highlight = style.highlight_active_word;
   return (
     <AbsoluteFill
       style={{
@@ -73,30 +88,43 @@ const Caption: React.FC<{
     >
       <div
         style={{
-          display: '-webkit-box',
-          WebkitBoxOrient: 'vertical',
-          WebkitLineClamp: style.max_lines,
-          overflow: 'hidden',
-          maxWidth: '88%',
-          padding: style.background_style === 'none' ? 0 : '14px 25px 17px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          maxWidth: layout.box_width_px,
+          padding: boxed
+            ? `${layout.padding_top}px ${layout.padding_x}px ${layout.padding_bottom}px`
+            : 0,
           borderRadius: style.background_style === 'rounded_box' ? style.corner_radius : 0,
           background,
           color: style.primary_colour,
           fontFamily: font,
           fontWeight: style.bold ? 700 : 400,
-          fontSize: Math.max(8, Math.round((height * style.font_size_pct) / 100)),
-          lineHeight: 1.05,
+          fontSize: cue.font_size_px,
+          lineHeight: layout.line_height,
           textAlign: 'center',
           WebkitTextStroke: style.outline_width > 0 ? `${style.outline_width}px ${style.outline_colour}` : undefined,
           textShadow: style.shadow > 0 ? `0 ${style.shadow}px ${style.shadow * 2}px ${style.outline_colour}` : undefined,
-          whiteSpace: 'normal',
         }}
       >
-        {words.length > 0 ? (
-          <ActiveWords words={words} cueStart={cue.start} highlight={style.highlight_colour} />
-        ) : (
-          cue.text
-        )}
+        {cue.lines.map((line, index) => (
+          <div
+            key={`line-${cue.index}-${index}`}
+            // `pre` keeps the measured break: the browser must not re-wrap a
+            // line Python already fitted, and must not collapse its spaces.
+            style={{whiteSpace: 'pre'}}
+          >
+            {highlight && line.words && line.words.length > 0 ? (
+              <ActiveWords
+                words={line.words}
+                cueStart={cue.start}
+                highlight={style.highlight_colour}
+              />
+            ) : (
+              line.text
+            )}
+          </div>
+        ))}
       </div>
     </AbsoluteFill>
   );
@@ -192,6 +220,10 @@ const MotionGraphic: React.FC<{
       ) : null}
       <div
         style={{
+          // Positioned, so it paints above the plate. An absolutely positioned
+          // background image otherwise covers this in-flow text, which hid the
+          // end card's own words -- the one thing that must be drawn locally.
+          position: 'relative',
           maxWidth: isCallout ? 820 : 900,
           borderLeft: isEnd ? undefined : `12px solid ${accent}`,
           padding: isEnd ? 0 : '22px 30px',
@@ -249,7 +281,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
           </Sequence>
         );
       })}
-      {props.captionStyle
+      {props.captionStyle && props.captionLayout
         ? props.captions.map((cue) => {
             const from = Math.round(cue.start * props.fps);
             const duration = Math.max(1, Math.round((cue.end - cue.start) * props.fps));
@@ -258,6 +290,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
                 <Caption
                   cue={cue}
                   style={props.captionStyle as CaptionStyle}
+                  layout={props.captionLayout as CaptionLayout}
                   font={props.fontFamily}
                   height={props.height}
                   width={props.width}

@@ -8,17 +8,43 @@ the next stage, model tier/name, effort, and continuation prompt.
 ## Stage 0 — mandatory renderer and license gate
 
 New workflows use Remotion by default. Before reading project context or media,
-tell the user that Remotion's current license permits free use for eligible
-users (including individuals, qualifying small organisations, nonprofits, and
-non-commercial evaluation) and otherwise requires a Company License. Ask for a
-declaration; do not decide eligibility for them and do not describe this as
-legal advice.
+check whether the project already declared:
 
-- `free_license_eligible`: save the declaration and continue.
-- `company_license_confirmed`: save the declaration and continue.
+```bash
+social-video-agent remotion-license status --project-root PROJECT --json
+```
+
+`usable: true` means the statement stands; report which declaration it is and
+continue. Otherwise tell the user that Remotion's current license permits free
+use for eligible users (including individuals, qualifying small organisations,
+nonprofits, and non-commercial evaluation) and otherwise requires a Company
+License. Ask for a declaration; do not decide eligibility for them and do not
+describe this as legal advice.
+
+- `free_license_eligible`: record it and continue.
+- `company_license_confirmed`: record it and continue.
 - neither: stop. Do not scan, transcribe, plan, or render.
 - explicit user opt-out: initialize with `--renderer ffmpeg`; the core editor
   remains available without Remotion, but this is not the default route.
+
+Record the user's own answer for the project, so later edits and later sessions
+do not ask again:
+
+```bash
+social-video-agent remotion-license attest DECLARATION \
+  --project-root PROJECT --accept-terms
+```
+
+`--accept-terms` states that a person read the terms and is declaring for
+themselves. Ask first and use the answer given; never supply it on the user's
+behalf. Use `--remotion-license DECLARATION` on `workflow init` only for a
+one-edit declaration, which overrides the stored one without replacing it.
+
+`remotion-license refresh` re-confirms the stored statement when the CLI asks
+again (changed terms URL, a new release line, or a declaration older than a
+year). `remotion-license revoke` withdraws it and stops new Remotion edits.
+`workflow-state.json` records `remotion_license_source`, so the trail shows
+whether an edit used the flag or the project declaration.
 
 Current terms: <https://www.remotion.dev/license>. Never claim that installing
 the npm package itself grants a license.

@@ -14,6 +14,12 @@ from social_video.schemas.captions import CaptionTrack
 ACTIVE_WORD_HIGHLIGHT = "active_word_highlight"
 #: Recorded when it was asked for and the caption data could not support it.
 ACTIVE_WORD_UNAVAILABLE = "active_word_highlight_unavailable"
+#: Recorded when caption lines were wrapped against the real font's metrics.
+CAPTION_LAYOUT_MEASURED = "caption_layout_measured"
+#: Recorded when the font could not be measured and a conservative estimate of
+#: glyph width was used instead. Captions are still never truncated; they are
+#: just laid out with less precision, so QA reports it.
+CAPTION_LAYOUT_ESTIMATED = "caption_layout_estimated"
 
 
 def highlight_possible(style: CaptionStyle | None, captions: CaptionTrack | None) -> bool:

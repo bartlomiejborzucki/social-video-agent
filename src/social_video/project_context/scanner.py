@@ -92,31 +92,35 @@ NAME_TERMS = (
     "księga-marki",
     "zasady-montażu",
 )
+#: Terms a brand or editing document uses and an ordinary report does not.
+#: Single generic words ("video", "social", "colour") were dropped: every
+#: status report and meeting note contains several of them, which is how a
+#: reports-heavy project used to fill the candidate list with weak hints.
 TEXT_TERMS = (
     "brand",
-    "tone",
-    "voice",
-    "font",
+    "brandbook",
+    "brand guidelines",
+    "tone of voice",
+    "tone-of-voice",
     "typography",
-    "color",
-    "colour",
-    "logo",
-    "caption",
-    "subtitle",
-    "video",
-    "editing",
-    "reel",
-    "short",
-    "social",
+    "colour palette",
+    "color palette",
+    "style guide",
+    "styleguide",
+    "logo usage",
+    "caption style",
+    "subtitle style",
+    "safe zone",
+    "księga marki",
+    "identyfikacja wizualna",
+    "zasady montażu",
     "montaż",
     "napisy",
     "czcionka",
-    "kolor",
-    "rolka",
-    "rolki",
-    "film",
-    "wideo",
+    "paleta kolorów",
 )
+#: Filename fragments that make an asset reusable branding rather than stock.
+ASSET_TERMS = ("logo", "font", "intro", "outro", "template")
 TEXT_EXTENSIONS = frozenset({".md", ".txt", ".yaml", ".yml", ".json", ".toml", ".css"})
 DOCUMENT_EXTENSIONS = frozenset({".pdf", ".docx", ".pptx"})
 ASSET_EXTENSIONS = frozenset(
@@ -142,11 +146,23 @@ CONFIG_PATHS = (
     Path("social-video.yaml"),
     Path("social-video.yml"),
 )
+#: A candidate has to be readable prose, a brand-capable document, or a
+#: reusable asset. A report archive whose name happens to contain "brand" is
+#: none of those, so extension is checked before any name scoring.
+CANDIDATE_EXTENSIONS = TEXT_EXTENSIONS | DOCUMENT_EXTENSIONS | ASSET_EXTENSIONS
+#: Tool state lives in dot directories; only our own config directory is read.
+SCANNED_DOT_DIRS = frozenset({".social-video"})
+#: An agent skill tree is instructions for a tool, never guidance about this
+#: project's brand, wherever it is installed (`.codex/skills`, `skills/`, ...).
+SKILL_MANIFEST = "skill.md"
 MAX_FILES_SCANNED = 5000
 MAX_CANDIDATES = 80
 MAX_FILES_READ = 20
 MAX_TEXT_BYTES = 64 * 1024
 MAX_EXCERPT = 2000
+MIN_CANDIDATE_SCORE = 25
+MIN_TEXT_KEYWORD_HITS = 3
+CONFIG_REFERENCE_SCORE = 90
 
 
 def resolve_project_root(explicit: str | Path | None = None, *, cwd: Path | None = None) -> Path:
@@ -201,12 +217,16 @@ def _scan(root: Path, *, excluded_roots: tuple[Path, ...] = ()) -> ContextSource
         dirs[:] = sorted(
             d
             for d in dirs
-            if d.casefold() not in IGNORED_DIRS
+            if not _is_ignored_dir(d)
             and not any(_is_within(current_path / d, excluded) for excluded in excluded_roots)
         )
         depth = len(current_path.relative_to(root).parts)
         if depth >= 6:
             dirs[:] = []
+        if current_path != root and any(name.casefold() == SKILL_MANIFEST for name in files):
+            # An installed agent skill describes a tool, not this project.
+            dirs[:] = []
+            continue
         for filename in sorted(files):
             considered += 1
             if considered > MAX_FILES_SCANNED:
@@ -246,6 +266,13 @@ def _scan(root: Path, *, excluded_roots: tuple[Path, ...] = ()) -> ContextSource
     )
 
 
+def _is_ignored_dir(name: str) -> bool:
+    folded = name.casefold()
+    if folded.startswith("."):
+        return folded not in SCANNED_DOT_DIRS
+    return folded in IGNORED_DIRS
+
+
 def _is_within(path: Path, parent: Path) -> bool:
     try:
         path.resolve(strict=False).relative_to(parent.resolve(strict=False))
@@ -263,29 +290,35 @@ def _score_candidate(root: Path, path: Path) -> tuple[int, list[str], str] | Non
         return 100, ["explicit social-video configuration"], "project_config"
     if path.name.casefold() == "agents.md":
         return 96, ["applicable repository instructions"], "agents"
+    if suffix not in CANDIDATE_EXTENSIONS:
+        return None
+    source_type = "asset" if suffix in ASSET_EXTENSIONS else "document"
     score = 0
-    if any(part.casefold() in HIGH_VALUE_DIRS for part in relative.parts[:-1]):
-        score += 25
-        signals.append("high-value directory")
     matched = [term for term in NAME_TERMS if term in lowered]
     if matched:
         score += min(50, 20 + len(matched) * 5)
         signals.append("filename: " + ", ".join(matched[:5]))
-    source_type = "asset" if suffix in ASSET_EXTENSIONS else "document"
-    if suffix in DOCUMENT_EXTENSIONS:
-        score += 20
-        signals.append("brand-capable document")
-    if suffix in ASSET_EXTENSIONS and any(
-        term in lowered for term in ("logo", "font", "intro", "outro", "template")
-    ):
+    reusable_asset = suffix in ASSET_EXTENSIONS and any(term in lowered for term in ASSET_TERMS)
+    if reusable_asset:
         score += 35
         signals.append("likely reusable asset")
-    if suffix in TEXT_EXTENSIONS and score < 30:
+    if suffix in DOCUMENT_EXTENSIONS:
+        score += 15
+        signals.append("brand-capable document")
+    hits = 0
+    if suffix in TEXT_EXTENSIONS and not matched and not reusable_asset:
         hits = _text_keyword_hits(path)
-        if hits:
-            score += min(25, 5 + hits * 2)
-            signals.append(f"{hits} project-style keyword hit(s)")
-    if score < 20:
+        if hits >= MIN_TEXT_KEYWORD_HITS:
+            score += min(30, 10 + hits * 5)
+            signals.append(f"{hits} brand-specific keyword hit(s)")
+    if not (matched or reusable_asset or hits >= MIN_TEXT_KEYWORD_HITS):
+        # Sitting in docs/ is a location, not evidence about this brand.
+        # Without one real signal the file is not a candidate at all.
+        return None
+    if any(part.casefold() in HIGH_VALUE_DIRS for part in relative.parts[:-1]):
+        score += 15
+        signals.append("high-value directory")
+    if score < MIN_CANDIDATE_SCORE:
         return None
     confidence = "explicit" if score >= 80 else "strong" if score >= 45 else "weak"
     signals.append(f"{confidence} candidate")
@@ -305,11 +338,12 @@ def _include_config_references(
     raw: list[tuple[Path, int, list[str], str]],
 ) -> list[tuple[Path, int, list[str], str]]:
     """Include local files named by explicit config even if heuristics would miss them."""
-    known = {path for path, *_ in raw}
+    indexed = {path: index for index, (path, *_) in enumerate(raw)}
     configs = sorted(
         (entry for entry in raw if entry[3] == "project_config"),
         key=lambda entry: CONFIG_PATHS.index(entry[0].relative_to(root)),
     )
+    signal = "referenced by explicit social-video configuration"
     for config_path, *_ in configs:
         config = _load_config(config_path).model_dump(exclude_none=True)
         asset_references = set(_config_asset_references(config))
@@ -321,22 +355,27 @@ def _include_config_references(
                 raise ValidationError(
                     f"project video config reference leaves target project root: {reference}"
                 ) from exc
-            if not path.is_file() or path in known:
+            if not path.is_file():
                 continue
             source_type = (
                 "asset"
                 if reference in asset_references or path.suffix.casefold() in ASSET_EXTENSIONS
                 else "document"
             )
-            raw.append(
-                (
-                    path,
-                    90,
-                    ["referenced by explicit social-video configuration"],
-                    source_type,
-                )
+            existing = indexed.get(path)
+            if existing is None:
+                indexed[path] = len(raw)
+                raw.append((path, CONFIG_REFERENCE_SCORE, [signal], source_type))
+                continue
+            # Naming a file in the config is explicit evidence, so it must not
+            # be ranked by whatever the filename heuristic happened to score.
+            _, score, signals, found_type = raw[existing]
+            raw[existing] = (
+                path,
+                max(score, CONFIG_REFERENCE_SCORE),
+                [signal, *signals],
+                found_type if found_type != "document" else source_type,
             )
-            known.add(path)
     return raw
 
 
@@ -461,14 +500,22 @@ def _build_context(root: Path, sources: ContextSources) -> ProjectContext:
         if config.get("content_language") or config.get("language")
         else {},
         visual_style={
-            key: config[key] for key in ("punch_in_intensity", "broll_density") if key in config
+            key: config[key]
+            for key in ("punch_in_intensity", "broll_density", "image_generation_policy")
+            if key in config
         },
         fonts=[
-            value for value in [config.get("font"), *(config.get("font_fallback") or [])] if value
+            value
+            for value in [
+                config.get("font"),
+                config.get("font_file"),
+                *(config.get("font_fallback") or []),
+            ]
+            if value
         ]
         or fonts,
         colors=config.get("brand_colors") or [],
-        logos=[config["logo"]] if config.get("logo") else logos,
+        logos=[value for value in (config.get("logo_file"), config.get("logo")) if value] or logos,
         video_guidelines=[value for value in [config.get("editing_guide")] if value],
         caption_guidelines=config.get("caption_style") or {},
         editing_guidelines={
@@ -487,6 +534,8 @@ def _build_context(root: Path, sources: ContextSources) -> ProjectContext:
                 "default_aspect_ratio",
                 "default_resolution",
                 "default_fps_policy",
+                "target_platforms",
+                "delivery_output",
                 "preferred_output_directory",
             )
             if key in config
@@ -566,7 +615,8 @@ def _style_config_references(config: dict[str, object]) -> list[str]:
 
 
 def _config_asset_references(config: dict[str, object]) -> list[str]:
-    values = [config.get(key) for key in ("logo", "intro", "outro", "font")]
+    keys = ("logo", "logo_file", "font_file", "intro", "outro", "font")
+    values = [config.get(key) for key in keys]
     fallbacks = config.get("font_fallback")
     if isinstance(fallbacks, list):
         values.extend(fallbacks)

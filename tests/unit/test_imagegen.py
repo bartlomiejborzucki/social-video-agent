@@ -12,6 +12,8 @@ from PIL import Image
 
 from social_video.errors import ImageGenerationError, ValidationError
 from social_video.imagegen import (
+    AGENT_MUST_DETERMINE,
+    CHECKED_SCOPE,
     build_prompt,
     detect_image_provider,
     generate_plate,
@@ -28,31 +30,52 @@ def _png(size: tuple[int, int] = (1024, 1536)) -> str:
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
-def test_claude_host_without_keys_explains_why_there_is_no_image_api() -> None:
-    status = detect_image_provider({"CLAUDECODE": "1"})
-    assert not status.available
-    assert status.host == "claude"
-    assert "no image-generation api" in status.reason.casefold()
+def test_a_missing_key_is_never_reported_as_no_generation_at_all() -> None:
+    """The defect: an absent credential was presented as a session-wide verdict.
+
+    On a host whose agent has a native image tool, imagery is available with no
+    key of the user's own. The CLI may only report what it checked.
+    """
+    for environment in (
+        {"CODEX_HOME": "/home/x/.codex"},
+        {"CLAUDECODE": "1"},
+        {},
+    ):
+        status = detect_image_provider(environment)
+        payload = status.to_dict()
+
+        assert status.cli_can_generate is False
+        assert payload["checked"] == CHECKED_SCOPE
+        assert payload["native_imagegen"] == "unknown_to_cli"
+        assert payload["canva"] == "unknown_to_cli"
+        assert list(payload["agent_must_determine"]) == list(AGENT_MUST_DETERMINE)
+        # No claim that a plan, a host or a missing key rules generation out.
+        lowered = status.reason.casefold()
+        assert "has no image tool" not in lowered
+        assert "does not include api image generation" not in lowered
+        assert "is not ruled out" in lowered
+        assert "image register" in lowered
 
 
-def test_a_chatgpt_plan_alone_is_not_api_access() -> None:
-    status = detect_image_provider({"CODEX_HOME": "/home/x/.codex"})
-    assert not status.available
-    assert "does not include api image generation" in status.reason.casefold()
+def test_the_reason_says_what_would_make_the_cli_able() -> None:
+    status = detect_image_provider({"CODEX_HOME": "/x"})
+
+    assert "OPENAI_API_KEY" in status.reason
+    assert "GEMINI_API_KEY" in status.reason
 
 
 def test_codex_host_prefers_openai_and_gemini_cli_prefers_gemini() -> None:
     both = {"GEMINI_API_KEY": "g", "OPENAI_API_KEY": "o"}
     codex = detect_image_provider({**both, "CODEX_HOME": "/x"})
     gemini = detect_image_provider({**both, "GEMINI_CLI": "1"})
-    assert codex.provider is not None and codex.provider.name is ImageProviderName.OPENAI
-    assert gemini.provider is not None and gemini.provider.name is ImageProviderName.GEMINI
+    assert codex.provider is not None and codex.provider.name is ImageProviderName.OPENAI_API
+    assert gemini.provider is not None and gemini.provider.name is ImageProviderName.GEMINI_API
 
 
 def test_without_a_host_hint_the_free_tier_wins() -> None:
     status = detect_image_provider({"GEMINI_API_KEY": "g", "OPENAI_API_KEY": "o"})
     assert status.provider is not None
-    assert status.provider.name is ImageProviderName.GEMINI
+    assert status.provider.name is ImageProviderName.GEMINI_API
 
 
 def test_explicit_override_can_disable_or_select() -> None:
@@ -61,7 +84,24 @@ def test_explicit_override_can_disable_or_select() -> None:
     missing = detect_image_provider({"SOCIAL_VIDEO_IMAGE_PROVIDER": "openai"})
     assert not missing.available and "OPENAI_API_KEY" in missing.reason
     unknown = detect_image_provider({"SOCIAL_VIDEO_IMAGE_PROVIDER": "midjourney"})
-    assert not unknown.available and "not supported" in unknown.reason
+    assert not unknown.available and "not an API this CLI can call" in unknown.reason
+
+
+def test_the_short_provider_spellings_keep_working() -> None:
+    """`openai` and `gemini` were the values before the rename."""
+    status = detect_image_provider({"SOCIAL_VIDEO_IMAGE_PROVIDER": "gemini", "GEMINI_API_KEY": "g"})
+
+    assert status.provider is not None
+    assert status.provider.name is ImageProviderName.GEMINI_API
+
+
+def test_the_native_tool_cannot_be_selected_as_a_cli_provider() -> None:
+    """It is the agent's tool; a Python process cannot call it."""
+    status = detect_image_provider({"SOCIAL_VIDEO_IMAGE_PROVIDER": "chatgpt_native"})
+
+    assert not status.available
+    assert "belongs to the agent" in status.reason
+    assert "image register" in status.reason
 
 
 def test_the_api_key_never_appears_in_the_reported_status() -> None:

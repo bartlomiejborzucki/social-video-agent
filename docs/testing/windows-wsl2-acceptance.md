@@ -8,6 +8,13 @@ Run this checklist on a real Windows 11 machine. Generic Linux CI does not prove
 - [ ] Confirm the Remotion license choice, initialize a workflow with
       `--remotion-license free_license_eligible` or
       `company_license_confirmed`, and verify the declaration is persisted.
+- [ ] Record it for the project with `social-video-agent remotion-license attest
+      DECLARATION --project-root PROJECT --accept-terms`, verify
+      `remotion-license status` reports it as usable, then initialize a second
+      workspace with no `--remotion-license` flag and confirm Stage 0 continues
+      and records `remotion_license_source: project_declaration`.
+- [ ] Run `social-video-agent remotion-license revoke --project-root PROJECT`
+      and confirm a new `workflow init` stops with the recorded reason.
 - [ ] Run `social-video-agent doctor`; Node, Remotion, Chrome Headless Shell,
       and the final summary are `OK`/`READY`.
 - [ ] From a separate fake target project containing `AGENTS.md`, brand/video

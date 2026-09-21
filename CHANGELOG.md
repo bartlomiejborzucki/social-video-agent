@@ -4,6 +4,165 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-21
+
+### Fixed
+
+- An end card with a generated plate rendered without its own words. The plate
+  is an absolutely positioned background image and the text is in-flow, so the
+  image painted over it and the end card came out as a wordless gradient --
+  silently defeating the rule that image tools draw backgrounds while every
+  word is drawn locally. The text is now positioned above the plate, and a
+  pixel test on a rendered frame asserts it.
+
+### Added
+
+- A second runtime mode, so a native Windows Codex agent can drive the Linux
+  engine. `wsl-native` is unchanged and remains the default outcome for an
+  agent already inside WSL; `windows-agent-wsl-runtime` is new; `linux-native`
+  and `macos-native` are unchanged. `runtime_mode: auto` decides from the real
+  platform of the agent process, whether `wsl.exe` runs, whether the chosen
+  distribution reports WSL 2, and whether the engine is installed inside it --
+  never from a terminal preference, which is configured separately and says
+  nothing about where the agent runs. `runtime_mode` and `wsl_distribution` are
+  new optional project-config fields, and `SOCIAL_VIDEO_RUNTIME_MODE` and
+  `SOCIAL_VIDEO_WSL_DISTRIBUTION` override them.
+- `scripts/windows/social-video-agent.ps1`, the one supported bridge. It passes
+  arguments as an array rather than building a command string, uses no
+  `Invoke-Expression` and no `sh -lc`, propagates stdout, stderr and the exit
+  code, forwards Ctrl+C, and refuses to fall back to `ffmpeg.exe`, Windows
+  Python or Windows Node -- a run that mixed Windows and Linux binaries would
+  not be the run that was reviewed. Missing WSL, a broken WSL, no distribution,
+  WSL 1 only, an ambiguous choice and a missing engine are five distinct
+  diagnostics, and it installs nothing.
+- Path normalisation across the boundary: quoted paths, and
+  `\\wsl$\<distro>\...` / `\\wsl.localhost\<distro>\...` UNC paths, in
+  addition to the drive letters, spaces, Polish characters, brackets, OneDrive
+  folders and `/mnt/<drive>` paths already handled. Normalising twice is the
+  same as normalising once, which is what stops `/mnt/c/mnt/c/...`. A UNC path
+  for a different distribution is refused rather than silently resolved.
+- Stage 0 writes `runtime.json`: the agent platform, the runtime mode, the
+  distribution and its WSL version, the project path on each side, the Linux
+  cache root, which engine binaries exist, the image policy and the Remotion
+  licence declaration. Capabilities only the agent can see -- native ImageGen,
+  Canva -- are written in a separate `session` block as `unknown_to_cli` and
+  marked session-scoped, so a later run re-checks rather than trusting
+  yesterday's tool list.
+- `doctor` reports the agent side and the engine side separately in the hybrid
+  mode, with one cause per line.
+- `references/hybrid-runtime.md`, read only when the agent is on Windows. The
+  blanket "no PowerShell/WSL bridge" rule became a precise one: no bridge in
+  `wsl-native`, only the reviewed adapter in `windows-agent-wsl-runtime`, and
+  never Windows and Linux binaries in the same render.
+- `install_skills.py` also installs the skill folder into the Windows user's
+  home when run from WSL, resolving that home from Windows rather than guessing
+  a path under `/mnt/c/Users`. Only the skill crosses; no media dependency is
+  duplicated on Windows.
+- `remotion-license attest | status | refresh | revoke`: the Remotion license
+  declaration can now be recorded once for a project instead of once per edit.
+  It lives in `.social-video/remotion-license.json`, next to the branding config
+  but deliberately not inside it, and records the declaration, the explicit
+  acknowledgement, the moment, the component versions and the terms URL --
+  nothing else. Eligibility is never derived from company size, revenue or any
+  other signal, and there is no field in which such a signal could be supplied.
+  `workflow init` and `render` take an explicit `--remotion-license` flag first,
+  then the edit's own state when resuming, then the project declaration, and
+  otherwise stop with the whole instruction. The CLI asks again after a
+  revocation, a change of terms URL, a new release line, or a year;
+  `refresh` re-confirms and never reinstates a revoked statement. Workflow state
+  records `remotion_license_source`, and an older state without that field keeps
+  its own declaration and is never asked again.
+- Native image tools are supported without an API key of the user's own.
+  Detection used to be credential-only, and reported "a ChatGPT plan does not
+  include API image generation and Codex CLI has no image tool" when no key was
+  set -- which is false on a host that hands its agent an ImageGen tool, and
+  which turned a missing key into a claim that imagery was impossible. There
+  are now four recognised sources: the host's native tool and a Canva MCP
+  connection, both of which belong to the agent and cannot be called from
+  Python; and the OpenAI and Gemini image APIs, which the CLI still calls
+  itself. `image status` reports `cli_can_generate` plus
+  `checked: local_api_integrations_only` and `native_imagegen: unknown_to_cli`,
+  and never presents its own blindness as a verdict. New `image prompt` hands
+  the agent the guarded no-text prompt to pass to its own tool verbatim;
+  `image register` adopts the resulting file, copies it into the workspace,
+  hashes it and records the tool that really drew it, leaving the model empty
+  when the tool reports none; `image capabilities` records what the session can
+  do, the source the agent chose and why, and refuses a record that contradicts
+  itself. Consent is unchanged and now includes `--user-request` for one image
+  the user asked for by name; `image_generation_policy: none` outranks every
+  one-off, including the native tool. Nothing picks a source automatically,
+  because availability is not a reason to use something.
+- Measured voice cleanup, and `audio_cleanup_policy` to govern it. Until now
+  the only thing done to the audio was loudness normalisation, so a recording
+  with rumble, mains hum or an audible noise floor shipped with them. The
+  render now measures the cut speech -- the per-window RMS distribution, so the
+  noise floor is the 10th percentile and speech the 90th; energy below 60 Hz,
+  where no voice lives; narrow bands at 50 and 60 Hz; 5-9 kHz; peak level --
+  and applies only what crosses its own threshold, each with a ceiling: a
+  two-pole high-pass at 80 Hz, a notch at the hum fundamental only, at most
+  10 dB of `afftdn`, a de-esser at intensity 0.15, and at most 2:1
+  compression. A well-recorded voice comes out untouched and the manifest
+  records that every check ran below its threshold. This is not an "enhance
+  voice" button: the same chain on every clip is how a good recording ends up
+  sounding managed. Clipping is reported and never repaired, and hum harmonics
+  are left alone because notching them thins the voice. Every render discloses
+  what it changed and how to undo it (`--no-audio-cleanup`, or
+  `audio_cleanup_policy: none`), the measurement and the ceilings land in the
+  render manifest, and brand QA checks the repair against them. Policy defaults
+  to `measured`, so an existing project gets it after re-validating; its source
+  media is untouched either way.
+- `config migrate`: a read-only report of every pre-0.4 value in a project
+  config that still needs a human decision, with the old value, why it cannot
+  be converted, and what to write instead.
+
+### Fixed
+
+- Remotion shortened long captions and made up an ellipsis. The compositor laid
+  captions out with `-webkit-line-clamp` and `overflow: hidden`, which is a UI
+  idiom for shortening a label, and the project config could not set
+  `font_size_pct` or `max_chars_per_cue` even though `CaptionStyle` had both --
+  so every project compiled to a 96-pixel caption at 1080x1920 and
+  `nikomu, udowadniając na siłę` rendered as `nikomu, udowadniając na...`.
+  Both keys are now part of `caption_style`, the reference 9:16 values
+  (`font_size_pct: 3.6`, `max_words_per_cue: 4`, `max_chars_per_cue: 24`,
+  `outline_or_shadow: none`, `corner_radius: 24`, `bottom_margin_pct: 22`) are
+  the defaults for any key a config omits, and `config validate` refuses a
+  geometry whose own text cannot be drawn at the configured resolution. Layout
+  is measured in Python against the project font and shipped to the compositor
+  as explicit lines, so there is no wrapping, clamping or ellipsis rule in the
+  browser at all: a cue that does not fit is wrapped at word boundaries, then
+  shrunk to at most 72% of the contracted size, then refused by name. Brand QA
+  checks the geometry that was drawn -- lost text, an added ellipsis, a line
+  wider than the box, a cue longer than the contract, a style that drifted from
+  it -- rather than the geometry that was asked for.
+- Migrating a pre-0.4 project config followed a recipe that could not work.
+  The documented steps (add `schema_version`, rename two fields) left
+  `punch_in_intensity: restrained`, `broll_density: low`, descriptive
+  `music_policy`/`sfx_policy`/`default_fps_policy` and
+  `caption_style.outline_or_shadow: subtle` to fail with a raw pydantic dump,
+  and silently accepted fractional `safe_margins`: under the executable
+  contract `0.15` is 0.15% of the frame, not 15%, so a config that validated
+  rendered captions against the frame edge. Renames and YAML scalar shapes are
+  still carried over silently; every value that encodes an editorial decision
+  now raises `ConfigMigrationError` naming the field and the choices. Nothing
+  is mapped for you, because a plausible default would overrule the editor.
+- `context inspect` rejected configs that `config validate` compiles. The
+  discovery model did not know `image_generation_policy` or `target_platforms`,
+  so a valid 0.5 config failed discovery as "extra field", and it read only the
+  pre-0.4 `logo`/`font` spellings when reporting logos and fonts. The two
+  models are now locked to the same field set by a test, discovery keeps
+  unknown keys as context instead of failing, and the executable contract stays
+  the only gate that rejects a value.
+- Context discovery pulled in files it had no business reading: anything under
+  `docs/` scored as a candidate on location alone, so report archives whose
+  name mentioned the brand, unrelated PDFs, and instruction files from
+  `.codex/skills` became style sources. Dot directories other than
+  `.social-video` and installed skill trees are skipped, candidates must have a
+  readable or reusable extension, and a real brand signal is required rather
+  than a directory name. Keyword inspection now looks for brand-specific
+  phrases instead of words like "video" that appear in every status report, and
+  a file named by the project config outranks the filename heuristic.
+
 ## [0.5.0] - 2026-09-18
 
 ### Added

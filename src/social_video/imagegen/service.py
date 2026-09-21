@@ -53,6 +53,20 @@ def build_prompt(description: str) -> str:
     return PLATE_GUARDRAIL + text
 
 
+def strip_guardrail(prompt: str) -> str:
+    """Return the description behind a prompt, whether or not it is guarded.
+
+    The agent is told to fetch the guarded prompt, pass it to its native tool
+    verbatim, and hand it back when registering the result. Re-guarding a
+    prompt that already carries the preamble would record it twice, and
+    rejecting it would push the agent towards paraphrasing what it actually
+    sent.
+    """
+    text = " ".join(prompt.split())
+    preamble = " ".join(PLATE_GUARDRAIL.split())
+    return text[len(preamble) :].strip() if text.startswith(preamble) else text
+
+
 def generate_plate(
     provider: ImageProvider,
     description: str,
@@ -65,7 +79,7 @@ def generate_plate(
     """Return PNG bytes for one plate, plus the exact prompt that produced it."""
     prompt = build_prompt(description)
     send = transport or partial(_post_json, timeout=timeout)
-    if provider.name is ImageProviderName.OPENAI:
+    if provider.name is ImageProviderName.OPENAI_API:
         payload, headers = _openai_request(provider, prompt, width=width, height=height)
     else:
         # The Gemini image endpoint decides its own output size, so the aspect
@@ -82,7 +96,7 @@ def generate_plate(
         ) from exc
     encoded = (
         _openai_image(response)
-        if provider.name is ImageProviderName.OPENAI
+        if provider.name is ImageProviderName.OPENAI_API
         else _gemini_image(response)
     )
     try:
