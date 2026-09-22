@@ -4,6 +4,24 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-09-22
+
+### Changed
+
+- Refreshed the dependency floor and the pinned toolchain so the project builds
+  on current releases: Remotion 4.0.527, React 19.3, TypeScript 7.0, and the
+  matching `@types` packages; `actions/setup-node` v7 and `astral-sh/setup-uv`
+  v10.2.0 in CI. The Python lock moved to current `ruff`, `urllib3`, `protobuf`,
+  `filelock`, `fsspec` and `platformdirs` builds.
+
+### Fixed
+
+- Python 3.11+ installs silently resolved to onnxruntime 1.23 -- the last
+  release with CPython 3.10 wheels. Only the 3.10 ceiling was declared, so a
+  universal resolution satisfied every environment with that one version and
+  never reached a current build. A matching `>=1.30` floor for 3.11+ forces the
+  fork, and 3.10 stays installable.
+
 ## [0.6.1] - 2026-09-22
 
 ### Fixed
