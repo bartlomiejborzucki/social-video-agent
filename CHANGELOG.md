@@ -4,6 +4,16 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-09-22
+
+### Fixed
+
+- The repository-hygiene scan rejected every `/home/<user>/projects/...` path,
+  which failed CI on its own test suite: the WSL UNC tests have to name the
+  POSIX path they resolve to. Placeholder user names are now allowed on POSIX
+  exactly as they already were on Windows, and a real user name is still
+  rejected.
+
 ## [0.6.0] - 2026-09-21
 
 ### Fixed
