@@ -75,6 +75,15 @@ def _project(tmp_path: Path, config_text: str) -> Path:
     return config
 
 
+def _one_line(output: str) -> str:
+    """Console output with its wrapping undone.
+
+    Rich wraps to the terminal width, so on a runner with a long temporary
+    directory the message a user reads on one line arrives split across two.
+    """
+    return " ".join(output.split())
+
+
 def test_legacy_config_names_every_field_that_needs_a_decision(tmp_path: Path) -> None:
     config = _project(tmp_path, LEGACY_CONFIG)
 
@@ -196,7 +205,9 @@ def test_migrated_config_compiles_into_the_executable_contract(tmp_path: Path) -
     assert contract.brand.motion_intensity == 0.25
     assert contract.music_policy == "optional"
     assert contract.output_fps == "30/1"
-    assert contract.delivery_output == "/mnt/d/out"
+    # The contract stores a resolved path, and resolving is native: on Windows
+    # a rootless POSIX path lands on the current drive.
+    assert contract.delivery_output == str(Path("/mnt/d/out").resolve())
 
 
 def test_migrate_does_not_mutate_the_caller_mapping() -> None:
@@ -218,8 +229,8 @@ def test_config_migrate_command_reports_and_exits_nonzero(tmp_path: Path) -> Non
     result = CliRunner().invoke(app, ["config", "migrate", str(tmp_path / "project")])
 
     assert result.exit_code == 1
-    assert "rename logo -> logo_file" in result.stdout
-    assert "punch_in_intensity" in result.stdout
+    assert "rename logo -> logo_file" in _one_line(result.stdout)
+    assert "punch_in_intensity" in _one_line(result.stdout)
 
 
 def test_config_migrate_command_accepts_a_migrated_config(tmp_path: Path) -> None:
@@ -231,7 +242,7 @@ def test_config_migrate_command_accepts_a_migrated_config(tmp_path: Path) -> Non
     result = CliRunner().invoke(app, ["config", "migrate", str(tmp_path / "project")])
 
     assert result.exit_code == 0
-    assert "needs no manual migration" in result.stdout
+    assert "needs no manual migration" in _one_line(result.stdout)
 
 
 def test_the_shipped_template_needs_no_migration() -> None:

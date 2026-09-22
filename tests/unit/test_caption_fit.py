@@ -45,9 +45,12 @@ PREVIEW = {"width": 720, "height": 1280}
 @pytest.fixture(scope="module")
 def project_font() -> str:
     """A real font file, so widths are measured rather than estimated."""
-    proc = subprocess.run(
-        ["fc-match", "-f", "%{file}", "Lato:bold"], capture_output=True, text=True, check=False
-    )
+    try:
+        proc = subprocess.run(
+            ["fc-match", "-f", "%{file}", "Lato:bold"], capture_output=True, text=True, check=False
+        )
+    except OSError:  # no fontconfig at all, as on a Windows runner
+        pytest.skip("fontconfig is unavailable to locate a font")
     path = Path(proc.stdout.strip())
     if proc.returncode != 0 or not path.is_file():
         pytest.skip("no system font available to measure")

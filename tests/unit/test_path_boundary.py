@@ -8,6 +8,7 @@ the filename, and a `C:\\...` path handed straight to a Linux FFmpeg.
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -36,6 +37,15 @@ WINDOWS_CASES = {
 }
 
 
+#: The Windows/WSL boundary only exists on a Linux host. Elsewhere `resolve()`
+#: is native and rightly so: on Windows a rootless `/mnt/c/...` gains the
+#: current drive, and on macOS `/home/...` crosses an autofs firmlink. Those
+#: hosts still run the recognisers below, which are pure string logic.
+only_on_linux = pytest.mark.skipif(
+    sys.platform != "linux", reason="path translation across the WSL boundary is Linux behaviour"
+)
+
+
 @pytest.fixture
 def in_wsl(monkeypatch: pytest.MonkeyPatch):
     """Pretend to be inside WSL, with a wslpath that behaves like the real one."""
@@ -54,6 +64,7 @@ def in_wsl(monkeypatch: pytest.MonkeyPatch):
     return seen
 
 
+@only_on_linux
 @pytest.mark.parametrize("case", list(WINDOWS_CASES), ids=list(WINDOWS_CASES))
 def test_a_windows_path_is_translated_by_wslpath(case: str, in_wsl) -> None:
     raw, expected = WINDOWS_CASES[case]
@@ -65,6 +76,7 @@ def test_a_windows_path_is_translated_by_wslpath(case: str, in_wsl) -> None:
     assert in_wsl[-1] == ["/usr/bin/wslpath", "-u", raw]
 
 
+@only_on_linux
 @pytest.mark.parametrize("case", list(WINDOWS_CASES), ids=list(WINDOWS_CASES))
 def test_normalising_twice_is_the_same_as_once(case: str, in_wsl) -> None:
     raw, expected = WINDOWS_CASES[case]
@@ -77,6 +89,7 @@ def test_normalising_twice_is_the_same_as_once(case: str, in_wsl) -> None:
     assert str(twice).count("/mnt/") <= 1
 
 
+@only_on_linux
 def test_an_already_converted_mount_path_is_left_alone(in_wsl) -> None:
     result = paths.normalize_user_path("/mnt/c/Users/User/Videos/film.mp4")
 
@@ -84,6 +97,7 @@ def test_an_already_converted_mount_path_is_left_alone(in_wsl) -> None:
     assert in_wsl == [], "a Linux path needs no conversion"
 
 
+@only_on_linux
 def test_a_linux_path_is_never_sent_through_wslpath(in_wsl) -> None:
     result = paths.normalize_user_path("/home/user/projects/reel/source.mp4")
 
@@ -91,6 +105,7 @@ def test_a_linux_path_is_never_sent_through_wslpath(in_wsl) -> None:
     assert in_wsl == []
 
 
+@only_on_linux
 def test_a_quoted_path_does_not_keep_its_quotes(in_wsl) -> None:
     """A copied Windows path arrives quoted often enough to matter."""
     result = paths.normalize_user_path('"C:\\Users\\Test User\\Videos\\Mój film.mp4"')
@@ -99,6 +114,7 @@ def test_a_quoted_path_does_not_keep_its_quotes(in_wsl) -> None:
     assert '"' not in str(result)
 
 
+@only_on_linux
 @pytest.mark.parametrize(
     "raw",
     [
@@ -126,6 +142,7 @@ def test_a_unc_path_for_another_distribution_is_refused(monkeypatch: pytest.Monk
         paths.normalize_user_path(r"\\wsl$\Debian\home\user\clip.mp4")
 
 
+@only_on_linux
 def test_a_windows_path_outside_wsl_is_refused_rather_than_guessed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -147,6 +164,7 @@ def test_recognisers_do_not_overlap() -> None:
     assert not paths.is_wsl_unc_path(r"C:\x\y.mp4")
 
 
+@only_on_linux
 def test_the_heavy_cache_stays_off_the_windows_mount(monkeypatch: pytest.MonkeyPatch) -> None:
     """Render caches on /mnt/c are slow and, under OneDrive, get synced."""
     monkeypatch.delenv("SOCIAL_VIDEO_HOME", raising=False)

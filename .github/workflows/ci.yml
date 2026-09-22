@@ -59,6 +59,9 @@ jobs:
       - run: |
           apt-get update
           apt-get install -y ffmpeg fontconfig fonts-noto-core python3 python3-venv curl git
+      # The container runs as root while the workspace belongs to the runner
+      # user, which git reads as dubious ownership and refuses with exit 128.
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
         with:

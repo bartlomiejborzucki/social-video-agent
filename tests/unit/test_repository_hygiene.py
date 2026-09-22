@@ -59,12 +59,18 @@ USER_DIRECTORY = (WINDOWS_USER, POSIX_HOME_USER)
 
 
 def tracked_text_files() -> list[Path]:
-    listing = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-files", "-z"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
+    try:
+        listing = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-files", "-z"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        # An unpacked sdist has no git, and a container job whose workspace
+        # belongs to another user gets refused by git's ownership check. There
+        # is nothing tracked to scan either way, so collection must not fail.
+        return []
     files = []
     for name in listing.split("\0"):
         if not name:
