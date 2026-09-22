@@ -6,7 +6,7 @@ of those to end up in a docstring, a fixture or a doc example. This scans what
 git actually tracks, so the check is about what would be pushed rather than
 about what happens to be on this disk.
 
-Generic Windows placeholders (`C:\\Users\\User`, `Test User`, `bob`) are
+Generic placeholders (`C:\\Users\\User`, `Test User`, `bob`, `/home/user`) are
 deliberately allowed: the path-handling code exists because those paths are
 hard, and its tests need to name them.
 """
@@ -21,8 +21,9 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 
-#: Placeholder user names the Windows path tests and docs are allowed to use.
-PLACEHOLDER_USERS = ("User", "Test User", "bob", "...")
+#: Placeholder user names the path tests and docs are allowed to use.
+#: ``User`` is the Windows convention and ``user`` the POSIX one.
+PLACEHOLDER_USERS = ("User", "user", "Test User", "bob", "...")
 
 #: Each pattern is something that is private by construction, with the reason
 #: it must not be committed.
@@ -32,10 +33,6 @@ PLACEHOLDER_USERS = ("User", "Test User", "bob", "...")
 #: below catches by the user name -- `C:\Users\User\OneDrive\...` is a fine
 #: example, `/mnt/c/Users/<a real name>/OneDrive/...` is not.
 FORBIDDEN = (
-    (
-        re.compile(r"/home/[A-Za-z0-9._-]+/(?:projects|workspace|Documents|Desktop)/"),
-        "an absolute path into somebody's home directory",
-    ),
     (
         re.compile(r"\b[A-Za-z0-9._%+-]+@(?!example\.(?:com|org)\b)[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
         "an email address; use the repository's git config instead",
@@ -48,6 +45,17 @@ FORBIDDEN = (
 WINDOWS_USER = re.compile(
     r"(?:/mnt/[a-z]/Users/|[A-Z]:\\{1,2}Users\\{1,2})(?P<user>[A-Za-z0-9 ._-]+|\.\.\.)"
 )
+
+#: POSIX home directories follow the same rule for the same reason: the path
+#: layer has to resolve real home directories -- a WSL UNC path is one -- so its
+#: tests have to name one. ``/home/user/projects/...`` is a fine example,
+#: ``/home/<a real name>/projects/...`` is somebody's disk.
+POSIX_HOME_USER = re.compile(
+    r"/home/(?P<user>[A-Za-z0-9._-]+)/(?:projects|workspace|Documents|Desktop)/"
+)
+
+#: Every rule that allows a path only under a placeholder user name.
+USER_DIRECTORY = (WINDOWS_USER, POSIX_HOME_USER)
 
 
 def tracked_text_files() -> list[Path]:
@@ -80,9 +88,10 @@ def test_no_private_reference_is_committed(path: Path) -> None:
     for pattern, why in FORBIDDEN:
         found = pattern.search(text)
         assert found is None, f"{relative} contains {found.group(0)!r}: {why}"
-    for match in WINDOWS_USER.finditer(text):
-        user = match.group("user").strip()
-        assert user in PLACEHOLDER_USERS, (
-            f"{relative} names a real Windows user directory ({user!r}); "
-            f"use one of {PLACEHOLDER_USERS} in examples and fixtures"
-        )
+    for pattern in USER_DIRECTORY:
+        for match in pattern.finditer(text):
+            user = match.group("user").strip()
+            assert user in PLACEHOLDER_USERS, (
+                f"{relative} names a real user directory ({user!r}); "
+                f"use one of {PLACEHOLDER_USERS} in examples and fixtures"
+            )
