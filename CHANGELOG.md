@@ -4,6 +4,28 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-09-22
+
+### Fixed
+
+- CI could not finish on any host but Linux. The repository-hygiene scan ran
+  `git ls-files` while collecting tests, so in the container job -- where the
+  workspace belongs to the runner and git runs as root, which git reads as
+  dubious ownership -- one refusal aborted the entire run instead of one
+  check. The job now trusts its workspace, and a checkout git cannot read
+  skips rather than breaking collection.
+- The caption-fit fixture asked `fc-match` for a font and inspected its return
+  code, which a Windows runner never reaches: with no fontconfig the call
+  itself raises, so fifteen tests errored instead of skipping.
+- The Windows/WSL path tests asserted POSIX resolution of paths that only
+  exist inside WSL. Resolving is native and rightly so -- on Windows a
+  rootless `/mnt/d/out` lands on the current drive, and on macOS `/home`
+  crosses an autofs firmlink -- so those tests are Linux-only and the path
+  recognisers, which are pure string logic, still run on every host.
+- A migration message was asserted verbatim against wrapped console output,
+  which failed on runners whose temporary directory is long enough to push
+  the sentence onto two lines.
+
 ## [0.6.2] - 2026-09-22
 
 ### Changed

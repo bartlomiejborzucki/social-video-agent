@@ -1,7 +1,7 @@
 {
   "name": "social-video-agent-remotion",
   "private": true,
-  "version": "0.6.2",
+  "version": "0.6.3",
   "scripts": {
     "remotion:studio": "remotion studio remotion/index.ts",
     "remotion:smoke": "uv run --no-sync pytest tests/integration/test_remotion.py -q"
