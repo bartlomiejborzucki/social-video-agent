@@ -91,6 +91,9 @@ def cuts_accept(
             for c in found.candidates
             if c.kind.value in kind and (confidence is None or c.confidence.value == confidence)
         ]
+        if not chosen and kind and not ids:
+            # A filter that matches nothing is an answer, not a mistake.
+            return []
         added = accept_cuts(plan, found, chosen)
         save_artifact(plan, ws.edit_plan)
         return added

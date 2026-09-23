@@ -221,3 +221,22 @@ def test_the_cli_finds_accepts_and_compiles(tmp_path: Path, monkeypatch) -> None
     assert refused.exit_code == 1 and "--force" in refused.output
     edl = load_artifact(EDL, workspace.edl)
     assert all(not (r.start < 1.1 and r.end > 0.8) for r in edl.ranges)
+
+
+def test_a_kind_filter_that_matches_nothing_is_not_an_error(tmp_path: Path, monkeypatch) -> None:
+    from social_video.cli import app
+    from social_video.schemas.base import save_artifact
+    from social_video.workspace.layout import Workspace
+
+    transcript = _transcript([("Dzisiaj", 0.0, 0.4), ("pokażę", 0.5, 0.9)], duration=1.0)
+    monkeypatch.setattr("social_video.pipeline.stage_transcribe", lambda *a, **k: transcript)
+    workspace = Workspace.at(tmp_path / "edit")
+    workspace.ensure()
+    save_artifact(_plan(), workspace.edit_plan)
+    runner = CliRunner()
+    runner.invoke(app, ["cuts", "find", str(tmp_path / "clip.mp4"), "-w", str(workspace.root)])
+
+    result = runner.invoke(app, ["cuts", "accept", "-w", str(workspace.root), "--kind", "pause"])
+
+    assert result.exit_code == 0, result.output
+    assert "0 cut(s) added" in result.output
