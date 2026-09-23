@@ -250,6 +250,22 @@ def test_registration_records_prompt_consent_and_hash(tmp_path: Path) -> None:
     assert Path(entry.path) != source, "the workspace keeps its own copy"
 
 
+@pytest.mark.parametrize("suffix", [".jpg", ".jpeg", ".webp"])
+def test_a_lossy_plate_keeps_its_format(tmp_path: Path, suffix: str) -> None:
+    workspace = _workspace(tmp_path)
+
+    visual = register_visual(
+        workspace,
+        VisualKind.COVER_PLATE,
+        _plate(tmp_path / f"plate{suffix}"),
+        prompt=build_prompt("warm studio bokeh"),
+    )
+
+    assert Path(visual.path).suffix == suffix
+    with Image.open(visual.path) as image:
+        assert image.format == ("WEBP" if suffix == ".webp" else "JPEG")
+
+
 def test_a_registered_prompt_is_never_double_guarded(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     guarded = build_prompt("warm studio bokeh")

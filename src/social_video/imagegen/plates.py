@@ -206,6 +206,9 @@ def register_visual(
     return visual
 
 
+_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".webp": "WEBP"}
+
+
 def _suffix(original: Path) -> str:
     suffix = original.suffix.casefold()
     return suffix if suffix in {".png", ".jpg", ".jpeg", ".webp"} else ".png"
@@ -216,10 +219,13 @@ def _write_image(target: Path, data, original: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(f".{target.name}.partial")
     try:
-        if _suffix(original) == ".png":
+        # The staging name hides the real extension, so Pillow is told the
+        # format rather than left to guess it from ``.partial``.
+        suffix = _suffix(original)
+        if suffix == ".png":
             data.save(partial, format="PNG", optimize=True)
         else:
-            data.save(partial, quality=95)
+            data.save(partial, format=_FORMATS[suffix], quality=95)
         partial.replace(target)
     finally:
         partial.unlink(missing_ok=True)
