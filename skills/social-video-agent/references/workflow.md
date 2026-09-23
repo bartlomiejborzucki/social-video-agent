@@ -82,6 +82,11 @@ Produce `context/*`, `edit-plan.json` (including `style_sources` and
 `user_overrides`), and optionally `edit-plan.md`. Do not render. Validate, mark
 Stage 1 complete, and stop in guided mode.
 
+A workspace still on the FFmpeg renderer (created before Remotion was the
+default, or with `--renderer ffmpeg`) switches with `social-video-agent workflow
+renderer remotion -w WORKSPACE`, after the same licence declaration as Stage 0.
+Past Stage 2 this reopens Stage 2, because the preview must be rendered again.
+
 ## Stage 2 — technical execution and preview
 
 Recommended tier: `execution_balanced`.

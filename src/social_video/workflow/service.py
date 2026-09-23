@@ -202,6 +202,42 @@ def advance_workflow(workspace: Workspace, completed: WorkflowStage) -> Workflow
     return state
 
 
+def set_renderer(
+    workspace: Workspace,
+    renderer: Renderer,
+    *,
+    remotion_license_attestation: RemotionLicenseAttestation | None = None,
+) -> WorkflowState:
+    """Switch an existing workflow's renderer, legacy FFmpeg workspaces included.
+
+    Moving to Remotion passes the same licence gate as Stage 0. A preview made
+    by the other renderer no longer describes what will ship, so a workflow
+    past Stage 2 returns to it; the plan and every earlier artifact are kept.
+    """
+    state = load_workflow(workspace)
+    if state.renderer is renderer:
+        return state
+    if renderer is Renderer.REMOTION:
+        attestation, source = resolve_attestation(
+            Path(state.target_project_root), explicit=remotion_license_attestation
+        )
+        state.remotion_license_attestation = attestation
+        state.remotion_license_source = source
+        state.remotion_license_checked_at = utc_timestamp()
+    state.renderer = renderer
+    if WorkflowStage.EXECUTION in state.completed_stages:
+        cut = STAGE_ORDER.index(WorkflowStage.EXECUTION)
+        state.completed_stages = [s for s in state.completed_stages if STAGE_ORDER.index(s) < cut]
+        state.current_stage = WorkflowStage.EXECUTION
+        for key, value in _recommendation(
+            WorkflowStage.EXECUTION, state.model_budget, state.workflow_mode
+        ).items():
+            setattr(state, key, value)
+    state.updated_at = utc_timestamp()
+    save_artifact(state, workspace.workflow_state)
+    return state
+
+
 def workflow_status(state: WorkflowState, *, language: str = "en") -> dict[str, Any]:
     missing = _missing_for_stage(state, state.current_stage)
     prompt = _next_prompt(state.current_stage, language)

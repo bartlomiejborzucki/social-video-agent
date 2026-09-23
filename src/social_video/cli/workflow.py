@@ -152,6 +152,42 @@ def workflow_complete(
     _print_workflow(workflow_status(state, language=language), as_json=as_json)
 
 
+@workflow_app.command("renderer")
+def workflow_renderer(
+    renderer: str = typer.Argument(..., help="remotion or ffmpeg."),
+    workspace_dir: Path = typer.Option(Path(), "--workspace", "-w"),
+    remotion_license: str | None = typer.Option(
+        None,
+        "--remotion-license",
+        help="free_license_eligible or company_license_confirmed, if none is stored.",
+    ),
+    language: str = typer.Option("en", "--language"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Switch this workflow's renderer, including a legacy FFmpeg workspace.
+
+    Moving to Remotion needs the licence declaration; a workflow past Stage 2
+    returns to it, because the preview must be rendered again.
+    """
+    from social_video.errors import ValidationError
+    from social_video.schemas.workflow import RemotionLicenseAttestation, Renderer
+    from social_video.workflow import set_renderer, workflow_status
+    from social_video.workspace.layout import Workspace
+
+    def run():
+        try:
+            chosen = Renderer(renderer)
+            attestation = RemotionLicenseAttestation(remotion_license) if remotion_license else None
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from None
+        return set_renderer(
+            Workspace.at(workspace_dir), chosen, remotion_license_attestation=attestation
+        )
+
+    state = _guard(run)
+    _print_workflow(workflow_status(state, language=language), as_json=as_json)
+
+
 def _print_context(context, sources, *, as_json: bool) -> None:
     payload = {
         "target_project_root": context.target_project_root,

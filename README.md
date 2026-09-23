@@ -222,6 +222,11 @@ is never derived from company size, revenue or any other data, and there is no
 field in which such data could be supplied. `--accept-terms` is the user's own
 act; an assistant must ask and use the answer given.
 
+A workspace created before Remotion became the default keeps the FFmpeg
+renderer until `social-video-agent workflow renderer remotion -w WORKSPACE`
+switches it, through the same licence declaration; a workflow past Stage 2
+returns to Stage 2 so the preview is rendered again.
+
 `workflow init` and `render` take an explicit `--remotion-license` flag first
 (a one-edit declaration), then the edit's own `workflow-state.json` when
 resuming, then the project's stored declaration; with none of those they stop
@@ -661,8 +666,6 @@ The project is Apache-2.0 and incorporates attributed MIT-licensed work from [br
   invent bespoke illustration or 3D work. Professional quality
   still depends on the source, project guidance, Stage 1 decisions, and Stage 3
   supervising-editor review.
-- Legacy workspaces resume with the FFmpeg renderer for compatibility. New
-  workflows default to Remotion and require the Stage 0 declaration.
 - Face-aware framing follows the most prominent face; `--reframe speaker` adds
   audio correlation on top of it.
 - Actual Windows 11 `/mnt/c` acceptance must be recorded for each release; generic Linux CI is not equivalent.

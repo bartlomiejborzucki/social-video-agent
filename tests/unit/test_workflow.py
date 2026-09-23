@@ -293,3 +293,34 @@ def test_failed_technical_qa_blocks_stage_handoff(tmp_path: Path) -> None:
 
     with pytest.raises(ValidationError, match="technical QA failed"):
         advance_workflow(workspace, WorkflowStage.EXECUTION)
+
+
+def test_a_legacy_ffmpeg_workflow_switches_to_remotion_through_the_licence_gate(
+    tmp_path: Path,
+) -> None:
+    from social_video.workflow import set_renderer
+
+    _, _, workspace, _ = _setup(
+        tmp_path, renderer=Renderer.FFMPEG, remotion_license_attestation=None
+    )
+    _write_stage_1(workspace)
+    advance_workflow(workspace, WorkflowStage.EDITORIAL_PLAN)
+    _write_stage_2(workspace)
+    advance_workflow(workspace, WorkflowStage.EXECUTION)
+
+    with pytest.raises(RemotionLicenseError):
+        set_renderer(workspace, Renderer.REMOTION)
+    assert load_workflow(workspace).renderer is Renderer.FFMPEG
+
+    state = set_renderer(
+        workspace,
+        Renderer.REMOTION,
+        remotion_license_attestation=RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE,
+    )
+
+    assert state.renderer is Renderer.REMOTION
+    assert state.remotion_license_attestation is RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE
+    # The preview came from the other renderer, so Stage 2 is open again.
+    assert state.current_stage is WorkflowStage.EXECUTION
+    assert state.completed_stages == [WorkflowStage.EDITORIAL_PLAN]
+    assert load_workflow(workspace).renderer is Renderer.REMOTION
