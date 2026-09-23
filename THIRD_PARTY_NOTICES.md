@@ -75,7 +75,6 @@ SOFTWARE.
 |---|---|---|---|
 | WhisperX | `align` | BSD-2-Clause | Pulls the PyTorch stack. |
 | pyannote.audio | `diarize` | MIT **code** | See model licensing below. |
-| requests | `cloud` | Apache-2.0 | |
 
 ---
 

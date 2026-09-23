@@ -48,14 +48,11 @@ align = ["whisperx>=3.8"]
 # accept `pyannote/speaker-diarization-community-1` conditions and supply their own HF token.
 # We cannot redistribute the weights or ship a shared token.
 diarize = ["pyannote.audio>=4.0"]
-# Cloud transcription providers. Uploads your media off-device.
-cloud = ["requests>=2.32"]
 dev = [
     "pytest>=8.2",
     "pytest-cov>=5.0",
     "ruff>=0.5",
     "mypy>=1.10",
-    "types-requests",
 ]
 
 [project.scripts]
