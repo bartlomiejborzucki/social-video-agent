@@ -112,7 +112,9 @@ def render_motion_design(
     )
     if layout is not None:
         features.append(CAPTION_LAYOUT_MEASURED if layout.measured else CAPTION_LAYOUT_ESTIMATED)
-    work = staging_root / f"remotion-{uuid4().hex}"
+    # Node runs with the compositor as its working directory, so every path it
+    # is handed must be absolute.
+    work = staging_root.resolve() / f"remotion-{uuid4().hex}"
     public = work / "public"
     try:
         public.mkdir(parents=True, exist_ok=False)
