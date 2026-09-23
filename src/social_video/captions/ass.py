@@ -123,13 +123,10 @@ def render_ass(
     ]
 
     for cue in sorted(track.cues, key=lambda c: c.start):
-        name = (
-            _speaker_style(cue.speaker)
-            if cue.speaker and cue.speaker in style.speaker_colours
-            else "Default"
-        )
+        speaker_colour = style.speaker_colours.get(cue.speaker) if cue.speaker else None
+        name = _speaker_style(cue.speaker) if speaker_colour else "Default"
         text = (
-            _karaoke(cue, style)
+            _active_word(cue, style, base=speaker_colour or style.primary_colour)
             if style.highlight_active_word and cue.words
             else escape_text(cue.text)
         )
@@ -141,11 +138,15 @@ def render_ass(
     return "\n".join(lines) + "\n"
 
 
-def _karaoke(cue, style: CaptionStyle) -> str:
-    """Per-word highlight using ASS ``\\k`` timing.
+def _active_word(cue, style: CaptionStyle, *, base: str) -> str:
+    """Colour only the word being spoken, exactly while it is spoken.
 
-    ``\\kf`` fills the word progressively over its duration; the secondary
-    colour in the style is what it fills from.
+    Each word starts in the cue's colour, switches to the highlight colour when
+    it begins and back when it ends, using near-instant ``\\t`` transforms
+    timed from the start of the line. This matches what the Remotion
+    compositor draws. ASS karaoke (``\\k``/``\\kf``) is deliberately not used:
+    it paints every word not yet spoken in the highlight colour and leaves the
+    spoken ones plain, which is the opposite of an active-word highlight.
 
     The style's case is applied here too. This path renders the individual
     words rather than the cue's already-cased text, so without doing so an
@@ -154,17 +155,20 @@ def _karaoke(cue, style: CaptionStyle) -> str:
     """
     from social_video.captions.chunk import apply_case
 
+    plain = hex_to_ass_colour(base)
+    active = hex_to_ass_colour(style.highlight_colour)
     parts: list[str] = []
-    cursor = cue.start
     for word in cue.words:
-        lead = max(0.0, word.start - cursor)
-        if lead > 0.005:
-            parts.append(f"{{\\k{round(lead * 100)}}}")
-        duration = max(0.01, word.end - word.start)
+        begin = max(0, round((word.start - cue.start) * 1000))
+        end = max(begin + 10, round((word.end - cue.start) * 1000))
         text = escape_text(apply_case(word.text, style.case))
-        parts.append(f"{{\\kf{round(duration * 100)}}}{text} ")
-        cursor = word.end
-    return "".join(parts).rstrip()
+        # libass ignores a transform whose start and end are equal, so each
+        # switch takes one millisecond rather than none.
+        parts.append(
+            f"{{\\1c{plain}\\t({begin},{begin + 1},\\1c{active})"
+            f"\\t({end},{end + 1},\\1c{plain})}}{text}"
+        )
+    return " ".join(parts)
 
 
 def _speaker_style(speaker: str | None) -> str:
