@@ -31,15 +31,12 @@ full Python matrix with coverage and a type-checked 3.10 floor, PowerShell lint,
 path property tests, and the CLI and renderer split into smaller units. See the
 changelog for detail.
 
-## 0.8 — edit quality
+## 0.8 — edit quality (done)
 
-- Animated word-level captions (ASS karaoke or a Remotion component) with
-  keyword emphasis driven by the brand config.
-- Filler-word, retake, and pause *candidates* derived from word timestamps and
-  offered to the agent for approval in the plan — code proposes nothing it then
-  applies on its own.
-- WhisperX alignment as an optional backend behind the `align` extra.
-- Punch-in zoom as a motion-plan or EDL move.
+Brand keyword emphasis and the active-word highlight from project config, with
+both renderers drawing the same thing; cut candidates the agent accepts by id
+and a `compile` command that removes them exactly; a WhisperX forced-alignment
+backend; timed punch-ins held to the brand's movement limit.
 
 ## 0.9 — framing and layout
 

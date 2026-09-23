@@ -17,8 +17,27 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   PSScriptAnalyzer. Property tests generate Windows, WSL mount and UNC paths
   the example tests never listed.
 
+- `caption_style` in the project config gains `active_word_highlight`,
+  `highlight_color`, `emphasis_words` and `emphasis_color`. Brand keywords are
+  coloured by both renderers, and brand QA fails a render that was asked for
+  emphasis and did not draw it.
+- `cuts find` lists hesitations, doubled words, restarted phrases and long
+  pauses, each with an id, a confidence and the quoted words; `cuts accept`
+  turns the chosen ones into plan drops. `compile` builds `edl.json` from the
+  plan and removes accepted cuts exactly, after word snapping, even inside kept
+  spans. It refuses to overwrite an existing EDL without `--force`.
+- `--backend whisperx` (the `align` extra) aligns every word with WhisperX after
+  faster-whisper recognises it; words it cannot place keep their timing.
+- `motion-plan.json` gains `punch_ins`: timed pushes on the picture that ease
+  in, hold and ease out while captions and graphics stay put.
+
 ### Changed
 
+- Rendering refuses any zoom above the brand's `punch_in_max`, and any punch-in
+  when the project sets `punch_in_intensity: 0`.
+- The transcript cache is keyed on the backend as well, so switching backends
+  no longer returns another backend's transcript. Default-backend caches keep
+  their names and stay valid.
 - The CLI is a package with one module per command group; `social_video.cli:app`
   and `python -m social_video.cli` are unchanged, and every command's help text
   is identical.
@@ -40,6 +59,12 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 - The Remotion bridge handed node a relative staging path while running it from
   the compositor directory; the staging root is now resolved first.
 - Two transcription backends that do not exist were still being imported.
+- Burned-in active-word captions lit every word not yet spoken and left spoken
+  ones plain, the opposite of the Remotion route. The spoken word is now the
+  highlighted one, with 1 ms colour transforms because libass ignores
+  zero-length ones.
+- Render manifests recorded Remotion 4.0.525 whatever was installed; they now
+  record the version the compositor pins.
 - Registering a JPEG or WebP plate from the agent's image tool failed: Pillow
   inferred the format from the `.partial` staging name.
 - EDL validation turned an unreadable source into an uncaught ffprobe error on
