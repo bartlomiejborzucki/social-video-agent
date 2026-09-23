@@ -344,3 +344,37 @@ def compile_edl(
         f"\n{len(edl.ranges)} range(s), {edl.total_duration:.2f}s -> [green]{ws.edl}[/green]",
         soft_wrap=True,
     )
+
+
+@app.command()
+def fetch(
+    url: str = typer.Argument(..., help="Page or file URL of one recording."),
+    rights: str = typer.Option(
+        "",
+        "--rights",
+        help='Your right to edit it, in your words, e.g. "our own webinar". Required.',
+    ),
+    output: Path = typer.Option(Path("sources"), "--output", "-o", help="Directory to save into."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Download one recording you have the right to edit, with its provenance.
+
+    Needs the fetch extra. The rights statement, URL, the site's stated licence
+    and the file hash are written beside the file. A URL is not permission.
+    """
+    from social_video.fetch import fetch_url, provenance_path
+
+    path, record = _guard(lambda: fetch_url(url, output, rights_statement=rights))
+    if as_json:
+        console.print_json(
+            data={
+                "file": str(path),
+                "provenance": str(provenance_path(path)),
+                **record.model_dump(),
+            }
+        )
+        return
+    console.print(f"[green]downloaded[/green] {path}", soft_wrap=True)
+    console.print(f"  provenance {provenance_path(path)}", soft_wrap=True)
+    console.print(f"  licence    {record.license or 'not stated by the site'}")
+    console.print(f"  your right {escape(record.rights_statement)}")

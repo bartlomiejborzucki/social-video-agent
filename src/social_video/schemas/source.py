@@ -45,6 +45,25 @@ class SourceEntry(Artifact):
         return Path(self.path)
 
 
+class SourceProvenance(Artifact):
+    """Where a downloaded source came from, and the right the user claimed to it.
+
+    Written next to the file by ``fetch``. The rights statement is the user's
+    own words; the tool records it and does not verify it.
+    """
+
+    url: str
+    webpage_url: str = ""
+    extractor: str = ""
+    video_id: str = ""
+    title: str = ""
+    uploader: str = ""
+    license: str | None = Field(default=None, description="As the site reports it, if at all.")
+    downloaded_at: str
+    sha256: str
+    rights_statement: str = Field(min_length=1)
+
+
 class SourceManifest(Artifact):
     """Every source available to a project."""
 

@@ -53,6 +53,12 @@ the npm package itself grants a license.
 
 Recommended tier: `editorial_strong`.
 
+If the user gives a URL rather than a file, ask what right they have to edit the
+material before anything else, then run `social-video-agent fetch URL --rights
+"<their words>"`; never fill the statement in for them, and never fetch
+someone else's video for re-upload. The file and its `.provenance.json` land in
+`sources/`, and the file is then an ordinary immutable source.
+
 Discover context first. Inspect/probe media, create or reuse local transcripts,
 and read the packed transcript end-to-end. Determine the strongest hook,
 standalone story, false starts, repetitions, meaningful pauses, ordering,

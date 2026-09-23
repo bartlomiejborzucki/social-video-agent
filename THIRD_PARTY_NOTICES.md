@@ -75,6 +75,7 @@ SOFTWARE.
 |---|---|---|---|
 | WhisperX | `align` | BSD-2-Clause | Pulls the PyTorch stack. |
 | pyannote.audio | `diarize` | MIT **code** | See model licensing below. |
+| yt-dlp | `fetch` | The Unlicense | Downloading is subject to each site's terms and to copyright; `fetch` requires the user's own rights statement. |
 
 ---
 

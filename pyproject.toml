@@ -48,6 +48,9 @@ align = ["whisperx>=3.8"]
 # accept `pyannote/speaker-diarization-community-1` conditions and supply their own HF token.
 # We cannot redistribute the weights or ship a shared token.
 diarize = ["pyannote.audio>=4.0"]
+# Download a recording from a URL (`fetch`). The Unlicense; only for material the
+# user has the right to edit, which the command makes them state.
+fetch = ["yt-dlp>=2025.1"]
 dev = [
     "pytest>=8.2",
     "pytest-cov>=5.0",
@@ -57,6 +60,8 @@ dev = [
     "otio-cmx3600-adapter>=1.0",
     "otio-fcpx-xml-adapter>=1.0",
     "otio-fcp-adapter>=1.0",
+    # Exercised against a local HTTP server in the fetch tests.
+    "yt-dlp>=2025.1",
     "ruff>=0.5",
     "mypy>=1.10",
 ]
