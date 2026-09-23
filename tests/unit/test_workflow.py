@@ -79,9 +79,9 @@ def test_guided_handoffs_persist_and_stage_1_does_not_render(tmp_path: Path) -> 
 
     assert state.current_stage is WorkflowStage.EDITORIAL_PLAN
     assert state.recommended_next_model_tier == "editorial_strong"
-    assert state.recommended_next_model_name == "Sol"
+    assert state.recommended_next_model_name == "Astra"
     assert state.recommended_next_models == {
-        "openai": "Sol",
+        "openai": "Astra",
         "claude": "Claude Opus 5",
     }
     assert state.renderer is Renderer.REMOTION
@@ -91,26 +91,26 @@ def test_guided_handoffs_persist_and_stage_1_does_not_render(tmp_path: Path) -> 
     _write_stage_1(workspace)
     stage_2 = advance_workflow(workspace, WorkflowStage.EDITORIAL_PLAN)
     assert stage_2.current_stage is WorkflowStage.EXECUTION
-    assert stage_2.recommended_next_model_name == "Terra"
+    assert stage_2.recommended_next_model_name == "Sol"
     assert stage_2.recommended_next_models["claude"] == "Claude Sonnet 5"
     assert load_workflow(workspace) == stage_2
 
     _write_stage_2(workspace)
     stage_3 = advance_workflow(workspace, WorkflowStage.EXECUTION)
     assert stage_3.current_stage is WorkflowStage.EDITORIAL_REVIEW
-    assert stage_3.recommended_next_model_name == "Sol"
+    assert stage_3.recommended_next_model_name == "Astra"
     assert stage_3.recommended_next_models["claude"] == "Claude Opus 5"
 
     _write_stage_3(workspace)
     stage_4 = advance_workflow(workspace, WorkflowStage.EDITORIAL_REVIEW)
     assert stage_4.current_stage is WorkflowStage.FINALIZATION
-    assert stage_4.recommended_next_model_name == "Terra"
+    assert stage_4.recommended_next_model_name == "Sol"
     assert stage_4.recommended_next_models == {
-        "openai": "Terra",
+        "openai": "Sol",
         "claude": "Claude Sonnet 5",
     }
     assert workflow_status(stage_4, language="pl")["next_models"] == {
-        "openai": "Terra",
+        "openai": "Sol",
         "claude": "Claude Sonnet 5",
     }
 
@@ -174,7 +174,7 @@ def test_continuous_mode_keeps_artifacts_but_requires_no_model_switch(tmp_path: 
     assert status["handoff_required"] is False
     assert status["next_model"] == "current model"
     assert status["next_models"] == {
-        "openai": "Sol",
+        "openai": "Astra",
         "claude": "Claude Opus 5",
     }
     assert status["next_prompt"] == "Kontynuuj social-video-agent z Etapem 1."
@@ -183,7 +183,7 @@ def test_continuous_mode_keeps_artifacts_but_requires_no_model_switch(tmp_path: 
 
 def test_economical_routing_uses_balanced_then_fast_tiers(tmp_path: Path) -> None:
     _, _, workspace, state = _setup(tmp_path, model_budget=ModelBudget.ECONOMICAL)
-    assert state.recommended_next_model_name == "Terra"
+    assert state.recommended_next_model_name == "Sol"
     _write_stage_1(workspace)
 
     state = advance_workflow(workspace, WorkflowStage.EDITORIAL_PLAN)
@@ -266,7 +266,7 @@ def test_version_1_state_gets_provider_recommendations_on_resume(tmp_path: Path)
     status = workflow_status(load_workflow(workspace), language="pl")
 
     assert status["next_models"] == {
-        "openai": "Sol",
+        "openai": "Astra",
         "claude": "Claude Opus 5",
     }
 

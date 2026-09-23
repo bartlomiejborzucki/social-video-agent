@@ -128,7 +128,7 @@ or concrete `changes_requested` fixes. Do not render final video.
 ## Stage 4 — corrections and finalization
 
 Recommended tier: `execution_balanced`.
-Current recommendations: OpenAI Terra or Claude Sonnet 5, medium effort.
+Current recommendations: OpenAI Sol or Claude Sonnet 5, medium effort.
 
 Apply only `qa-editorial.json` fixes. Approval is a no-op; do not perform a new
 full editorial analysis. Fixes explicitly target `edl`, `captions`, or `style`;

@@ -11,7 +11,7 @@ from social_video.cli import workflow as cli
 @pytest.mark.parametrize(
     ("stage", "openai_model", "claude_model"),
     [
-        ("stage_4_finalization", "Terra", "Claude Sonnet 5"),
+        ("stage_4_finalization", "Sol", "Claude Sonnet 5"),
         ("stage_5_delivery", "Luna", "Claude Haiku 4.5"),
     ],
 )

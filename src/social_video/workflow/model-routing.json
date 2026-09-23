@@ -3,11 +3,11 @@
   "primary_provider": "openai",
   "tiers": {
     "editorial_strong": {
-      "models": {"openai": "Sol", "claude": "Claude Opus 5"},
+      "models": {"openai": "Astra", "claude": "Claude Opus 5"},
       "reasoning_effort": "high"
     },
     "execution_balanced": {
-      "models": {"openai": "Terra", "claude": "Claude Sonnet 5"},
+      "models": {"openai": "Sol", "claude": "Claude Sonnet 5"},
       "reasoning_effort": "medium"
     },
     "mechanical_fast": {

@@ -308,14 +308,15 @@ so changing model or starting a new Codex conversation does not lose progress:
 
 | Stage | OpenAI recommendation | Claude alternative | Work |
 |---|---|---|---|
-| 0/1 | Sol (high) | Claude Opus 5 | discovery + editorial plan |
-| 2 | Terra (medium) | Claude Sonnet 5 | EDL + captions + preview + QA |
-| 3 | Sol (high) | Claude Opus 5 | supervising-editor review |
-| 4 | Terra (medium) | Claude Sonnet 5 | approved fixes + final render |
+| 0/1 | Astra (high) | Claude Opus 5 | discovery + editorial plan |
+| 2 | Sol (medium) | Claude Sonnet 5 | EDL + captions + preview + QA |
+| 3 | Astra (high) | Claude Opus 5 | supervising-editor review |
+| 4 | Sol (medium) | Claude Sonnet 5 | approved fixes + final render |
 | 5 | Luna (low) | Claude Haiku 4.5 | optional mechanical variants |
 
-Astra and Claude Fable 5.1 are not normal steps. They are suggested only for a
-genuinely difficult narrative reconstruction or deep technical impasse. Claude
+Claude Fable 5.1 is not a normal step: the escalation tier is suggested only for
+a genuinely difficult narrative reconstruction or deep technical impasse. On the
+OpenAI side Astra is already the strongest recommendation. Claude
 recommendations apply only when that provider is available in the user's host;
 the skill never claims to switch provider or model automatically. Model names
 are mapped from stable conceptual tiers in one configuration file, so future
@@ -339,8 +340,8 @@ not claim to switch the user's model automatically. Ask “Where are we?” or
 Use `--workflow-mode continuous` or say “Do everything with the current model”
 to run all stages without handoff stops. “Just make it quickly” does the same,
 but context discovery, artifacts, source safety, and QA remain mandatory.
-Budgets are `economical`, `balanced`, and `quality`; Astra is never selected
-automatically.
+Budgets are `economical`, `balanced`, and `quality`; the escalation tier is never
+selected automatically, and the economical budget never recommends Astra.
 
 Example:
 
@@ -350,7 +351,7 @@ Example:
 > `assets/logo.svg`. I will use the calm educational profile and project
 > typography. Stage 1 will create the editorial plan without rendering.
 >
-> Agent after Stage 1: Stage 1 complete. Switch to Terra and send:
+> Agent after Stage 1: Stage 1 complete. Switch to Sol and send:
 > “Continue social-video-agent with Stage 2.”
 
 Before that first discovery, the agent explains the Remotion license gate and
