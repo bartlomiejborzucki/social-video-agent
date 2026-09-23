@@ -1,9 +1,21 @@
 export type MotionElement = {
-  type: 'hook' | 'lower_third' | 'callout' | 'end_card';
+  type:
+    | 'hook'
+    | 'lower_third'
+    | 'callout'
+    | 'end_card'
+    | 'quote'
+    | 'stat'
+    | 'list'
+    | 'chapter'
+    | 'cta'
+    | 'progress'
+    | 'logo_reveal';
   start: number;
   end: number;
   text: string;
   secondary_text?: string;
+  items?: string[];
   reason: string;
   /** Staged public-directory filename of the end-card plate, never a local path. */
   image_source?: string | null;

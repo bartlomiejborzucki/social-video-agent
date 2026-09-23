@@ -102,8 +102,9 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 - Never hide missing privacy-safe footage with an automatic long freeze, loop,
   zoom, transition, or synthetic motion.
 - For every Remotion workflow, Stage 2 writes `motion-plan.json`. Use discovered
-  project typography/colors and only story-serving hook, lower-third, callout,
-  or end-card elements. Remotion enriches an approved edit; it does not decide
+  project typography/colors and only story-serving elements from the
+  vocabulary in references/artifacts.md (hook, lower third, callout, end card,
+  quote, stat, list, chapter, CTA, progress bar, logo reveal). Remotion enriches an approved edit; it does not decide
   the story or repair insufficient footage.
 - Stage 2 compiles project config into `brand-contract.json`; render only a
   matching EDL/contract. Stage 4 requires technical QA and `qa/qa-brand.json`.

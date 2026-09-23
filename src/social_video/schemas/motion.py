@@ -16,14 +16,34 @@ class MotionElementType(str, Enum):
     LOWER_THIRD = "lower_third"
     CALLOUT = "callout"
     END_CARD = "end_card"
+    #: A spoken line set as a pull quote; ``secondary_text`` attributes it.
+    QUOTE = "quote"
+    #: One figure, counted up when it is a number; ``secondary_text`` labels it.
+    STAT = "stat"
+    #: Two to five short points revealed one after another; uses ``items``.
+    LIST = "list"
+    #: A section title for a new part of the argument.
+    CHAPTER = "chapter"
+    #: A call to action set above the caption area.
+    CTA = "cta"
+    #: A thin bar showing how far through the video the viewer is. No text.
+    PROGRESS = "progress"
+    #: The brand logo animated in, from the brand contract. No text.
+    LOGO_REVEAL = "logo_reveal"
+
+
+#: Types drawn without words of their own.
+TEXTLESS = frozenset({MotionElementType.PROGRESS, MotionElementType.LOGO_REVEAL})
 
 
 class MotionElement(Artifact):
     type: MotionElementType
     start: float = Field(ge=0)
     end: float = Field(gt=0)
-    text: str = Field(min_length=1, max_length=180)
+    text: str = Field(default="", max_length=180)
     secondary_text: str | None = Field(default=None, max_length=180)
+    #: The points of a ``list``, in the order they appear.
+    items: list[str] = Field(default_factory=list, max_length=5)
     reason: str = Field(min_length=1, max_length=300)
     #: Optional background image for an end card. A local PNG/JPEG/WebP, either a
     #: project asset or a plate recorded in visuals.json. Text is never part of
@@ -36,6 +56,21 @@ class MotionElement(Artifact):
     def _valid_interval(self) -> MotionElement:
         if self.end <= self.start:
             raise ValueError("motion element end must be after start")
+        kind = self.type.value
+        if self.type in TEXTLESS:
+            if self.text or self.items:
+                raise ValueError(f"a {kind} carries no text")
+        elif self.type is MotionElementType.LIST:
+            if not 2 <= len(self.items) <= 5 or any(
+                not item.strip() or len(item) > 60 for item in self.items
+            ):
+                raise ValueError("a list needs two to five items of at most 60 characters")
+        elif not self.text.strip():
+            raise ValueError(f"a {kind} needs text")
+        elif self.items:
+            raise ValueError(f"items are only used by a list, not a {kind}")
+        if self.type is MotionElementType.STAT and len(self.text) > 12:
+            raise ValueError("a stat is one figure of at most 12 characters, e.g. '73%' or '3x'")
         if self.image_asset is not None:
             if self.type is not MotionElementType.END_CARD:
                 raise ValueError(

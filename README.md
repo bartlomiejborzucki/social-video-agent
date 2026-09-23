@@ -39,8 +39,10 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
   the brand's movement limit.
 
 **Motion design with Remotion**
-- Hooks, lower thirds, callouts and designed end cards in the project's
-  typography and colours, each with a timeline interval and a stated reason.
+- Hooks, lower thirds, callouts, pull quotes, counting figures, revealed lists,
+  chapter titles, calls to action, a progress bar, a logo reveal and designed
+  end cards, in the project's typography and colours, each with a timeline
+  interval and a stated reason.
 - Brand covers, optional image plates from the agent's own image tool, Canva,
   or the OpenAI/Gemini APIs — backgrounds only; every word is drawn locally.
 - Works from a repository checkout or an installed wheel
@@ -655,9 +657,8 @@ The project is Apache-2.0 and incorporates attributed MIT-licensed work from [br
 - WhisperX alignment and pyannote diarization are opt-in and are not exercised in
   CI, which never installs PyTorch; their tests stand in the libraries' call
   shapes. Diarization needs your own Hugging Face token for the gated weights.
-- Remotion currently composites a deliberately small vocabulary of project-aware
-  hook, lower-third, callout, and end-card graphics. It does not automatically
-  invent bespoke illustration, 3D work, or brand animation. Professional quality
+- Remotion draws a fixed vocabulary of eleven brand-driven graphics. It does not
+  invent bespoke illustration or 3D work. Professional quality
   still depends on the source, project guidance, Stage 1 decisions, and Stage 3
   supervising-editor review.
 - Legacy workspaces resume with the FFmpeg renderer for compatibility. New

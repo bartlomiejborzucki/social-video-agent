@@ -24,7 +24,7 @@ from social_video.imaging import load_image
 from social_video.remotion_runtime import locate_runtime
 from social_video.schemas.brand import CaptionCase, CaptionStyle
 from social_video.schemas.captions import CaptionTrack
-from social_video.schemas.motion import MotionPlan
+from social_video.schemas.motion import MotionElementType, MotionPlan
 
 
 def render_motion_design(
@@ -46,6 +46,8 @@ def render_motion_design(
     if base_video.resolve() == output.resolve():
         raise ValidationError("Remotion output must not overwrite its technical base video")
     plates: dict[str, Path] = {}
+    if logo_path is None and any(e.type is MotionElementType.LOGO_REVEAL for e in plan.elements):
+        raise ValidationError("a logo_reveal needs a logo; set logo_file in the project config")
     for punch in plan.punch_ins:
         if punch.end * fps > duration_in_frames + 1:
             raise ValidationError(f"punch-in at {punch.start:.2f}s ends after the video timeline")

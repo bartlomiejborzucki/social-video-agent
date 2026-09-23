@@ -252,6 +252,222 @@ const MotionGraphic: React.FC<{
   );
 };
 
+const EXTENDED = new Set(['quote', 'stat', 'list', 'chapter', 'cta', 'progress', 'logo_reveal']);
+
+/** Split "73,5%" into prefix, number, suffix so the number can count up. */
+const splitFigure = (text: string): {prefix: string; value: number; decimals: number; comma: boolean; suffix: string} | null => {
+  const match = /^(\D*?)(\d+(?:[.,]\d+)?)(.*)$/.exec(text);
+  if (!match) {
+    return null;
+  }
+  const digits = match[2];
+  const comma = digits.includes(',');
+  const fraction = digits.split(/[.,]/)[1] ?? '';
+  return {
+    prefix: match[1],
+    value: Number(digits.replace(',', '.')),
+    decimals: fraction.length,
+    comma,
+    suffix: match[3],
+  };
+};
+
+/**
+ * The graphics added in 1.0: pull quote, figure, list, chapter title, call to
+ * action, progress bar and logo reveal. Same brand colours and typography as
+ * the originals, same entrance and exit, and every one of them stays inside
+ * the safe margins and clear of the caption area at the bottom.
+ */
+const ExtendedGraphic: React.FC<{
+  element: MotionElement;
+  accent: string;
+  text: string;
+  background: string;
+  font: string;
+  durationInFrames: number;
+  logoSource: string | null;
+  safeMargins: SocialVideoProps['safeMargins'];
+}> = ({element, accent, text, background, font, durationInFrames, logoSource, safeMargins}) => {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const entrance = spring({frame, fps, config: {damping: 20, stiffness: 170}});
+  const exit = interpolate(
+    frame,
+    [Math.max(0, durationInFrames - Math.round(fps * 0.2)), durationInFrames],
+    [1, 0],
+    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
+  );
+  const opacity = interpolate(entrance, [0, 1], [0, 1]) * exit;
+  const rise = interpolate(entrance, [0, 1], [28, 0]);
+  const pad = {
+    top: (height * safeMargins.top) / 100,
+    right: (width * safeMargins.right) / 100,
+    bottom: (height * safeMargins.bottom) / 100,
+    left: (width * safeMargins.left) / 100,
+  };
+  const card: React.CSSProperties = {
+    background: 'rgba(10, 11, 14, 0.82)',
+    borderRadius: 18,
+    color: text,
+    fontFamily: font,
+    boxShadow: '0 18px 50px rgba(0,0,0,0.28)',
+  };
+
+  if (element.type === 'progress') {
+    const done = interpolate(frame, [0, Math.max(1, durationInFrames - 1)], [0, 1], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    return (
+      <AbsoluteFill style={{paddingTop: pad.top * 0.5, paddingLeft: pad.left, paddingRight: pad.right}}>
+        <div style={{height: 10, borderRadius: 5, background: 'rgba(255,255,255,0.22)', opacity: exit}}>
+          <div style={{height: '100%', width: `${done * 100}%`, borderRadius: 5, background: accent}} />
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (element.type === 'logo_reveal') {
+    if (!logoSource) {
+      return null;
+    }
+    const sweep = interpolate(entrance, [0, 1], [0, 1]);
+    return (
+      <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', opacity}}>
+        <div style={{position: 'relative', width: width * 0.46, padding: 36}}>
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: 28,
+              background,
+              transform: `scaleX(${sweep})`,
+              transformOrigin: 'left center',
+              borderBottom: `10px solid ${accent}`,
+            }}
+          />
+          <img
+            src={staticFile(logoSource)}
+            style={{position: 'relative', width: '100%', objectFit: 'contain', transform: `scale(${0.85 + 0.15 * sweep})`}}
+          />
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (element.type === 'stat') {
+    const figure = splitFigure(element.text);
+    const count = interpolate(frame, [0, Math.min(fps, durationInFrames * 0.6)], [0, 1], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+      easing: Easing.out(Easing.cubic),
+    });
+    const shown = figure
+      ? figure.prefix +
+        (figure.value * count).toFixed(figure.decimals).replace('.', figure.comma ? ',' : '.') +
+        figure.suffix
+      : element.text;
+    return (
+      <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', opacity, transform: `translateY(${rise}px)`}}>
+        <div style={{...card, padding: '36px 56px', textAlign: 'center', borderTop: `12px solid ${accent}`}}>
+          <div style={{fontSize: 150, fontWeight: 900, lineHeight: 1, color: accent, fontVariantNumeric: 'tabular-nums'}}>
+            {shown}
+          </div>
+          {element.secondary_text ? (
+            <div style={{fontSize: 38, fontWeight: 600, marginTop: 16, maxWidth: 760}}>{element.secondary_text}</div>
+          ) : null}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (element.type === 'list') {
+    const items = element.items ?? [];
+    const window = Math.max(1, durationInFrames * 0.7);
+    return (
+      <AbsoluteFill style={{justifyContent: 'center', paddingLeft: pad.left + 24, paddingRight: pad.right + 24, opacity: exit}}>
+        <div style={{...card, padding: '30px 38px'}}>
+          {items.map((item, index) => {
+            const at = (window / items.length) * index;
+            const shown = spring({frame: frame - at, fps, config: {damping: 20, stiffness: 170}});
+            return (
+              <div
+                key={`${index}-${item}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 22,
+                  fontSize: 48,
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  margin: '12px 0',
+                  opacity: shown,
+                  transform: `translateX(${interpolate(shown, [0, 1], [-40, 0])}px)`,
+                }}
+              >
+                <span style={{width: 18, height: 18, borderRadius: 9, background: accent, flex: '0 0 auto'}} />
+                {item}
+              </div>
+            );
+          })}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (element.type === 'quote') {
+    return (
+      <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', paddingLeft: pad.left, paddingRight: pad.right, opacity, transform: `translateY(${rise}px)`}}>
+        <div style={{...card, padding: '40px 48px', maxWidth: 880}}>
+          <div style={{fontSize: 140, lineHeight: 0.6, color: accent, fontWeight: 900}}>“</div>
+          <div style={{fontSize: 56, fontWeight: 700, lineHeight: 1.15}}>{element.text}</div>
+          {element.secondary_text ? (
+            <div style={{fontSize: 34, fontWeight: 500, marginTop: 22, color: accent}}>— {element.secondary_text}</div>
+          ) : null}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (element.type === 'chapter') {
+    const slide = interpolate(entrance, [0, 1], [-60, 0]);
+    return (
+      <AbsoluteFill style={{paddingTop: pad.top + 40, paddingLeft: pad.left, opacity: exit}}>
+        <div style={{...card, alignSelf: 'flex-start', padding: '18px 30px', transform: `translateX(${slide}px)`, opacity: entrance}}>
+          {element.secondary_text ? (
+            <div style={{fontSize: 28, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: accent}}>
+              {element.secondary_text}
+            </div>
+          ) : null}
+          <div style={{fontSize: 52, fontWeight: 800, lineHeight: 1.1}}>{element.text}</div>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  // cta: above the caption area, which owns the bottom of the frame.
+  const pulse = 1 + 0.04 * Math.sin((frame / fps) * Math.PI * 2);
+  return (
+    <AbsoluteFill style={{justifyContent: 'flex-end', alignItems: 'center', paddingBottom: pad.bottom + height * 0.16, opacity}}>
+      <div
+        style={{
+          fontFamily: font,
+          fontSize: 46,
+          fontWeight: 800,
+          color: background,
+          background: accent,
+          padding: '20px 44px',
+          borderRadius: 999,
+          transform: `translateY(${rise}px) scale(${entrance >= 0.99 ? pulse : entrance})`,
+          boxShadow: '0 16px 40px rgba(0,0,0,0.3)',
+        }}
+      >
+        {element.text}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 /**
  * The picture's scale and fixed point at this frame.
  *
@@ -308,14 +524,27 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
         const duration = Math.max(1, Math.round((element.end - element.start) * props.fps));
         return (
           <Sequence key={`${element.type}-${index}`} from={from} durationInFrames={duration}>
-            <MotionGraphic
-              element={element}
-              accent={props.accentColor}
-              text={props.textColor}
-              background={props.backgroundColor}
-              font={props.fontFamily}
-              durationInFrames={duration}
-            />
+            {EXTENDED.has(element.type) ? (
+              <ExtendedGraphic
+                element={element}
+                accent={props.accentColor}
+                text={props.textColor}
+                background={props.backgroundColor}
+                font={props.fontFamily}
+                durationInFrames={duration}
+                logoSource={props.logoSource}
+                safeMargins={props.safeMargins}
+              />
+            ) : (
+              <MotionGraphic
+                element={element}
+                accent={props.accentColor}
+                text={props.textColor}
+                background={props.backgroundColor}
+                font={props.fontFamily}
+                durationInFrames={duration}
+              />
+            )}
           </Sequence>
         );
       })}

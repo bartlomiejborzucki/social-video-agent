@@ -165,7 +165,20 @@ inspectable and do not leak into editorial decisions:
 }
 ```
 
-Allowed element types are `hook`, `lower_third`, `callout`, and `end_card`. An
+Allowed element types:
+
+- `hook`, `lower_third`, `callout`, `end_card` — `text`, optional `secondary_text`.
+- `quote` — a spoken line as a pull quote; `secondary_text` attributes it.
+- `stat` — one figure of at most 12 characters (`73%`, `3x`, `12,5 mln`), counted
+  up when it is a number; `secondary_text` says what it measures.
+- `list` — two to five `items` of at most 60 characters, revealed in order.
+- `chapter` — a section title; `secondary_text` is the kicker (`Krok 2`).
+- `cta` — one call to action, set above the caption area.
+- `progress` — a thin bar filling across its interval; no text.
+- `logo_reveal` — the contract's logo animated in; no text, and it needs
+  `logo_file` in the project config.
+
+An
 `end_card` may add `image_asset` (a local PNG/JPEG/WebP background) and
 `image_dim_pct`; no other type may, because a plate behind a hook or callout
 covers the person the edit exists for. See

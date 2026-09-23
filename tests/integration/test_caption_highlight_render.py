@@ -269,3 +269,67 @@ def test_a_punch_in_scales_the_picture_and_only_while_it_runs(tmp_path: Path) ->
     before, held = white_area(0.3), white_area(1.2)
     assert "punch_in" in features
     assert held / before == pytest.approx(1.3**2, rel=0.08)
+
+
+@pytest.mark.skipif(not HAS_REMOTION, reason="Remotion dependencies/browser not installed")
+def test_every_new_graphic_is_drawn_in_its_interval(tmp_path: Path) -> None:
+    from social_video.remotion import render_motion_design
+    from social_video.schemas.motion import MotionElement, MotionPlan
+
+    base = tmp_path / "black.mp4"
+    subprocess.run(
+        [
+            "ffmpeg", "-v", "error",
+            "-f", "lavfi", "-i", f"color=c=black:s={WIDTH}x{HEIGHT}:r=30:d=4",
+            "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+            "-t", "4", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(base),
+        ],
+        check=True,
+    )  # fmt: skip
+    logo = tmp_path / "logo.png"
+    Image.new("RGB", (200, 80), (40, 188, 165)).save(logo)
+    specs = [
+        ("quote", {"text": "Cięcie w oddechu to błąd", "secondary_text": "Marek"}),
+        ("stat", {"text": "73%", "secondary_text": "ogląda bez dźwięku"}),
+        ("list", {"items": ["Nagraj", "Wytnij", "Opublikuj"]}),
+        ("chapter", {"text": "Montaż", "secondary_text": "Krok 2"}),
+        ("cta", {"text": "Zapisz na później"}),
+        ("logo_reveal", {}),
+    ]
+    elements = [
+        MotionElement(type=kind, start=0.5 * i, end=0.5 * i + 0.45, reason="check", **fields)
+        for i, (kind, fields) in enumerate(specs)
+    ]
+    elements.append(MotionElement(type="progress", start=3.0, end=4.0, reason="check"))
+    output, _, _ = render_motion_design(
+        base,
+        tmp_path / "graphics.mp4",
+        MotionPlan(rationale="Vocabulary check.", elements=elements),
+        duration_in_frames=120,
+        fps=30,
+        width=WIDTH,
+        height=HEIGHT,
+        staging_root=tmp_path / "stage",
+        logo_path=logo,
+        logo_usage="optional",
+    )
+
+    def frame(at: float) -> np.ndarray:
+        png = tmp_path / f"g-{at:.2f}.png"
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-ss", f"{at:.3f}", "-i", str(output),
+             "-frames:v", "1", str(png)],
+            check=True,
+        )  # fmt: skip
+        with Image.open(png) as image:
+            return np.asarray(image.convert("RGB")).astype(int)
+
+    for index, (kind, _) in enumerate(specs):
+        drawn = (frame(0.5 * index + 0.35).max(axis=-1) > 60).mean()
+        assert drawn > 0.01, f"{kind} left the frame black"
+
+    def bar_length(pixels: np.ndarray) -> int:
+        accent = (pixels[..., 0] > 200) & (pixels[..., 1] > 170) & (pixels[..., 2] < 90)
+        return int(accent[: HEIGHT // 8].any(axis=0).sum())
+
+    assert bar_length(frame(3.8)) > 2 * bar_length(frame(3.3)) > 0

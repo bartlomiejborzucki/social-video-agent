@@ -92,7 +92,7 @@ the exact `edl.json`, captions, and 9:16 framing. `social-video-agent compile
 SOURCE -w WORKSPACE` builds a word-aligned `edl.json` from the plan, accepted
 cuts included; it refuses to overwrite an existing EDL without `--force`. For the default renderer also
 write `motion-plan.json`: use explicit project style sources, record a rationale
-for every hook/lower-third/callout/end-card, and leave `elements` empty when no
+for every graphic (see artifacts.md for the vocabulary), and leave `elements` empty when no
 graphic improves the story. FFmpeg first creates the frame-accurate base edit;
 Remotion composites the approved motion layer; then FFmpeg/ffprobe QA the final
 `preview.mp4`. Write `qa/qa-technical.json`, stop, and hand off for editorial
