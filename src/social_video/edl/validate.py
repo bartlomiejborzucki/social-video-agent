@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from social_video.errors import ValidationError
-from social_video.ffmpeg.probe import probe
+from social_video.errors import FFmpegError, ValidationError
+from social_video.ffmpeg.probe import MediaInfo, probe
 from social_video.schemas.edl import EDL
 from social_video.schemas.source import SourceManifest
 
@@ -33,6 +33,19 @@ def validate_edl(
     warnings: list[str] = []
 
     known = set(manifest.ids)
+    probed: dict[Path, MediaInfo | FFmpegError] = {}
+
+    def probe_once(path: Path) -> MediaInfo | FFmpegError:
+        # One probe per file, however many ranges use it. A file ffprobe cannot
+        # read is a problem with this EDL's input, reported as one; a missing
+        # ffprobe is not caught here and surfaces as the tool error it is.
+        if path not in probed:
+            try:
+                probed[path] = probe(path)
+            except FFmpegError as exc:
+                probed[path] = exc
+        return probed[path]
+
     for index, rng in enumerate(edl.ranges):
         where = f"ranges[{index}]"
         uses = (
@@ -81,12 +94,13 @@ def validate_edl(
             if check_media and not path.is_file():
                 problems.append(f"{detail}: source file is missing at {path}")
                 continue
+            info = probe_once(path) if check_media else None
+            if isinstance(info, FFmpegError):
+                problems.append(f"{detail}: source could not be probed: {info}")
+                continue
             duration = entry.duration
-            if check_media and duration <= 0:
-                try:
-                    duration = probe(path).duration
-                except Exception:
-                    duration = 0.0
+            if info is not None and duration <= 0:
+                duration = info.duration
             if duration > 0 and start >= duration:
                 problems.append(
                     f"{detail}: starts at {start:.2f}s but the source is only {duration:.2f}s long"
@@ -95,8 +109,7 @@ def validate_edl(
                 problems.append(
                     f"{detail}: ends at {end:.2f}s, past the end of a {duration:.2f}s source"
                 )
-            if check_media:
-                info = probe(path)
+            if info is not None:
                 if kind in {"video", "secondary video", "end card"} and info.video is None:
                     problems.append(f"{detail}: source has no video stream")
                 if kind == "audio" and rng.audio_source is not None and not info.has_audio:
