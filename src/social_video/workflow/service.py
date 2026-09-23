@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -12,6 +11,7 @@ import yaml
 
 from social_video.compatibility import validate_component_versions, validate_saved_versions
 from social_video.errors import ValidationError
+from social_video.fsutil import utc_timestamp
 from social_video.paths import normalize_user_path
 from social_video.project_config import compile_brand_contract, find_project_config
 from social_video.project_context import discover_project_context, resolve_project_root
@@ -77,7 +77,7 @@ def create_workflow(
         model_budget = ModelBudget(str(configured_budget))
     if configured_mode and workflow_mode is WorkflowMode.GUIDED:
         workflow_mode = WorkflowMode(str(configured_mode))
-    now = _now()
+    now = utc_timestamp()
     state = WorkflowState(
         component_versions=versions,
         target_project_root=str(target),
@@ -160,7 +160,7 @@ def _record_runtime(
             if state.remotion_license_attestation is not None
             else None
         ),
-        recorded_at=_now(),
+        recorded_at=utc_timestamp(),
         problems=[item.value for item in runtime.problems],
     )
     save_artifact(record, workspace.runtime_record)
@@ -195,7 +195,7 @@ def advance_workflow(workspace: Workspace, completed: WorkflowStage) -> Workflow
     index = STAGE_ORDER.index(completed)
     next_stage = STAGE_ORDER[index + 1] if index + 1 < len(STAGE_ORDER) else WorkflowStage.COMPLETE
     state.current_stage = next_stage
-    state.updated_at = _now()
+    state.updated_at = utc_timestamp()
     for key, value in _recommendation(next_stage, state.model_budget, state.workflow_mode).items():
         setattr(state, key, value)
     save_artifact(state, workspace.workflow_state)
@@ -382,10 +382,6 @@ def _remotion_installed() -> bool:
 
     runtime = locate_runtime()
     return runtime is not None and runtime.dependencies_installed
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _is_executable_config(path: Path) -> bool:

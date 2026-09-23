@@ -8,12 +8,9 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import shutil
 import sys
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 import typer
 from rich.console import Console
@@ -1712,16 +1709,9 @@ def _guard(fn):
 
 
 def _copy_output(source: Path, destination: Path) -> Path:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    partial = destination.with_name(f".{destination.name}.{uuid4().hex}.partial")
-    try:
-        shutil.copy2(source, partial)
-        with partial.open("rb") as handle:
-            os.fsync(handle.fileno())
-        partial.replace(destination)
-    finally:
-        partial.unlink(missing_ok=True)
-    return destination
+    from social_video.fsutil import atomic_copy
+
+    return atomic_copy(source, destination)
 
 
 if __name__ == "__main__":

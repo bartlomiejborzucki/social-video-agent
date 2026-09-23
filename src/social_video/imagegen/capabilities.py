@@ -16,10 +16,10 @@ have, or a cloud generator the project's policy forbids.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 
 from social_video.errors import ValidationError
+from social_video.fsutil import utc_timestamp
 from social_video.imagegen.providers import local_api_capabilities
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.config import BrandContract
@@ -88,7 +88,7 @@ def record_capabilities(
         policy=policy,
         chosen_source=chosen_source,
         reason=" ".join(reason.split()),
-        recorded_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        recorded_at=utc_timestamp(),
         recorded_by="agent",
     )
     _check(record)

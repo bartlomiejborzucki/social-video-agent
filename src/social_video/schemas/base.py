@@ -46,11 +46,12 @@ def save_artifact(artifact: Artifact, path: str | Path) -> Path:
     legacy code page it raises UnicodeEncodeError mid-render, after the work is
     done.
     """
+    from social_video.fsutil import atomic_target
+
     p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(p.suffix + ".tmp")
-    tmp.write_text(artifact.to_json(), encoding="utf-8")
-    tmp.replace(p)  # atomic, so an interrupted write never truncates a good file
+    # Atomic, so an interrupted write never truncates a good file.
+    with atomic_target(p) as partial:
+        partial.write_text(artifact.to_json(), encoding="utf-8")
     return p
 
 

@@ -8,7 +8,6 @@ import os
 import shutil
 import subprocess
 import zipfile
-from datetime import datetime, timezone
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -16,6 +15,7 @@ import yaml
 
 from social_video.errors import ValidationError
 from social_video.fingerprint import file_fingerprint
+from social_video.fsutil import utc_timestamp
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.project_context import (
     ContextClaim,
@@ -259,7 +259,7 @@ def _scan(root: Path, *, excluded_roots: tuple[Path, ...] = ()) -> ContextSource
     return ContextSources(
         target_project_root=str(root),
         fingerprint=digest,
-        scanned_at=_now(),
+        scanned_at=utc_timestamp(),
         candidates_considered=considered,
         truncated=truncated or candidate_overflow,
         sources=candidates,
@@ -489,7 +489,7 @@ def _build_context(root: Path, sources: ContextSources) -> ProjectContext:
     ]
     return ProjectContext(
         target_project_root=str(root),
-        generated_at=_now(),
+        generated_at=utc_timestamp(),
         source_fingerprint=sources.fingerprint,
         explicit_config=selected.path if selected else None,
         applicable_agents_files=[
@@ -677,7 +677,3 @@ def _to_markdown(context: ProjectContext, sources: ContextSources) -> str:
         ]
     )
     return "\n".join(lines)
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")

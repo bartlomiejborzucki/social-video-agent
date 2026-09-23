@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import textwrap
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -21,6 +20,7 @@ from PIL import Image, ImageDraw, ImageFont
 from social_video.errors import ValidationError
 from social_video.ffmpeg.fonts import default_caption_font, font_covers
 from social_video.ffmpeg.run import run_ffmpeg
+from social_video.fsutil import atomic_target, utc_timestamp
 from social_video.imaging import cover_crop, load_image, sha256_file
 from social_video.schemas.config import BrandContract
 from social_video.schemas.visuals import CoverDesign
@@ -137,13 +137,8 @@ def compose_cover(
     if style.logo_file is not None:
         _draw_logo(canvas, style)
 
-    output.parent.mkdir(parents=True, exist_ok=True)
-    partial = output.with_name(f".{output.name}.partial")
-    try:
+    with atomic_target(output) as partial:
         canvas.save(partial, format="JPEG", quality=92, subsampling=1, optimize=True)
-        partial.replace(output)
-    finally:
-        partial.unlink(missing_ok=True)
     return CoverDesign(
         path=str(output),
         width=style.width,
@@ -156,7 +151,7 @@ def compose_cover(
         font_file=str(font_path) if font_path else None,
         logo_file=str(style.logo_file) if style.logo_file else None,
         sha256=sha256_file(output),
-        created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        created_at=utc_timestamp(),
     )
 
 

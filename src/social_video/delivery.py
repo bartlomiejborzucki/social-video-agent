@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import hashlib
-import shutil
 from pathlib import Path
 
 from social_video.captions.srt import write_srt, write_vtt
 from social_video.errors import ValidationError
 from social_video.ffmpeg.probe import probe
 from social_video.ffmpeg.run import run_ffmpeg
+from social_video.fsutil import atomic_copy
 from social_video.pipeline import load_workspace_artifacts, stage_render
 from social_video.profiles import load_platform
 from social_video.qa.checks import check_render
@@ -273,9 +273,7 @@ def _file_item(kind: str, path: Path, format_name: str) -> DeliveryItem:
 
 
 def _copy_atomic(source: Path, target: Path) -> None:
-    partial = target.with_suffix(target.suffix + ".partial")
-    shutil.copy2(source, partial)
-    partial.replace(target)
+    atomic_copy(source, target)
 
 
 def _sha256(path: Path) -> str:

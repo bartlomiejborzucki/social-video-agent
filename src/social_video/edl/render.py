@@ -17,11 +17,8 @@ produces an undecodable file in that case.
 from __future__ import annotations
 
 import logging
-import os
-import shutil
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from fractions import Fraction
 from pathlib import Path
 from uuid import uuid4
@@ -44,6 +41,7 @@ from social_video.ffmpeg.probe import (
     resolve_output_fps,
 )
 from social_video.ffmpeg.run import has_libass, has_libzimg, run_ffmpeg
+from social_video.fsutil import atomic_copy, utc_timestamp
 from social_video.paths import app_home
 from social_video.schemas.edl import EDL, EDLRange, ReframeMode, VisualFillStrategy
 from social_video.schemas.qa import RenderManifest
@@ -751,7 +749,7 @@ def render_edl(
     return RenderManifest(
         output=str(output),
         edl=edl.name,
-        rendered_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        rendered_at=utc_timestamp(),
         duration=rendered.duration,
         width=canvas[0],
         height=canvas[1],
@@ -817,14 +815,7 @@ def _plan_voice_cleanup(
 
 def _publish_atomic(staged: Path, output: Path) -> None:
     """Copy across filesystems under a private name, then atomically publish."""
-    partial = output.with_name(f".{output.name}.{uuid4().hex}.partial")
-    try:
-        shutil.copy2(staged, partial)
-        with partial.open("rb") as handle:
-            os.fsync(handle.fileno())
-        partial.replace(output)
-    finally:
-        partial.unlink(missing_ok=True)
+    atomic_copy(staged, output)
 
 
 def _render_staging_dir() -> Path:

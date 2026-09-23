@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -19,6 +18,7 @@ from social_video.captions.fit import CaptionLayout, layout_captions
 from social_video.errors import RemotionError, ToolNotFoundError, ValidationError
 from social_video.ffmpeg.probe import probe
 from social_video.ffmpeg.run import run_ffmpeg
+from social_video.fsutil import atomic_copy
 from social_video.imaging import load_image
 from social_video.remotion_runtime import locate_runtime
 from social_video.schemas.brand import CaptionCase, CaptionStyle
@@ -308,13 +308,4 @@ def _verify_staged_output(
 
 
 def _publish(staged: Path, output: Path) -> None:
-    output = output.resolve()
-    output.parent.mkdir(parents=True, exist_ok=True)
-    partial = output.with_name(f".{output.name}.{uuid4().hex}.partial")
-    try:
-        shutil.copy2(staged, partial)
-        with partial.open("rb") as handle:
-            os.fsync(handle.fileno())
-        partial.replace(output)
-    finally:
-        partial.unlink(missing_ok=True)
+    atomic_copy(staged, output.resolve())

@@ -31,6 +31,7 @@ from pathlib import Path
 
 from social_video.compatibility import component_versions
 from social_video.errors import RemotionLicenseError, ValidationError
+from social_video.fsutil import utc_timestamp
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.remotion_license import (
     REMOTION_LICENSE_URL,
@@ -176,7 +177,7 @@ def attest(
         attestation=value,
         terms_acknowledged=True,
         license_terms_url=REMOTION_LICENSE_URL,
-        declared_at=_now(),
+        declared_at=utc_timestamp(),
         declared_by=declared_by,
         note=note,
         component_versions=component_versions(),
@@ -223,7 +224,7 @@ def revoke(project_root: str | Path, *, reason: str | None = None) -> RemotionLi
             f"this declaration was already revoked on {status.declaration.revoked_at}"
         )
     revoked = status.declaration.model_copy(
-        update={"revoked_at": _now(), "revocation_reason": reason}
+        update={"revoked_at": utc_timestamp(), "revocation_reason": reason}
     )
     save_artifact(revoked, status.path)
     return revoked
@@ -306,7 +307,3 @@ def _age_days(declared_at: str) -> int | None:
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
     return max(0, (datetime.now(timezone.utc) - moment) // timedelta(days=1))
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")

@@ -10,11 +10,11 @@ empty when the tool does not disclose one.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
 from social_video.errors import ValidationError
+from social_video.fsutil import atomic_target, atomic_write_bytes, utc_timestamp
 from social_video.imagegen.providers import ImageProviderStatus, detect_image_provider
 from social_video.imagegen.service import (
     Transport,
@@ -136,7 +136,7 @@ def generate_workspace_plate(
         width=size[0],
         height=size[1],
         sha256=sha256_file(target),
-        created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        created_at=utc_timestamp(),
         consent=consent,
         purpose=purpose,
         cost_note=resolved.provider.cost_note,
@@ -197,7 +197,7 @@ def register_visual(
         width=size[0],
         height=size[1],
         sha256=sha256_file(target),
-        created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        created_at=utc_timestamp(),
         consent=consent,
         purpose=purpose,
         source_path=str(original),
@@ -216,9 +216,7 @@ def _suffix(original: Path) -> str:
 
 def _write_image(target: Path, data, original: Path) -> None:
     """Copy the pixels, not the file: a stray EXIF payload is not wanted."""
-    target.parent.mkdir(parents=True, exist_ok=True)
-    partial = target.with_name(f".{target.name}.partial")
-    try:
+    with atomic_target(target) as partial:
         # The staging name hides the real extension, so Pillow is told the
         # format rather than left to guess it from ``.partial``.
         suffix = _suffix(original)
@@ -226,9 +224,6 @@ def _write_image(target: Path, data, original: Path) -> None:
             data.save(partial, format="PNG", optimize=True)
         else:
             data.save(partial, format=_FORMATS[suffix], quality=95)
-        partial.replace(target)
-    finally:
-        partial.unlink(missing_ok=True)
 
 
 def _record(workspace: Workspace, visual: GeneratedVisual) -> None:
@@ -243,10 +238,4 @@ def _record(workspace: Workspace, visual: GeneratedVisual) -> None:
 
 
 def _write_atomic(target: Path, data: bytes) -> None:
-    target.parent.mkdir(parents=True, exist_ok=True)
-    partial = target.with_name(f".{target.name}.partial")
-    try:
-        partial.write_bytes(data)
-        partial.replace(target)
-    finally:
-        partial.unlink(missing_ok=True)
+    atomic_write_bytes(target, data)

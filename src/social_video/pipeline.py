@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
 from fractions import Fraction
 from pathlib import Path
 
@@ -26,6 +25,7 @@ from social_video.edl.timeline import Timeline
 from social_video.errors import ValidationError
 from social_video.ffmpeg.fonts import default_caption_font
 from social_video.ffmpeg.probe import probe
+from social_video.fsutil import utc_timestamp
 from social_video.profiles import load_brand, load_profile
 from social_video.qa.checks import check_render
 from social_video.qa.contact_sheet import boundary_sheets, contact_sheet
@@ -59,7 +59,7 @@ def record_stage(workspace: Workspace, stage: str, detail: dict | None = None) -
         except (json.JSONDecodeError, OSError):
             state = {}
     state[stage] = {
-        "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "at": utc_timestamp(),
         **(detail or {}),
     }
     workspace.state.parent.mkdir(parents=True, exist_ok=True)
