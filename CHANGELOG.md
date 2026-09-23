@@ -4,6 +4,13 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Added
+
+- Seven more Remotion graphics: `quote`, `stat` (counts a figure up), `list`
+  (reveals two to five points), `chapter`, `cta`, `progress` and `logo_reveal`,
+  in the brand's typography and colours, inside the safe margins and clear of
+  the caption area.
+
 ## [1.0.0] - 2026-09-23
 
 ### Added
