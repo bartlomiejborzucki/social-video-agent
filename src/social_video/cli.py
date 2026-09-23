@@ -531,6 +531,11 @@ def doctor(
     install_ffmpeg: bool = typer.Option(
         False, "--install-ffmpeg", help="Download a static ffmpeg into the app cache."
     ),
+    install_remotion: bool = typer.Option(
+        False,
+        "--install-remotion",
+        help="Install the compositor's locked npm packages and headless browser.",
+    ),
 ) -> None:
     """Check that this machine can actually produce a correct video."""
     from social_video.doctor import run_doctor
@@ -540,6 +545,12 @@ def doctor(
 
         path = install_static_ffmpeg(progress=not as_json)
         console.print(f"[green]ffmpeg installed:[/green] {path}")
+
+    if install_remotion:
+        from social_video.remotion_runtime import install_runtime
+
+        runtime = _guard(install_runtime)
+        console.print(f"[green]Remotion installed:[/green] {runtime.root}")
 
     report = run_doctor()
 

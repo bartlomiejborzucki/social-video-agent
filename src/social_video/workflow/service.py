@@ -140,7 +140,7 @@ def _record_runtime(
         ffprobe=shutil.which("ffprobe") is not None,
         python=True,
         node=shutil.which("node") is not None,
-        remotion=(Path(__file__).resolve().parents[3] / "node_modules/remotion").is_dir(),
+        remotion=_remotion_installed(),
         local_transcription=_transcription_available(),
     )
     record = RuntimeRecord(
@@ -375,6 +375,13 @@ def _next_prompt(stage: WorkflowStage, language: str) -> str:
         WorkflowStage.COMPLETE: "",
     }
     return prompts[stage]
+
+
+def _remotion_installed() -> bool:
+    from social_video.remotion_runtime import locate_runtime
+
+    runtime = locate_runtime()
+    return runtime is not None and runtime.dependencies_installed
 
 
 def _now() -> str:

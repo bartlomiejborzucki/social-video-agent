@@ -458,6 +458,14 @@ npx remotion browser ensure
 uv run social-video-agent doctor
 ```
 
+An installed wheel (from a GitHub release) carries the compositor sources but not
+Remotion itself. Install its locked npm packages and the headless browser into
+the app cache once, from outside any checkout:
+
+```bash
+social-video-agent doctor --install-remotion
+```
+
 The WSL bootstrap is intentionally Linux-only and its automatic package installation targets Ubuntu/Debian. Unsupported distributions receive the exact prerequisite list instead of an attempted `apt` command. macOS users should verify that their FFmpeg build contains the `subtitles` filter.
 
 ## Codex plugin and canonical skill

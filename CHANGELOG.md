@@ -4,6 +4,26 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Added
+
+- An installed wheel can render with Remotion. The wheel now carries the
+  compositor sources (never Remotion's own packages), and
+  `social-video-agent doctor --install-remotion` installs the locked npm
+  dependencies and headless browser into the app cache. Until now the default
+  renderer only worked from a repository checkout.
+- `docs/ROADMAP.md`.
+
+### Fixed
+
+- Voice-cleanup measurement used its own filter-path escaping, which broke the
+  filtergraph when the temp directory contained `,`, `;` or `=`. It now uses the
+  shared, tested escaper.
+- The Remotion bridge handed node a relative staging path while running it from
+  the compositor directory; the staging root is now resolved first.
+- Two transcription backends that do not exist were still being imported.
+- A Windows unit test expected a rootless output path on the cwd's drive; it is
+  resolved against the project root, so it lands on the project's drive.
+
 ## [0.6.3] - 2026-09-22
 
 ### Fixed

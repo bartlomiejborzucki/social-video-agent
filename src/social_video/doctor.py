@@ -425,7 +425,11 @@ def _cuda_actually_works() -> tuple[bool, str]:
 
 
 def _check_node(report: DoctorReport) -> None:
-    root = _repository_root()
+    from social_video.remotion_runtime import locate_runtime
+
+    runtime = locate_runtime()
+    root = runtime.root if runtime else None
+    hint = runtime.install_hint if runtime else "This build does not include the compositor."
     node = shutil.which("node")
     if not node:
         report.add(
@@ -487,7 +491,7 @@ def _check_node(report: DoctorReport) -> None:
             remotion_ok,
             True,
             f"{installed} (locked)" if remotion_ok else "dependencies not installed or mismatched",
-            "Run `npm ci` in the Linux repository checkout." if not remotion_ok else "",
+            hint if not remotion_ok else "",
         )
     )
     browser = None
@@ -507,9 +511,7 @@ def _check_node(report: DoctorReport) -> None:
             browser is not None,
             True,
             str(browser) if browser else "Chrome Headless Shell not found",
-            "Run `npx remotion browser ensure` in the Linux repository checkout."
-            if browser is None
-            else "",
+            hint if browser is None else "",
         )
     )
 

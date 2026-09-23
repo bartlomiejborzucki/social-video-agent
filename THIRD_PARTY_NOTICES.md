@@ -115,8 +115,11 @@ to individuals, non-profit organisations, for-profit organisations with **up to
 three employees**, and evaluation. Larger for-profit organisations require a paid
 company licence from https://remotion.pro.
 
-No Remotion code is vendored in the Python package. Its npm packages are pinned
-in `package-lock.json` and installed locally during bootstrap. New workflows
+No Remotion code is vendored in the Python package. The wheel carries only this
+project's compositions, render script, and npm manifest and lockfile. Remotion's
+npm packages are pinned in `package-lock.json` and installed from the registry
+on the user's machine, by the bootstrap in a checkout or by
+`social-video-agent doctor --install-remotion` for an installed package. New workflows
 use it as the default motion-design compositor after FFmpeg has created the
 frame-accurate base edit. Stage 0 requires the user to declare free-license
 eligibility or confirm a Company License before discovery or media processing.

@@ -26,12 +26,9 @@ per-segment layouts, NLE export, and URL ingest.
 
 ## 0.7 — stabilisation
 
-- Make the Remotion renderer work from an installed wheel, or fall back to
-  FFmpeg with a `doctor` explanation. Today it resolves assets relative to a
-  source checkout, and the service and schema disagree on the default renderer.
-- Remove transcription backends that are registered but not implemented, and
-  the extras that enable nothing yet.
-- One filter-path escaper, one atomic writer, one UTC timestamp helper.
+- Remove the `cloud` extra, which nothing uses, and keep `align` and
+  `diarize` documented as unwired until 0.8 and 0.9 connect them.
+- One atomic writer and one UTC timestamp helper.
 - Turn a failed source probe in EDL validation into a named problem instead of
   a raw exception.
 - CI: coverage report (threshold later), Python 3.10–3.13 matrix, `--frozen`

@@ -75,6 +75,16 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/social_video"]
 
+# The compositor is project code, shipped so an installed package can render.
+# Remotion's own npm packages are not included; `doctor --install-remotion`
+# installs them from the registry. Keep in step with remotion_runtime.ASSETS.
+[tool.hatch.build.targets.wheel.force-include]
+"remotion" = "social_video/_remotion/remotion"
+"scripts/remotion/render.mjs" = "social_video/_remotion/scripts/remotion/render.mjs"
+"package.json" = "social_video/_remotion/package.json"
+"package-lock.json" = "social_video/_remotion/package-lock.json"
+"tsconfig.json" = "social_video/_remotion/tsconfig.json"
+
 [tool.hatch.version]
 path = "src/social_video/__init__.py"
 

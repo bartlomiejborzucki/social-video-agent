@@ -1,4 +1,4 @@
-"""Safe bridge to the repository's pinned Remotion compositor."""
+"""Safe bridge to the pinned Remotion compositor."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from social_video.errors import RemotionError, ToolNotFoundError, ValidationErro
 from social_video.ffmpeg.probe import probe
 from social_video.ffmpeg.run import run_ffmpeg
 from social_video.imaging import load_image
+from social_video.remotion_runtime import locate_runtime
 from social_video.schemas.brand import CaptionCase, CaptionStyle
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.motion import MotionPlan
@@ -65,16 +66,16 @@ def render_motion_design(
             "Node.js was not found inside the WSL/Linux environment. Remotion is the "
             "default renderer; run scripts/wsl/bootstrap.sh and retry."
         )
-    project_root = Path(__file__).resolve().parents[2]
-    script = project_root / "scripts" / "remotion" / "render.mjs"
-    entry = project_root / "remotion" / "index.ts"
-    if not (project_root / "node_modules" / "remotion").is_dir():
-        raise ToolNotFoundError(
-            "Remotion dependencies are not installed in this WSL checkout. Run "
-            "`npm ci`, then `npx remotion browser ensure`, and retry."
-        )
+    runtime = locate_runtime()
+    if runtime is None:
+        raise ValidationError("this build does not include the Remotion compositor")
+    if not runtime.dependencies_installed:
+        raise ToolNotFoundError(f"Remotion dependencies are not installed. {runtime.install_hint}")
+    project_root = runtime.root
+    script = runtime.script
+    entry = runtime.entry
     if not script.is_file() or not entry.is_file():
-        raise ValidationError("the repository Remotion compositor is incomplete")
+        raise ValidationError("the Remotion compositor is incomplete")
     font: Path | None = None
     font_source = None
     if plan.font_path:

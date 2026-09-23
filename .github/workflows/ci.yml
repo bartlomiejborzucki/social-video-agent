@@ -126,3 +126,13 @@ jobs:
       - run: npx remotion browser ensure
       - run: uv run --frozen --no-sync pytest tests/integration/test_remotion.py -q
       - run: uv run --frozen --no-sync social-video-agent doctor --json
+      - name: Install the compositor from the wheel, outside the checkout
+        working-directory: ${{ runner.temp }}
+        env:
+          SOCIAL_VIDEO_HOME: ${{ runner.temp }}/social-video-home
+        run: |
+          uv build --out-dir "$RUNNER_TEMP/dist" "$GITHUB_WORKSPACE"
+          uv venv "$RUNNER_TEMP/wheel-venv"
+          uv pip install --python "$RUNNER_TEMP/wheel-venv/bin/python" "$RUNNER_TEMP"/dist/*.whl
+          "$RUNNER_TEMP/wheel-venv/bin/social-video-agent" doctor --install-remotion
+          "$RUNNER_TEMP/wheel-venv/bin/python" -c "from social_video.remotion_runtime import locate_runtime; r = locate_runtime(); assert r and not r.from_checkout and r.dependencies_installed, r"
