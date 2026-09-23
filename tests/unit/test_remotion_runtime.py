@@ -110,3 +110,12 @@ def test_the_wheel_ships_every_compositor_asset() -> None:
     shipped = config["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
 
     assert shipped == {asset: f"social_video/_remotion/{asset}" for asset in ASSETS}
+
+
+def test_the_locked_version_is_read_from_the_manifest_not_hard_coded() -> None:
+    import json
+
+    runtime = locate_runtime()
+    assert runtime is not None
+    pinned = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["dependencies"]
+    assert runtime.locked_version == pinned["remotion"]

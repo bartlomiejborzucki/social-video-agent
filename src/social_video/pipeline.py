@@ -355,7 +355,10 @@ def stage_render(
             raise ValidationError("Remotion output has no video stream")
         manifest_obj.width = final_info.video.width
         manifest_obj.height = final_info.video.height
-        manifest_obj.tool_versions["remotion"] = "4.0.525"
+        from social_video.remotion_runtime import locate_runtime
+
+        runtime = locate_runtime()
+        manifest_obj.tool_versions["remotion"] = runtime.locked_version if runtime else "unknown"
     else:
         # libass draws the ASS track; it honours the same contracted features.
         # It wraps internally and has no truncation mode, so there is no

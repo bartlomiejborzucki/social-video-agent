@@ -58,6 +58,19 @@ class RemotionRuntime:
         return (self.root / "node_modules" / "remotion").is_dir()
 
     @property
+    def locked_version(self) -> str:
+        """The Remotion version this compositor pins, as ``package.json`` states it."""
+        import json
+
+        manifest = self.root / "package.json"
+        if not manifest.is_file():
+            manifest = _BUNDLED / "package.json"
+        try:
+            return str(json.loads(manifest.read_text(encoding="utf-8"))["dependencies"]["remotion"])
+        except (OSError, KeyError, TypeError, ValueError):
+            return "unknown"
+
+    @property
     def install_hint(self) -> str:
         if self.from_checkout:
             return (
