@@ -35,6 +35,11 @@ class PlanItem(Artifact):
     reason: str = ""
     beat: str = ""
     order: int | None = Field(default=None, description="Output position when reordering.")
+    cut: str | None = Field(
+        default=None,
+        description="The accepted cut candidate this drop came from. Such a drop is removed "
+        "from inside kept spans too, after their edges are snapped to words.",
+    )
 
     @model_validator(mode="after")
     def _check_interval(self) -> PlanItem:
@@ -157,3 +162,61 @@ class CandidateSet(Artifact):
             key=lambda c: c.scores.overall if c.scores else -1.0,
             reverse=True,
         )
+
+
+class CutKind(str, Enum):
+    FILLER = "filler"
+    STUTTER = "stutter"
+    FALSE_START = "false_start"
+    PAUSE = "pause"
+
+
+class CutConfidence(str, Enum):
+    #: Almost always a stumble: dead air, a doubled word, a restarted phrase.
+    HIGH = "high"
+    #: Often a stumble, sometimes how the person talks. Listen first.
+    MEDIUM = "medium"
+
+
+class CutCandidate(Artifact):
+    """A span the code found by timing and repetition, awaiting the agent's call.
+
+    Nothing here is applied on its own. ``cuts accept`` turns the candidates the
+    agent chose into drop items in the edit plan, with this reason attached.
+    """
+
+    id: str
+    kind: CutKind
+    confidence: CutConfidence
+    source: str
+    start: float = Field(ge=0.0)
+    end: float = Field(gt=0.0)
+    quote: str = ""
+    reason: str = ""
+
+    @model_validator(mode="after")
+    def _check_interval(self) -> CutCandidate:
+        if self.end <= self.start:
+            raise ValueError(f"cut {self.id!r} ends at {self.end}, not after {self.start}")
+        return self
+
+    @property
+    def duration(self) -> float:
+        return self.end - self.start
+
+
+class CutCandidateSet(Artifact):
+    """Every cut candidate found in one transcript."""
+
+    source: str
+    transcript_fingerprint: str = Field(
+        description="Source fingerprint the candidates were found in, so stale ones are refused."
+    )
+    candidates: list[CutCandidate] = Field(default_factory=list)
+
+    def by_id(self, candidate_id: str) -> CutCandidate:
+        for candidate in self.candidates:
+            if candidate.id == candidate_id:
+                return candidate
+        known = ", ".join(c.id for c in self.candidates) or "<none>"
+        raise KeyError(f"unknown cut candidate {candidate_id!r}; known: {known}")

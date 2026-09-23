@@ -172,6 +172,11 @@ class Workspace:
         return self.root / "delivery-manifest.json"
 
     @property
+    def cut_candidates(self) -> Path:
+        """Filler, stutter, false-start and pause spans awaiting the agent."""
+        return self.analysis / "cut-candidates.json"
+
+    @property
     def candidate_set(self) -> Path:
         """Agent-authored clip candidates for a long recording."""
         return self.candidates / "candidates.json"

@@ -63,6 +63,15 @@ Run `config validate` when project config is present. It creates executable
 `brand-contract.json`; missing required font/logo assets or mixed
 CLI/skill/plugin versions block the workflow before editorial work.
 
+`social-video-agent cuts find SOURCE -w WORKSPACE` lists hesitations, doubled
+words, restarted phrases and long pauses, each with an id, a confidence and the
+quoted words. It changes nothing. Read every candidate against the transcript:
+`high` is almost always a stumble; `medium` is often how the person talks, so
+listen before accepting. Accept only what you agree with, by id
+(`cuts accept -w WORKSPACE cut-003 cut-007`) or by kind
+(`--kind pause --confidence high`); each becomes a drop in `edit-plan.json`
+with its reason, and is removed exactly even inside a kept span.
+
 Produce `context/*`, `edit-plan.json` (including `style_sources` and
 `user_overrides`), and optionally `edit-plan.md`. Do not render. Validate, mark
 Stage 1 complete, and stop in guided mode.
@@ -73,7 +82,9 @@ Recommended tier: `execution_balanced`.
 
 Read state, project context, and approved plan. Do not rediscover unchanged
 context or reinterpret the story without a concrete execution conflict. Create
-the exact `edl.json`, captions, and 9:16 framing. For the default renderer also
+the exact `edl.json`, captions, and 9:16 framing. `social-video-agent compile
+SOURCE -w WORKSPACE` builds a word-aligned `edl.json` from the plan, accepted
+cuts included; it refuses to overwrite an existing EDL without `--force`. For the default renderer also
 write `motion-plan.json`: use explicit project style sources, record a rationale
 for every hook/lower-third/callout/end-card, and leave `elements` empty when no
 graphic improves the story. FFmpeg first creates the frame-accurate base edit;

@@ -271,3 +271,67 @@ def plan(
         for question in result.open_questions:
             console.print(f"  - {escape(question)}")
     console.print(f"\n[green]written[/green] {ws.edit_plan}", soft_wrap=True)
+
+
+@app.command("compile")
+def compile_edl(
+    source: Path = typer.Argument(..., help="Source video the plan covers."),
+    workspace_dir: Path | None = typer.Option(None, "--workspace", "-w"),
+    profile: str = typer.Option("talking-head", "--profile", "-p"),
+    reframe: str | None = typer.Option(
+        None, "--reframe", help="fit, center, face or speaker. Default: the profile's."
+    ),
+    model: str = typer.Option("small", "--model", help="Transcription model size."),
+    language: str | None = typer.Option(None, "--language"),
+    audio_track: int = typer.Option(0, "--audio-track"),
+    backend: str | None = typer.Option(None, "--backend"),
+    force: bool = typer.Option(False, "--force", help="Replace an existing edl.json."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Compile edit-plan.json into edl.json, word-aligned, with accepted cuts removed.
+
+    Refuses to replace an existing edl.json without --force: it may hold
+    hand-made decisions the plan does not.
+    """
+    from social_video.errors import ValidationError
+    from social_video.pipeline import stage_compile, stage_transcribe
+    from social_video.profiles import load_profile
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.edl import ReframeMode
+    from social_video.schemas.plan import EditPlan
+    from social_video.transcribe.base import TranscriptionOptions
+    from social_video.workspace.layout import Workspace
+
+    ws = Workspace.at(workspace_dir) if workspace_dir else Workspace.for_source(source)
+
+    def run():
+        if not ws.edit_plan.is_file():
+            raise ValidationError(f"no edit plan at {ws.edit_plan}; run `plan` first")
+        if ws.edl.is_file() and not force:
+            raise ValidationError(
+                f"{ws.edl} already exists and may hold hand-made decisions; "
+                "pass --force to rebuild it from the plan"
+            )
+        try:
+            mode = ReframeMode(reframe) if reframe else None
+        except ValueError:
+            raise ValidationError(
+                f"unknown reframe mode {reframe!r}; expected one of "
+                + ", ".join(m.value for m in ReframeMode)
+            ) from None
+        prof = load_profile(profile)
+        options = TranscriptionOptions(model=model, language=language, audio_track=audio_track)
+        transcript = stage_transcribe(source, ws, options=options, backend=backend)
+        plan = load_artifact(EditPlan, ws.edit_plan)
+        return stage_compile(plan, transcript, ws, prof, reframe=mode)
+
+    edl = _guard(run)
+    if as_json:
+        console.print_json(edl.to_json())
+        return
+    for rng in edl.ranges:
+        console.print(f"  [{rng.start:7.2f}-{rng.end:7.2f}] {escape(rng.reason)}")
+    console.print(
+        f"\n{len(edl.ranges)} range(s), {edl.total_duration:.2f}s -> [green]{ws.edl}[/green]",
+        soft_wrap=True,
+    )
