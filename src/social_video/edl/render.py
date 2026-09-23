@@ -578,8 +578,94 @@ def render_edl(
         )
         caption_file = None
 
-    measured = None
+    inputs, render_ranges, next_input = _collect_inputs(
+        edl, manifest, video_infos, frame_counts, rate
+    )
+    total_output_duration = sum(frames / rate for frames in frame_counts)
+    mix, mix_inputs = _music_inputs(edl, next_input, total_output_duration)
+    inputs += mix_inputs
 
+    cleanup = _plan_voice_cleanup(
+        edl, render_ranges, inputs, policy=audio_cleanup_policy, quality=quality
+    )
+    loudnorm = _plan_loudness(edl, render_ranges, inputs, mix, cleanup, quality)
+
+    graph, vlabel, alabel = build_filtergraph(
+        edl,
+        render_ranges,
+        canvas=canvas,
+        fps=fps,
+        caption_file=caption_file,
+        loudnorm=loudnorm,
+        mix=mix,
+        cleanup=cleanup.chain,
+    )
+
+    output = output.resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    staged = _render_staging_dir() / f"{output.stem}-{uuid4().hex}.mp4"
+    args = _encode_args(
+        inputs,
+        graph,
+        (vlabel, alabel),
+        quality=quality,
+        fps=fps,
+        total_frames=sum(frame_counts),
+        staged=staged,
+    )
+    log.info(
+        "rendering %s: %d range(s), %dx%d @ %s, quality=%s",
+        output.name,
+        len(edl.ranges),
+        canvas[0],
+        canvas[1],
+        fps,
+        quality.name,
+    )
+    try:
+        run_ffmpeg(args, desc=f"render {output.name}", timeout=14400)
+        rendered = probe(staged)
+        run_ffmpeg(
+            ["-v", "error", "-i", str(staged), "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"],
+            desc=f"decode validation for {output.name}",
+            timeout=14400,
+        )
+        _publish_atomic(staged, output)
+        rendered = probe(output)
+    finally:
+        staged.unlink(missing_ok=True)
+    return RenderManifest(
+        output=str(output),
+        edl=edl.name,
+        rendered_at=utc_timestamp(),
+        duration=rendered.duration,
+        width=canvas[0],
+        height=canvas[1],
+        frame_rate=fps,
+        frame_rate_converted_from=None if fps == source_fps else source_fps,
+        crf=quality.crf,
+        preset=quality.preset,
+        loudness_target_lufs=LOUDNORM_I if loudnorm else None,
+        sources_used=edl.source_ids(),
+        audio_bed_applied=_audio_bed_evidence(edl, mix),
+        sound_effects_applied=len(mix.sfx_inputs),
+        audio_cleanup_policy=audio_cleanup_policy,
+        audio_cleanup_applied=cleanup.evidence(),
+    )
+
+
+def _collect_inputs(
+    edl: EDL,
+    manifest: SourceManifest,
+    video_infos: list[MediaInfo],
+    frame_counts: list[int],
+    rate: float,
+) -> tuple[list[str], list[RenderRange], int]:
+    """One trimmed ffmpeg input per video, audio and fill use, then the overlays.
+
+    Returns the input arguments, the per-range input map the filtergraph is
+    built from, and the index the next input will get.
+    """
     inputs: list[str] = []
     render_ranges: list[RenderRange] = []
     next_input = 0
@@ -642,47 +728,51 @@ def render_edl(
     for overlay in edl.overlays:
         inputs += ["-i", str(overlay.file)]
     next_input += len(edl.overlays)
+    return inputs, render_ranges, next_input
 
-    total_output_duration = sum(frames / rate for frames in frame_counts)
-    mix, mix_inputs = _music_inputs(edl, next_input, total_output_duration)
-    inputs += mix_inputs
 
-    cleanup = _plan_voice_cleanup(
-        edl, render_ranges, inputs, policy=audio_cleanup_policy, quality=quality
-    )
-    loudnorm = None
-    if edl.normalize_audio:
-        # Measure before normalising. loudnorm emits NaN on digitally silent
-        # input and the encoder then fails, which would kill any edit whose
-        # selected material happens to be quiet. The measurement decodes audio
-        # only, so it costs a fraction of the render it informs -- and it lets
-        # loudnorm run in its accurate linear mode rather than guessing.
-        audio_graph, audio_label = build_audio_graph(edl, render_ranges, mix, cleanup=cleanup.chain)
-        if quality.two_pass_loudness:
-            measured = measure_loudness(inputs, audio_graph, audio_label)
-        else:
-            measured = _quick_silence_check(inputs, audio_graph, audio_label)
-        loudnorm = loudnorm_filter(measured)
-        if loudnorm is None:
-            log.info("selected audio is silent; skipping loudness normalisation")
+def _plan_loudness(
+    edl: EDL,
+    render_ranges: list[RenderRange],
+    inputs: list[str],
+    mix: AudioMix,
+    cleanup: VoiceCleanup,
+    quality: Quality,
+) -> str | None:
+    """The loudnorm filter for this cut, or ``None`` when it must not run.
 
-    graph, vlabel, alabel = build_filtergraph(
-        edl,
-        render_ranges,
-        canvas=canvas,
-        fps=fps,
-        caption_file=caption_file,
-        loudnorm=loudnorm,
-        mix=mix,
-        cleanup=cleanup.chain,
-    )
+    Measure before normalising. loudnorm emits NaN on digitally silent input
+    and the encoder then fails, which would kill any edit whose selected
+    material happens to be quiet. The measurement decodes audio only, so it
+    costs a fraction of the render it informs -- and it lets loudnorm run in
+    its accurate linear mode rather than guessing.
+    """
+    if not edl.normalize_audio:
+        return None
+    audio_graph, audio_label = build_audio_graph(edl, render_ranges, mix, cleanup=cleanup.chain)
+    if quality.two_pass_loudness:
+        measured = measure_loudness(inputs, audio_graph, audio_label)
+    else:
+        measured = _quick_silence_check(inputs, audio_graph, audio_label)
+    loudnorm = loudnorm_filter(measured)
+    if loudnorm is None:
+        log.info("selected audio is silent; skipping loudness normalisation")
+    return loudnorm
 
-    output = output.resolve()
-    output.parent.mkdir(parents=True, exist_ok=True)
-    staging = _render_staging_dir()
-    staged = staging / f"{output.stem}-{uuid4().hex}.mp4"
-    total_frames = sum(frame_counts)
-    args = [
+
+def _encode_args(
+    inputs: list[str],
+    graph: str,
+    labels: tuple[str, str],
+    *,
+    quality: Quality,
+    fps: str,
+    total_frames: int,
+    staged: Path,
+) -> list[str]:
+    """The delivery encode: H.264 in BT.709, AAC stereo 48 kHz, exact frame count."""
+    vlabel, alabel = labels
+    return [
         "-y",
         *inputs,
         "-filter_complex",
@@ -725,55 +815,18 @@ def render_edl(
         "+faststart",
         str(staged),
     ]
-    log.info(
-        "rendering %s: %d range(s), %dx%d @ %s, quality=%s",
-        output.name,
-        len(edl.ranges),
-        canvas[0],
-        canvas[1],
-        fps,
-        quality.name,
-    )
-    try:
-        run_ffmpeg(args, desc=f"render {output.name}", timeout=14400)
-        rendered = probe(staged)
-        run_ffmpeg(
-            ["-v", "error", "-i", str(staged), "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"],
-            desc=f"decode validation for {output.name}",
-            timeout=14400,
-        )
-        _publish_atomic(staged, output)
-        rendered = probe(output)
-    finally:
-        staged.unlink(missing_ok=True)
-    return RenderManifest(
-        output=str(output),
-        edl=edl.name,
-        rendered_at=utc_timestamp(),
-        duration=rendered.duration,
-        width=canvas[0],
-        height=canvas[1],
-        frame_rate=fps,
-        frame_rate_converted_from=None if fps == source_fps else source_fps,
-        crf=quality.crf,
-        preset=quality.preset,
-        loudness_target_lufs=LOUDNORM_I if loudnorm else None,
-        sources_used=edl.source_ids(),
-        audio_bed_applied=(
-            {
-                "path": edl.audio_bed.path,
-                "gain_db": edl.audio_bed.gain_db,
-                "ducked": edl.audio_bed.duck,
-                "looped": edl.audio_bed.loop,
-                "license_confirmed": edl.audio_bed.license_confirmed,
-            }
-            if edl.audio_bed is not None and mix.bed_input is not None
-            else {}
-        ),
-        sound_effects_applied=len(mix.sfx_inputs),
-        audio_cleanup_policy=audio_cleanup_policy,
-        audio_cleanup_applied=cleanup.evidence(),
-    )
+
+
+def _audio_bed_evidence(edl: EDL, mix: AudioMix) -> dict:
+    if edl.audio_bed is None or mix.bed_input is None:
+        return {}
+    return {
+        "path": edl.audio_bed.path,
+        "gain_db": edl.audio_bed.gain_db,
+        "ducked": edl.audio_bed.duck,
+        "looped": edl.audio_bed.loop,
+        "license_confirmed": edl.audio_bed.license_confirmed,
+    }
 
 
 def _plan_voice_cleanup(
