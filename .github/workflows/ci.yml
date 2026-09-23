@@ -119,6 +119,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
       - run: uv build
+      - run: uvx twine check dist/*.whl dist/*.tar.gz
       - run: ./scripts/build-skill.sh
       - run: uv venv /tmp/social-video-package-test
       - run: uv pip install --python /tmp/social-video-package-test/bin/python dist/*.whl

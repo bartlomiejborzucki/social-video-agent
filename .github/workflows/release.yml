@@ -31,3 +31,26 @@ jobs:
             dist/*.tar.gz
             dist/social-video-agent-skill.zip
             dist/SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: python-dists
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+
+  # Trusted publishing: no token is stored anywhere. Off until the PyPI project
+  # names this repository and workflow as a trusted publisher and the repository
+  # variable PYPI_PUBLISH is set to "true"; see CONTRIBUTING.md.
+  pypi:
+    needs: build-release
+    if: vars.PYPI_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: python-dists
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
