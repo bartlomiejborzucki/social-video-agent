@@ -89,6 +89,9 @@ class BackendNotAvailableError(SocialVideoError):
 
 _REGISTRY: dict[str, Callable[[], TranscriptionBackend]] = {}
 
+#: Local, free and ungated. Never a cloud provider.
+DEFAULT_BACKEND = "faster-whisper"
+
 
 def register_backend(name: str, factory: Callable[[], TranscriptionBackend]) -> None:
     """Register a backend factory. The factory is not called until needed."""
@@ -107,7 +110,7 @@ def get_backend(name: str | None = None) -> TranscriptionBackend:
     """
     import os
 
-    chosen = name or os.environ.get("SOCIAL_VIDEO_TRANSCRIBER") or "faster-whisper"
+    chosen = name or os.environ.get("SOCIAL_VIDEO_TRANSCRIBER") or DEFAULT_BACKEND
     chosen = chosen.strip().lower()
     _load_builtin_backends()
     if chosen not in _REGISTRY:
@@ -127,7 +130,10 @@ def _load_builtin_backends() -> None:
     """
     from importlib import import_module
 
-    for module in ("social_video.transcribe.faster_whisper",):
+    for module in (
+        "social_video.transcribe.faster_whisper",
+        "social_video.transcribe.whisperx_backend",
+    ):
         try:
             import_module(module)
         except ImportError:

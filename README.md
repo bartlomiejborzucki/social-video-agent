@@ -8,7 +8,8 @@ source → local transcription → edit plan → EDL + motion plan → FFmpeg ba
 
 The project is an alpha. The FFmpeg pipeline, default Remotion compositor,
 captions, local faster-whisper backend, profiles, and QA are implemented.
-WhisperX alignment and diarization remain optional future integrations.
+WhisperX word alignment is an optional backend (`--backend whisperx`, behind the
+`align` extra); diarization remains an optional future integration.
 
 ## Windows 11 + Codex + WSL2
 
@@ -575,7 +576,9 @@ The project is Apache-2.0 and incorporates attributed MIT-licensed work from [br
   the audio equally; `LR-ASD` remains the next step recorded in the audit.
 - Generated plates are backgrounds only and need the user's own API key. There is
   no image generation on a host without one, by design.
-- WhisperX alignment and speaker diarization are declared optional dependencies but are not connected to the pipeline.
+- WhisperX alignment is opt-in (`--backend whisperx` with the `align` extra) and is
+  not exercised in CI, which never installs PyTorch. Speaker diarization is
+  declared as an optional dependency but is not connected to the pipeline.
 - Remotion currently composites a deliberately small vocabulary of project-aware
   hook, lower-third, callout, and end-card graphics. It does not automatically
   invent bespoke illustration, 3D work, or brand animation. Professional quality

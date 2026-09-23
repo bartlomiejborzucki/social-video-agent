@@ -284,12 +284,12 @@ def _check_packages(report: DoctorReport) -> None:
             )
         )
 
-    # Reported so the environment is described accurately, but note these are
-    # for capabilities that are declared and not yet wired up. Saying "ok" for
-    # a package we do not call would be misleading.
+    # Reported so the environment is described accurately. Each purpose says
+    # what the package is used for, so "ok" never claims a capability that
+    # nothing calls.
     optional = {
         "whisperx": (
-            "tighter word alignment (declared; not yet implemented)",
+            "tighter word alignment with `--backend whisperx`",
             "pip install 'social-video-agent[align]'",
         ),
         "pyannote": (

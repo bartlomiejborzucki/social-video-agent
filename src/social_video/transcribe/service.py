@@ -14,6 +14,7 @@ from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.transcript import Transcript
 from social_video.transcribe.audio import extract_audio, guard_not_silent
 from social_video.transcribe.base import (
+    DEFAULT_BACKEND,
     BackendNotAvailableError,
     TranscriptionOptions,
     get_backend,
@@ -50,25 +51,26 @@ def transcribe_source(
     sid = source_id_for(src)
     fingerprint = file_fingerprint(src)
     out_path = workspace.transcript_for(sid, opts.audio_track)
+    # Constructing a backend is cheap; heavy imports wait for transcribe().
+    backend = get_backend(backend_name)
 
-    # The cache is content-addressed on (source content, options), so switching
-    # model or language and switching back does not re-transcribe. The path in
-    # `transcripts/` is the readable "current" view, published from the cache.
-    cache_path = (
-        workspace.cache
-        / "transcripts"
-        / f"{sid}.{fingerprint[:16]}.{options_fingerprint(**opts.cache_fields())}.json"
-    )
+    # The cache is content-addressed on (source content, options, backend), so
+    # switching model, language or backend and switching back does not
+    # re-transcribe. The default backend keeps the name it always had, so
+    # existing caches stay valid. The path in `transcripts/` is the readable
+    # "current" view, published from the cache.
+    key = options_fingerprint(**opts.cache_fields())
+    suffix = "" if backend.name == DEFAULT_BACKEND else f".{backend.name}"
+    cache_path = workspace.cache / "transcripts" / f"{sid}.{fingerprint[:16]}.{key}{suffix}.json"
 
     if not force:
-        cached = _load_if_valid(cache_path, fingerprint, opts)
+        cached = _load_if_valid(cache_path, fingerprint, opts, provider=backend.name)
         if cached is not None:
             log.info("transcript cache hit: %s", cache_path.name)
             _publish(cached, out_path)
             return cached
         log.info("transcript cache miss: %s", src.name)
 
-    backend = get_backend(backend_name)
     ok, reason = backend.validate_setup()
     if not ok:
         raise BackendNotAvailableError(f"transcription backend {backend.name!r}: {reason}")
@@ -110,7 +112,7 @@ def _publish(transcript: Transcript, out_path: Path) -> None:
 
 
 def _load_if_valid(
-    path: Path, fingerprint: str, options: TranscriptionOptions
+    path: Path, fingerprint: str, options: TranscriptionOptions, *, provider: str
 ) -> Transcript | None:
     """Return the cached transcript only if it was produced from these inputs."""
     if not path.is_file():
@@ -122,6 +124,8 @@ def _load_if_valid(
         return None
 
     if cached.source_fingerprint != fingerprint:
+        return None
+    if cached.provider != provider:
         return None
     if cached.audio_track != options.audio_track:
         return None

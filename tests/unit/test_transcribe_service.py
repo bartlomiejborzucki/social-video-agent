@@ -120,3 +120,22 @@ def test_an_unusable_backend_fails_before_any_audio_is_decoded(
 
     with pytest.raises(BackendNotAvailableError, match="install the fake extra"):
         service.transcribe_source(source, Workspace.at(tmp_path / "edit"), backend_name="fake")
+
+
+@requires_ffmpeg
+def test_switching_backend_is_a_cache_miss_and_switching_back_a_hit(
+    tmp_path: Path, fake: FakeBackend
+) -> None:
+    other = FakeBackend()
+    other.name = "other"
+    register_backend("other", lambda: other)
+    source = make_video(tmp_path / "clip.mp4", duration=1.0)
+    workspace = Workspace.at(tmp_path / "edit")
+
+    service.transcribe_source(source, workspace, backend_name="fake")
+    switched = service.transcribe_source(source, workspace, backend_name="other")
+    service.transcribe_source(source, workspace, backend_name="fake")
+
+    assert len(fake.calls) == 1
+    assert len(other.calls) == 1
+    assert switched.provider == "other"
