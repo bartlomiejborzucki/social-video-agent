@@ -1,16 +1,103 @@
 # social-video-agent
 
-An agent-native, local-first editor for turning existing recordings into Reels and Shorts. Codex makes editorial decisions from an inspectable transcript; FFmpeg performs frame-accurate cuts and audio, and Remotion adds a planned motion-design layer. Sources are never modified, and no paid AI API key is required.
+An agent-native, local-first editor that turns existing recordings into Reels,
+Shorts and TikToks. A coding agent (Codex or Claude) makes the editorial
+decisions from an inspectable transcript; FFmpeg cuts frame-accurately, Remotion
+adds a planned motion-design layer, and every step leaves an artifact you can
+read, change and resume from. Sources are never modified, media stays on your
+machine, and no paid AI API key is required.
 
 ```text
-source → local transcription → edit plan → EDL + motion plan → FFmpeg base → Remotion → QA
+recording → local transcript → edit plan → EDL + motion plan → FFmpeg base → Remotion → QA → delivery
 ```
 
-The project is an alpha. The FFmpeg pipeline, default Remotion compositor,
-captions, local faster-whisper backend, profiles, and QA are implemented.
-WhisperX word alignment (`--backend whisperx`, the `align` extra) and speaker
-diarization (`transcribe --diarize`, the `diarize` extra and your own
-`HF_TOKEN`) are optional.
+## What it can do
+
+**Edit from the transcript**
+- Local transcription with faster-whisper (Polish, English and the rest of
+  Whisper's languages), word-level timings, content-addressed caching; optional
+  WhisperX word alignment and pyannote speaker diarization.
+- An editorial plan the agent writes and you can review, compiled into a
+  word-aligned EDL (`compile`). Nothing is cut that the plan does not say.
+- Cut candidates found from timing — hesitations (`yyy`, `eee`, `um`), doubled
+  words, restarted phrases, long pauses — each with an id and a confidence, and
+  applied only when the agent accepts them (`cuts find` / `cuts accept`).
+- One long recording into several standalone shorts, each in its own workspace.
+
+**Captions that match the brand**
+- Captions laid out against the real font's metrics and never truncated:
+  a cue that cannot fit is refused by name rather than losing its ending.
+- Active-word highlight and brand-keyword emphasis, drawn identically by the
+  Remotion and FFmpeg routes; per-speaker colours with diarization.
+- Glyph preflight, so `Zażółć gęślą jaźń` renders instead of empty boxes.
+
+**Framing and layout for 9:16**
+- Face-aware reframing with smoothing and scene-cut snapping; speaker framing
+  that follows diarized turns and cuts between faces at turn changes.
+- Split layouts: two speakers stacked, or a screen share above the presenter.
+- Static zoom per range and timed punch-ins that ease in and out, both held to
+  the brand's movement limit.
+
+**Motion design with Remotion**
+- Hooks, lower thirds, callouts and designed end cards in the project's
+  typography and colours, each with a timeline interval and a stated reason.
+- Brand covers, optional image plates from the agent's own image tool, Canva,
+  or the OpenAI/Gemini APIs — backgrounds only; every word is drawn locally.
+- Works from a repository checkout or an installed wheel
+  (`doctor --install-remotion`).
+
+**Audio**
+- Measured voice cleanup: only the repairs a recording measures as needed, each
+  with a ceiling, and every change reported.
+- Loudness normalisation, licence-gated music beds with sidechain ducking, and
+  hand-placed sound effects.
+
+**Checks before anything ships**
+- Technical QA of the render against its EDL: duration, frame rate, audio,
+  clipping, silence at cuts, black frames, caption bounds, the opening hook and
+  the ending.
+- Brand QA against an executable brand contract compiled from
+  `.social-video/config.yaml`: fonts, colours, caption geometry, highlight and
+  emphasis, logo, music and voice-cleanup policies.
+- Per-platform safe zones for Reels, Shorts and TikTok.
+
+**Delivery and handoff**
+- Immutable delivery variants with a verified manifest, captions as SRT/VTT or
+  burned in, covers, and validated publishing metadata.
+- Export of the cut to Premiere/FCP7 XML, Final Cut/Resolve FCPXML,
+  OpenTimelineIO and CMX 3600 EDL, frame for frame with the render
+  (`export`).
+- Optional download of a recording you have the right to edit, with a
+  provenance record (`fetch URL --rights "..."`).
+
+**A workflow an agent can resume**
+- Six persistent stages from set-up to delivery, each gated on the artifacts
+  the next one needs, with a recommended model per stage and a ready-to-send
+  continuation prompt.
+- `doctor` checks the whole toolchain and says what to do about every failure.
+- Runs on Linux, macOS and Windows 11 through WSL2, including a mode where a
+  native Windows agent drives the WSL engine.
+
+## Quick start
+
+A complete pass by hand, on the FFmpeg route so it needs neither a licence
+declaration nor a motion plan:
+
+```bash
+social-video-agent doctor
+social-video-agent workflow init interview.mp4 --project-root . --renderer ffmpeg
+social-video-agent plan interview.mp4 -w edit --goal '45 second Reel'
+social-video-agent cuts find interview.mp4 -w edit        # review the candidates
+social-video-agent cuts accept -w edit --kind pause --confidence high
+social-video-agent compile interview.mp4 -w edit --force
+social-video-agent render edit --quality preview
+social-video-agent qa edit --platform reels
+social-video-agent export edit                            # hand the cut to an NLE
+```
+
+In normal use the skill drives these steps, adds the Remotion motion layer after
+the Stage 0 licence declaration, and stops at each stage boundary. Setup for
+each platform follows.
 
 ## Windows 11 + Codex + WSL2
 
@@ -362,33 +449,6 @@ but every element needs a timeline interval and reason. It does not add random
 zooms, transitions, or motion merely to appear busy. A clean edit with no extra
 graphic is valid when that serves the material better.
 
-## What works
-
-- Local transcription with faster-whisper, downloaded on first transcription and cached under `~/.cache/social-video-agent/models/`.
-- Frame-exact output length on ffmpeg 6 and 7, checked by CI on both.
-- Horizontal and vertical sources, compatible CFR 30/29.97/60/59.94 exports,
-  multiple audio tracks, sample-derived AAC timestamps, and deterministic EDL rendering.
-- Face-aware 9:16 framing with restrained movement.
-- ASS captions with preflight glyph checks, including `Zażółć gęślą jaźń`.
-- Project-aware Remotion motion design with exact pinned dependencies, a
-  durable `motion-plan.json`, H.264/AAC social export, and real render smoke QA.
-- Profiles for talking heads, education, podcasts, stories, landscape, square, and faster social editing.
-- Mechanical QA for duration, audio, clipping, silence at cuts, black frames,
-  caption bounds, the opening hook, and per-platform safe zones.
-- Composed brand covers, optional credential-gated cover/end-card plates from
-  OpenAI or Gemini image APIs, and validated publishing metadata.
-- Licence-gated music beds with sidechain ducking and hand-placed sound effects.
-- Speaker-aware framing by correlating mouth movement with the speech envelope.
-- One long recording into several standalone shorts, each in its own workspace.
-- Content-addressed transcription caching and immutable source files.
-- Optional `fetch URL --rights "..."` (the `fetch` extra) downloads one recording
-  the user has the right to edit and records the URL, the site's stated licence,
-  the file hash and the user's own rights statement beside it.
-- NLE export of the cut as FCPXML, Premiere/FCP7 XML, OpenTimelineIO and CMX 3600
-  EDL (`social-video-agent export WORKSPACE`), frame-for-frame with the render
-  and read back by OpenTimelineIO in CI. Crops, captions, graphics and audio
-  processing are listed as not exported rather than dropped silently.
-
 ## CLI
 
 The canonical command is `social-video-agent`; `social-video` remains as a compatibility alias.
@@ -403,6 +463,9 @@ social-video-agent inspect INPUT
 social-video-agent transcribe INPUT
 social-video-agent pack WORKSPACE
 social-video-agent plan INPUT --profile talking-head --goal '45 second Reel'
+social-video-agent cuts find INPUT --workspace WORKSPACE
+social-video-agent cuts accept --workspace WORKSPACE cut-001 cut-004
+social-video-agent compile INPUT --workspace WORKSPACE
 social-video-agent edit INPUT --profile talking-head
 social-video-agent render WORKSPACE --quality preview --output /path/to/preview.mp4
 social-video-agent qa WORKSPACE --platform reels
@@ -417,6 +480,8 @@ social-video-agent image register WORKSPACE --file /tmp/plate.png --prompt '...'
 social-video-agent image capabilities WORKSPACE --chosen-source video_frame --reason '...' 
 social-video-agent cover WORKSPACE --title 'Nikt ci tego nie powie'
 social-video-agent deliver WORKSPACE --output DEST --with-captions --cover --publish
+social-video-agent export WORKSPACE --format fcpxml
+social-video-agent fetch URL --rights 'our own webinar recording'
 ```
 
 Generated plates are optional and off by default, and there are four possible
