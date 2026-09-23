@@ -19,6 +19,7 @@ from social_video.transcribe.base import (
     TranscriptionOptions,
     get_backend,
 )
+from social_video.transcribe.diarize import diarize, label_speakers, validate_diarization
 from social_video.workspace.layout import Workspace
 
 log = logging.getLogger(__name__)
@@ -74,6 +75,10 @@ def transcribe_source(
     ok, reason = backend.validate_setup()
     if not ok:
         raise BackendNotAvailableError(f"transcription backend {backend.name!r}: {reason}")
+    if opts.diarize:
+        ok, reason = validate_diarization()
+        if not ok:
+            raise BackendNotAvailableError(reason)
 
     # Temp audio lives inside the workspace cache, not the system temp dir: a
     # two-hour take is a few hundred megabytes of PCM, and the workspace is the
@@ -89,6 +94,9 @@ def transcribe_source(
             source_fingerprint=fingerprint,
             duration=info.duration,
         )
+        if opts.diarize:
+            log.info("diarizing %s", src.name)
+            transcript = label_speakers(transcript, diarize(audio, num_speakers=opts.num_speakers))
 
     if not transcript.words:
         log.warning("%s produced no words; the track may not contain speech", src.name)

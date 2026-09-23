@@ -293,8 +293,8 @@ def _check_packages(report: DoctorReport) -> None:
             "pip install 'social-video-agent[align]'",
         ),
         "pyannote": (
-            "speaker diarization (declared; not yet implemented, and the model "
-            "weights are gated behind your own Hugging Face token)",
+            "speaker diarization with `transcribe --diarize` (the model weights are "
+            "gated behind your own Hugging Face token in HF_TOKEN)",
             "pip install 'social-video-agent[diarize]'",
         ),
     }

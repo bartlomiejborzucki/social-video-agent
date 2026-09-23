@@ -285,3 +285,53 @@ def _fill_motion(
                 track.motion[index] = float(np.mean(np.abs(patch - previous)))
             if patch is not None:
                 previous = patch
+
+
+#: A turn shorter than this does not move the frame: a one-word interjection
+#: is heard, not cut to.
+MIN_TURN = 1.0
+
+
+def assign_speakers(
+    tracks: list[FaceTrack], times: list[float], turns: list[tuple[float, float, str]]
+) -> dict[str, int]:
+    """Match each diarized speaker to the face whose mouth moves in their turns.
+
+    Each speaker's activity is 1 while one of their turns covers a sample and 0
+    otherwise; the pairing with the strongest correlation is fixed first, then
+    the next among what is left. A speaker whose best face does not clear
+    ``MIN_CORRELATION`` stays unassigned rather than borrowing someone's face.
+    """
+    speakers = sorted({speaker for _, _, speaker in turns})
+    scores: list[tuple[float, str, int]] = []
+    for speaker in speakers:
+        spans = [(start, end) for start, end, who in turns if who == speaker]
+        activity = [1.0 if any(start <= t < end for start, end in spans) else 0.0 for t in times]
+        for track in tracks:
+            motion: list[float | None] = [track.motion.get(i) for i in range(len(times))]
+            scores.append((correlation(motion, activity), speaker, track.id))
+    assigned: dict[str, int] = {}
+    used: set[int] = set()
+    for score, speaker, track_id in sorted(scores, reverse=True):
+        if score < MIN_CORRELATION or speaker in assigned or track_id in used:
+            continue
+        assigned[speaker] = track_id
+        used.add(track_id)
+    return assigned
+
+
+def speaker_at(times: list[float], turns: list[tuple[float, float, str]]) -> list[str | None]:
+    """Who holds the floor at each sample, ignoring interjections shorter than MIN_TURN.
+
+    Between turns, and during a short interjection, the previous speaker keeps
+    the frame, so the picture does not bounce on every breath.
+    """
+    long_turns = [turn for turn in turns if turn[1] - turn[0] >= MIN_TURN]
+    current: str | None = None
+    holders: list[str | None] = []
+    for t in times:
+        speaking = next((who for start, end, who in long_turns if start <= t < end), None)
+        if speaking is not None:
+            current = speaking
+        holders.append(current)
+    return holders

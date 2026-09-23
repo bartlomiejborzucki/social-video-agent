@@ -100,6 +100,13 @@ nervous, raise the dead zone rather than disabling tracking.
 Framing is recorded in the EDL as a crop size plus keyframes with a stated
 reason, so you can inspect and override it.
 
+For a conversation, transcribe with `--diarize` (the `diarize` extra and the
+user's own `HF_TOKEN`; tell them the weights are gated and that audio stays
+local). Words then carry `S1`, `S2`… labels, captions break on speaker change,
+and `speaker` reframing follows whoever holds the floor, cutting between faces
+at turn changes and ignoring interjections under a second. When speakers
+cannot be matched to faces it says so and frames one person.
+
 `split_stack` stacks two or three regions of the source as horizontal bands,
 listed top to bottom in the range's `reframe.panes`: each pane is a source
 rectangle (`x`, `y`, `width`, `height`), a `share` of the output height (shares

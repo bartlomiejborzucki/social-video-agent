@@ -8,8 +8,9 @@ source → local transcription → edit plan → EDL + motion plan → FFmpeg ba
 
 The project is an alpha. The FFmpeg pipeline, default Remotion compositor,
 captions, local faster-whisper backend, profiles, and QA are implemented.
-WhisperX word alignment is an optional backend (`--backend whisperx`, behind the
-`align` extra); diarization remains an optional future integration.
+WhisperX word alignment (`--backend whisperx`, the `align` extra) and speaker
+diarization (`transcribe --diarize`, the `diarize` extra and your own
+`HF_TOKEN`) are optional.
 
 ## Windows 11 + Codex + WSL2
 
@@ -572,13 +573,15 @@ The project is Apache-2.0 and incorporates attributed MIT-licensed work from [br
 - Music and effects are never sourced or licence-cleared by this tool. It mixes
   a local file the project already holds the rights to, and records that claim.
 - Speaker framing is audio-correlated mouth motion, not neural active-speaker
-  detection. It declines to choose rather than guessing when two faces move with
-  the audio equally; `LR-ASD` remains the next step recorded in the audit.
+  detection. With a diarized transcript it follows each speaker's turns and cuts
+  between faces at turn changes; without one it declines to choose rather than
+  guessing when two faces move with the audio equally. `LR-ASD` remains the next
+  step recorded in the audit.
 - Generated plates are backgrounds only and need the user's own API key. There is
   no image generation on a host without one, by design.
-- WhisperX alignment is opt-in (`--backend whisperx` with the `align` extra) and is
-  not exercised in CI, which never installs PyTorch. Speaker diarization is
-  declared as an optional dependency but is not connected to the pipeline.
+- WhisperX alignment and pyannote diarization are opt-in and are not exercised in
+  CI, which never installs PyTorch; their tests stand in the libraries' call
+  shapes. Diarization needs your own Hugging Face token for the gated weights.
 - Remotion currently composites a deliberately small vocabulary of project-aware
   hook, lower-third, callout, and end-card graphics. It does not automatically
   invent bespoke illustration, 3D work, or brand animation. Professional quality

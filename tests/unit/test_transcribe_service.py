@@ -139,3 +139,32 @@ def test_switching_backend_is_a_cache_miss_and_switching_back_a_hit(
     assert len(fake.calls) == 1
     assert len(other.calls) == 1
     assert switched.provider == "other"
+
+
+@requires_ffmpeg
+def test_diarization_labels_words_and_is_checked_before_decoding(
+    tmp_path: Path, fake: FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from social_video.transcribe.diarize import Turn
+
+    source = make_video(tmp_path / "rozmowa.mp4", duration=1.5)
+    options = TranscriptionOptions(diarize=True)
+    monkeypatch.setattr(service, "validate_diarization", lambda: (False, "needs HF_TOKEN"))
+
+    with pytest.raises(BackendNotAvailableError, match="needs HF_TOKEN"):
+        service.transcribe_source(
+            source, Workspace.at(tmp_path / "edit"), backend_name="fake", options=options
+        )
+    assert fake.calls == []
+
+    monkeypatch.setattr(service, "validate_diarization", lambda: (True, ""))
+    monkeypatch.setattr(
+        service,
+        "diarize",
+        lambda audio, num_speakers=None: [Turn(0.0, 0.45, "A"), Turn(0.45, 1.2, "B")],
+    )
+    transcript = service.transcribe_source(
+        source, Workspace.at(tmp_path / "edit"), backend_name="fake", options=options
+    )
+
+    assert [w.speaker for w in transcript.words] == ["S1", "S2"]

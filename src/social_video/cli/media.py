@@ -96,6 +96,10 @@ def transcribe(
     ),
     audio_track: int = typer.Option(0, "--audio-track", help="Zero-based audio track."),
     no_vad: bool = typer.Option(False, "--no-vad", help="Disable voice-activity filtering."),
+    diarize: bool = typer.Option(
+        False, "--diarize", help="Label who speaks when (diarize extra and your own HF_TOKEN)."
+    ),
+    speakers: int | None = typer.Option(None, "--speakers", help="Known number of speakers."),
     force: bool = typer.Option(False, "--force", help="Re-transcribe even if cached."),
     as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
@@ -106,7 +110,12 @@ def transcribe(
 
     ws = Workspace.at(workspace_dir) if workspace_dir else Workspace.for_source(source)
     options = TranscriptionOptions(
-        language=language, model=model, vad=not no_vad, audio_track=audio_track
+        language=language,
+        model=model,
+        vad=not no_vad,
+        audio_track=audio_track,
+        diarize=diarize,
+        num_speakers=speakers,
     )
     transcript = _guard(
         lambda: transcribe_source(source, ws, options=options, backend_name=backend, force=force)

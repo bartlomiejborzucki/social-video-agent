@@ -188,10 +188,30 @@ def stage_reframe(
             # Speaker detection correlates mouth movement with the audio that was
             # transcribed, which is not always the video file's own first track.
             audio_source=manifest.by_id(rng.effective_audio_source).resolved_path(),
+            turns=_speaker_turns(workspace, rng),
         )
     save_artifact(edl, workspace.edl)
     record_stage(workspace, "reframe", {"mode": edl.default_reframe.value})
     return edl
+
+
+def _speaker_turns(workspace: Workspace, rng) -> list[tuple[float, float, str]] | None:
+    """Diarized turns for a range, when its picture and sound share a clock.
+
+    Turns are in the audio source's time. They only describe the picture when
+    the video comes from the same file at the same offset.
+    """
+    from social_video.transcribe.diarize import turns_from_transcript
+
+    same_clock = (
+        rng.effective_audio_source == rng.effective_video_source
+        and abs(rng.effective_audio_start - rng.effective_video_start) < 1e-3
+    )
+    path = workspace.transcript_for(rng.effective_audio_source, rng.audio_track)
+    if not same_clock or not path.is_file():
+        return None
+    turns = turns_from_transcript(load_artifact(Transcript, path))
+    return [(turn.start, turn.end, turn.speaker) for turn in turns] or None
 
 
 def stage_captions(

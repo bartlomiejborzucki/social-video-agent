@@ -49,8 +49,15 @@ def plan_reframe(
     scene_cuts: list[float] | None = None,
     smoothing: SmoothingConfig | None = None,
     audio_source: Path | None = None,
+    turns: list[tuple[float, float, str]] | None = None,
 ) -> ReframePlan:
-    """Decide how to fit a range of a source onto a vertical canvas."""
+    """Decide how to fit a range of a source onto a vertical canvas.
+
+    ``turns`` are diarized speaker turns in source seconds. With two or more
+    speakers in the range, speaker mode follows whoever holds the floor and
+    cuts between them at turn changes, instead of picking one face for the
+    whole range.
+    """
     info = probe(source)
     if info.video is None:
         return ReframePlan(mode=ReframeMode.FIT, reason="source has no video stream")
@@ -93,15 +100,29 @@ def plan_reframe(
             samples, tracks, choice = analyse_speaker(
                 source, start=start, end=end, audio_source=audio_source
             )
-            if choice.confident:
+            in_range = [
+                (max(a, start), min(b, end), who)
+                for a, b, who in turns or []
+                if b > start and a < end
+            ]
+            followed = (
+                _follow_turns(samples, tracks, in_range)
+                if len({who for _, _, who in in_range}) >= 2
+                else None
+            )
+            if followed is not None:
+                samples, turn_cuts, speaker_note = followed
+                scene_cuts = sorted([*(scene_cuts or []), *turn_cuts])
+            elif choice.confident:
                 chosen_track = next((t for t in tracks if t.id == choice.track_id), None)
             # Naming the fallback is the point: a crop that silently follows the
             # wrong person in a two-hander is worse than one that says it guessed.
-            speaker_note = (
-                f"speaker mode: {choice.reason}; "
-                if choice.confident
-                else f"speaker mode fell back to face prominence: {choice.reason}; "
-            )
+            if followed is None:
+                speaker_note = (
+                    f"speaker mode: {choice.reason}; "
+                    if choice.confident
+                    else f"speaker mode fell back to face prominence: {choice.reason}; "
+                )
         else:
             samples = detect_faces(source, start=start, end=end)
     except Exception as exc:  # detection is best-effort; framing must still happen
@@ -254,6 +275,38 @@ def _plan_split(
         panes=panes,
         reason=f"two people stacked, one pane each, from {len(samples)} sampled frames",
     )
+
+
+def _follow_turns(
+    samples: list[FrameFaces], tracks: list, turns: list[tuple[float, float, str]]
+) -> tuple[list[FrameFaces], list[float], str] | None:
+    """Each sample keeps only the face of whoever holds the floor.
+
+    Returns the filtered samples, the turn changes to treat as cuts -- the
+    crop jumps there, as an editor would cut, rather than panning across --
+    and the note for the plan; or ``None`` when fewer than two speakers could
+    be matched to a face, so the caller keeps single-speaker framing.
+    """
+    from social_video.reframe.speaker import assign_speakers, speaker_at
+
+    times = [sample.t for sample in samples]
+    faces_of = assign_speakers(tracks, times, turns)
+    if len(faces_of) < 2:
+        return None
+    by_id = {track.id: track for track in tracks}
+    holders = speaker_at(times, turns)
+    kept: list[FrameFaces] = []
+    cuts: list[float] = []
+    previous: str | None = None
+    for index, (sample, holder) in enumerate(zip(samples, holders, strict=True)):
+        track = by_id.get(faces_of.get(holder, -1)) if holder else None
+        face = track.faces.get(index) if track else None
+        kept.append(sample if face is None else _only(sample, face))
+        if holder is not None and previous is not None and holder != previous:
+            cuts.append(sample.t)
+        previous = holder or previous
+    names = ", ".join(f"{who}->face {track_id}" for who, track_id in sorted(faces_of.items()))
+    return kept, cuts, f"speaker mode follows diarized turns ({names}); "
 
 
 def _only(sample: FrameFaces, face) -> FrameFaces:
