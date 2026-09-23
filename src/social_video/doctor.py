@@ -105,7 +105,9 @@ def _check_runtime(report: DoctorReport) -> None:
             f"{status.mode.value}"
             + (" (pinned)" if status.explicit else " (detected)")
             + f"; {status.detail}",
-            "" if status.usable else status.detail,
+            ""
+            if status.usable
+            else (status.detail or "See docs/testing/windows-wsl2-acceptance.md for WSL setup."),
         )
     )
     report.add(
@@ -141,7 +143,9 @@ def _check_runtime(report: DoctorReport) -> None:
             f"{status.distribution.name} (WSL {status.distribution.version})"
             if status.distribution
             else status.detail,
-            "" if status.distribution else status.detail,
+            ""
+            if status.distribution
+            else (status.detail or "See docs/testing/windows-wsl2-acceptance.md for WSL setup."),
         )
     )
     report.add(
@@ -152,7 +156,9 @@ def _check_runtime(report: DoctorReport) -> None:
             f"social-video-agent {status.engine_version}"
             if status.engine_version
             else status.detail,
-            "" if status.engine_version else status.detail,
+            ""
+            if status.engine_version
+            else (status.detail or "See docs/testing/windows-wsl2-acceptance.md for WSL setup."),
         )
     )
     report.add(
@@ -574,6 +580,7 @@ def _check_distribution(report: DoctorReport) -> None:
             not missing,
             True,
             "present" if not missing else "missing: " + ", ".join(missing),
+            "" if not missing else "Run doctor from a complete checkout of the repository.",
         )
     )
     validations = (
@@ -590,6 +597,10 @@ def _check_distribution(report: DoctorReport) -> None:
                 result.ok,
                 True,
                 "valid" if result.ok else "; ".join(result.errors[:2]),
+                ""
+                if result.ok
+                else "Fix the files named above. On Windows, re-clone with symlinks "
+                "enabled (`git config --global core.symlinks true`, Developer Mode on).",
             )
         )
     from social_video.compatibility import validate_component_versions
@@ -597,7 +608,15 @@ def _check_distribution(report: DoctorReport) -> None:
     try:
         versions = validate_component_versions(root)
     except Exception as exc:
-        report.add(Check("component version compatibility", False, True, str(exc)))
+        report.add(
+            Check(
+                "component version compatibility",
+                False,
+                True,
+                str(exc),
+                "Update the CLI, the skill and the plugin to the same release.",
+            )
+        )
     else:
         report.add(
             Check(
@@ -635,6 +654,7 @@ def _check_workspace(report: DoctorReport) -> None:
             os.access(cwd, os.W_OK),
             True,
             str(cwd) if os.access(cwd, os.W_OK) else f"not writable: {cwd}",
+            "" if os.access(cwd, os.W_OK) else "Run from a directory you can write to.",
         )
     )
 
