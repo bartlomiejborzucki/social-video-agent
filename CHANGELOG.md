@@ -28,6 +28,19 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   spans. It refuses to overwrite an existing EDL without `--force`.
 - `--backend whisperx` (the `align` extra) aligns every word with WhisperX after
   faster-whisper recognises it; words it cannot place keep their timing.
+- `transcribe --diarize` (the `diarize` extra and your own `HF_TOKEN`) labels
+  every word with its speaker using the pinned free pyannote weights. Speaker
+  reframing then follows diarized turns and cuts between faces at turn changes.
+- `split_stack` layouts: two or three source regions stacked as bands, each
+  `cover` or `contain`, for two speakers or a screen above the presenter. With
+  `split_stack` as the default reframe, two people in shot get a pane each.
+- `export WORKSPACE` writes the cut as FCPXML, Premiere/FCP7 XML,
+  OpenTimelineIO and CMX 3600 EDL, frame for frame with the render, and lists
+  what the formats cannot carry.
+- `fetch URL --rights "..."` (the `fetch` extra) downloads one recording the
+  user has the right to edit, with a provenance record beside it.
+- The release workflow can publish to PyPI through trusted publishing once the
+  PyPI project is configured; CI runs `twine check` on every build.
 - `motion-plan.json` gains `punch_ins`: timed pushes on the picture that ease
   in, hold and ease out while captions and graphics stay put.
 
@@ -65,6 +78,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   zero-length ones.
 - Render manifests recorded Remotion 4.0.525 whatever was installed; they now
   record the version the compositor pins.
+- `split_stack` was a declared reframe mode that rendered as a plain centre
+  crop.
 - Registering a JPEG or WebP plate from the agent's image tool failed: Pillow
   inferred the format from the `.partial` staging name.
 - EDL validation turned an unreadable source into an uncaught ffprobe error on

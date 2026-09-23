@@ -38,19 +38,28 @@ both renderers drawing the same thing; cut candidates the agent accepts by id
 and a `compile` command that removes them exactly; a WhisperX forced-alignment
 backend; timed punch-ins held to the brand's movement limit.
 
-## 0.9 — framing and layout
+## 0.9 — framing and layout (done, one item moved)
 
-- Speaker diarization (`diarize` extra) and neural active-speaker detection
-  (LR-ASD) in place of the mouth-motion heuristic.
-- Per-segment layouts: single crop, two-speaker split, screen share with face.
+Speaker diarization with the user's own token, speaker framing that follows
+diarized turns and cuts between faces at turn changes, and stacked layouts for
+two speakers or a screen above the presenter.
 
-## 1.0 — integration
+Moved to "Under consideration": neural active-speaker detection (LR-ASD). It
+needs a PyTorch port of the model, its weights and a labelled clip set to prove
+the port matches the reference, none of which CI can carry; diarized turns
+already resolve the two-hander case it was meant for.
 
-- NLE export: FCPXML and OTIO first, then Premiere XML and CMX3600 EDL.
-- Optional URL ingest (yt-dlp) with a rights reminder.
-- Publishing metadata — title, description, hashtags — written by the agent into
-  the delivery manifest; direct platform upload only as an opt-in.
-- Publish to PyPI alongside GitHub Releases.
+## 1.0 — integration (done, one item moved)
+
+NLE export to FCPXML, Premiere XML, OpenTimelineIO and CMX 3600, read back by
+OpenTimelineIO in CI; optional URL fetch with the user's rights statement and a
+provenance record; PyPI publishing through trusted publishing, off until the
+PyPI project is configured. Publishing metadata was already carried by
+`publish.json` and `deliver --publish`.
+
+Moved to "Under consideration": direct upload to platforms. It needs each
+platform's credentials and publishes on the user's behalf, which is a larger
+decision than an export.
 
 ## 2.0 / 3.0 — long term
 
@@ -61,6 +70,8 @@ Not resourced today.
 
 ## Under consideration
 
+- Neural active-speaker detection (LR-ASD, MIT), behind an optional extra.
+- Direct, opt-in upload to platforms using the user's own credentials.
 - B-roll from the user's own library, matched to the transcript.
 - Caption translation (no dubbing).
 - Batch processing of several recordings.
