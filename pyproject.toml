@@ -51,6 +51,7 @@ diarize = ["pyannote.audio>=4.0"]
 dev = [
     "pytest>=8.2",
     "pytest-cov>=5.0",
+    "hypothesis>=6.100",
     "ruff>=0.5",
     "mypy>=1.10",
 ]
@@ -105,6 +106,13 @@ markers = [
     "integration: requires ffmpeg and generates media fixtures",
     "slow: takes more than a few seconds",
 ]
+
+[tool.coverage.run]
+source = ["social_video"]
+branch = true
+
+[tool.coverage.report]
+skip_empty = true
 
 [tool.mypy]
 python_version = "3.12"

@@ -61,3 +61,5 @@ tmp/
 .DS_Store
 Thumbs.db
 upstream-report.json
+.hypothesis/
+coverage.xml

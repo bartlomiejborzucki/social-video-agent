@@ -17,11 +17,11 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
-      - run: uv sync --extra dev
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run mypy
-      - run: uv run python scripts/validate_distribution.py
+      - run: uv sync --frozen --extra dev
+      - run: uv run --frozen --no-sync ruff check .
+      - run: uv run --frozen --no-sync ruff format --check .
+      - run: uv run --frozen --no-sync mypy
+      - run: uv run --frozen --no-sync python scripts/validate_distribution.py
       - name: Secret scan
         run: |
           if git grep -nEI '(sk-[A-Za-z0-9_-]{20,}|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY)' -- ':!uv.lock'; then
@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python: ['3.10', '3.12']
+        python: ['3.10', '3.11', '3.12', '3.13']
     env:
       SOCIAL_VIDEO_FORCE_CPU: '1'
       PYTHONUTF8: '1'
@@ -43,7 +43,21 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --frozen --extra dev --python ${{ matrix.python }}
-      - run: uv run --frozen --no-sync --python ${{ matrix.python }} pytest -q
+      # mypy's target is 3.12, so the declared floor is type-checked here, in an
+      # environment whose stubs a 3.10 checker can parse.
+      - if: matrix.python == '3.10'
+        run: uv run --frozen --no-sync --python 3.10 mypy --python-version 3.10
+      - if: matrix.python != '3.12'
+        run: uv run --frozen --no-sync --python ${{ matrix.python }} pytest -q
+      - if: matrix.python == '3.12'
+        run: >-
+          uv run --frozen --no-sync --python 3.12 pytest -q
+          --cov --cov-report=term:skip-covered --cov-report=xml
+      - if: matrix.python == '3.12'
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: coverage.xml
 
   # The runner image's ffmpeg is one major version behind current distributions,
   # which is how a frame-padding regression on ffmpeg 7 stayed invisible here
@@ -86,6 +100,18 @@ jobs:
           enable-cache: true
       - run: uv sync --frozen --extra dev --python 3.12
       - run: uv run --frozen --no-sync --python 3.12 pytest tests/unit -q
+
+  powershell-lint:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          $findings = Invoke-ScriptAnalyzer -Path scripts/windows -Recurse -Severity Warning,Error
+          $findings | Format-Table -AutoSize | Out-String -Width 200 | Write-Output
+          if ($findings | Where-Object Severity -eq 'Error') { exit 1 }
 
   package:
     runs-on: ubuntu-latest
