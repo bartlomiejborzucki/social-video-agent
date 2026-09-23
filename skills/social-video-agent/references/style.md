@@ -100,6 +100,17 @@ nervous, raise the dead zone rather than disabling tracking.
 Framing is recorded in the EDL as a crop size plus keyframes with a stated
 reason, so you can inspect and override it.
 
+`split_stack` stacks two or three regions of the source as horizontal bands,
+listed top to bottom in the range's `reframe.panes`: each pane is a source
+rectangle (`x`, `y`, `width`, `height`), a `share` of the output height (shares
+add up to 1), and a `fit` — `cover` for a face, `contain` for a screen share,
+where cropping would cut off text. With `split_stack` as the default reframe,
+the reframe stage proposes one pane per person when two people are in shot
+often enough, and says why and falls back to a centre crop when they are not.
+A screen above the presenter is written by hand: screen region `contain` at
+about `0.6`, face region `cover` at `0.4`. Choose it per range; a whole
+interview in split screen is as tiring as one never in it.
+
 ## Punch-ins
 
 Off by default. When enabled, a punch-in should mark an editorial moment — a

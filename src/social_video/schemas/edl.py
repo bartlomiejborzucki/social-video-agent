@@ -26,7 +26,8 @@ class ReframeMode(str, Enum):
     FACE = "face"
     #: Crop follows the active speaker where one can be identified.
     SPEAKER = "speaker"
-    #: Two people stacked vertically.
+    #: Two or three panes stacked vertically: two speakers, or a screen share
+    #: above the presenter's face. The panes are listed in the plan.
     SPLIT_STACK = "split_stack"
 
 
@@ -46,6 +47,26 @@ class CropKeyframe(Artifact):
     y: int = Field(ge=0)
 
 
+class PaneFit(str, Enum):
+    #: Fill the pane, trimming what overflows. For faces.
+    COVER = "cover"
+    #: Show the whole region, padding the rest. For a screen, where cropping
+    #: would cut off text.
+    CONTAIN = "contain"
+
+
+class Pane(Artifact):
+    """One region of the source, drawn as one horizontal band of the output."""
+
+    x: int = Field(ge=0, description="Left edge of the source region, in source pixels.")
+    y: int = Field(ge=0)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    share: float = Field(default=0.5, gt=0.0, le=1.0, description="Fraction of output height.")
+    fit: PaneFit = PaneFit.COVER
+    label: str = ""
+
+
 class ReframePlan(Artifact):
     """A resolved, inspectable plan for getting a range onto the canvas.
 
@@ -58,6 +79,8 @@ class ReframePlan(Artifact):
     crop_width: int | None = Field(default=None, gt=0)
     crop_height: int | None = Field(default=None, gt=0)
     keyframes: list[CropKeyframe] = Field(default_factory=list)
+    #: Top to bottom. Only for ``split_stack``.
+    panes: list[Pane] = Field(default_factory=list)
     #: Why this framing was chosen, in the agent's own words.
     reason: str = ""
 
@@ -75,6 +98,14 @@ class ReframePlan(Artifact):
         tracked = {ReframeMode.MANUAL, ReframeMode.FACE, ReframeMode.SPEAKER}
         if self.mode in tracked and not self.keyframes:
             raise ValueError(f"reframe mode {mode!r} requires at least one keyframe")
+        if self.mode is ReframeMode.SPLIT_STACK:
+            if not 2 <= len(self.panes) <= 3:
+                raise ValueError("split_stack needs two or three panes, listed top to bottom")
+            total = sum(p.share for p in self.panes)
+            if abs(total - 1.0) > 0.01:
+                raise ValueError(f"split_stack pane shares must add up to 1, not {total:g}")
+        elif self.panes:
+            raise ValueError(f"panes are only used by split_stack, not {mode!r}")
         return self
 
 

@@ -17,7 +17,7 @@ from pathlib import Path
 from social_video.ffmpeg.probe import probe
 from social_video.reframe.detect import FrameFaces, detect_faces
 from social_video.reframe.smooth import SmoothingConfig, dedupe_keyframes, smooth_positions
-from social_video.schemas.edl import CropKeyframe, ReframeMode, ReframePlan
+from social_video.schemas.edl import CropKeyframe, Pane, PaneFit, ReframeMode, ReframePlan
 
 log = logging.getLogger(__name__)
 
@@ -80,6 +80,9 @@ def plan_reframe(
             keyframes=[CropKeyframe(t=0.0, x=centre_x, y=centre_y)],
             reason="centre crop",
         )
+
+    if mode is ReframeMode.SPLIT_STACK:
+        return _plan_split(source, start, end, (src_w, src_h), (out_width, out_height))
 
     speaker_note = ""
     chosen_track = None
@@ -175,6 +178,81 @@ def plan_reframe(
             f"{coverage:.0%} of {len(samples)} sampled frames; "
             f"{len(keyframes)} keyframe(s) after smoothing and dead zone"
         ),
+    )
+
+
+#: A person must be found in at least this share of samples to get a pane.
+SPLIT_MIN_COVERAGE = 0.3
+#: A pane shows this many face-heights of picture, so shoulders and gesture
+#: stay in shot rather than a floating head.
+SPLIT_FACE_HEIGHTS = 3.0
+
+
+def split_panes(
+    samples: list[FrameFaces], source: tuple[int, int], canvas: tuple[int, int]
+) -> list[Pane] | str:
+    """Two panes, one per person, left person on top; or why there cannot be.
+
+    Each pane is fixed for the range, centred on where that person's face
+    usually is. A two-hander where people move across each other is not a
+    stack; it is a reason to cut differently.
+    """
+    from statistics import median
+
+    from social_video.reframe.speaker import track_faces
+
+    src_w, src_h = source
+    out_w, out_h = canvas
+    tracks = [
+        t for t in track_faces(samples) if t.coverage >= SPLIT_MIN_COVERAGE * max(1, len(samples))
+    ]
+    if len(tracks) < 2:
+        return (
+            f"split_stack needs two people in shot; {len(tracks)} found often enough "
+            f"(in at least {SPLIT_MIN_COVERAGE:.0%} of {len(samples)} sampled frames)"
+        )
+    people = sorted(tracks, key=lambda t: -t.coverage)[:2]
+    band_aspect = out_w / (out_h / 2)
+    panes: list[Pane] = []
+    for track in sorted(people, key=lambda t: median(f.center[0] for f in t.faces.values())):
+        faces = list(track.faces.values())
+        cx = median(f.center[0] for f in faces)
+        cy = median(f.center[1] for f in faces)
+        face_h = median(f.height for f in faces)
+        height = min(src_h, round(face_h * SPLIT_FACE_HEIGHTS))
+        width = min(src_w, round(height * band_aspect))
+        height = min(height, round(width / band_aspect))
+        x = round(_clamp(cx - width / 2, 0, src_w - width))
+        y = round(_clamp(cy - height * HEAD_ROOM, 0, src_h - height))
+        panes.append(
+            Pane(x=x, y=y, width=width, height=height, share=0.5, fit=PaneFit.COVER,
+                 label=f"person {len(panes) + 1}")
+        )  # fmt: skip
+    return panes
+
+
+def _plan_split(
+    source: Path, start: float, end: float, src: tuple[int, int], canvas: tuple[int, int]
+) -> ReframePlan:
+    try:
+        samples = detect_faces(source, start=start, end=end)
+    except Exception as exc:  # detection is best-effort; framing must still happen
+        samples = []
+        log.warning("face detection failed (%s); split_stack cannot place panes", exc)
+    panes = split_panes(samples, src, canvas)
+    if isinstance(panes, str):
+        crop_w, crop_h = crop_size_for(*src, *canvas)
+        return ReframePlan(
+            mode=ReframeMode.CENTER,
+            crop_width=crop_w,
+            crop_height=crop_h,
+            keyframes=[CropKeyframe(t=0.0, x=(src[0] - crop_w) // 2, y=(src[1] - crop_h) // 2)],
+            reason=f"centre crop: {panes}",
+        )
+    return ReframePlan(
+        mode=ReframeMode.SPLIT_STACK,
+        panes=panes,
+        reason=f"two people stacked, one pane each, from {len(samples)} sampled frames",
     )
 
 

@@ -43,7 +43,14 @@ from social_video.ffmpeg.probe import (
 from social_video.ffmpeg.run import has_libass, has_libzimg, run_ffmpeg
 from social_video.fsutil import atomic_copy, utc_timestamp
 from social_video.paths import app_home
-from social_video.schemas.edl import EDL, EDLRange, ReframeMode, VisualFillStrategy
+from social_video.schemas.edl import (
+    EDL,
+    EDLRange,
+    Pane,
+    PaneFit,
+    ReframeMode,
+    VisualFillStrategy,
+)
 from social_video.schemas.qa import RenderManifest
 from social_video.schemas.source import SourceManifest
 
@@ -123,13 +130,19 @@ def _reframe_filter(
     default: ReframeMode,
     *,
     force_fit: bool = False,
+    label: str = "r",
 ) -> str:
-    """Geometry for one range: crop if asked, then fit onto the canvas."""
+    """Geometry for one range: crop if asked, then fit onto the canvas.
+
+    ``label`` keeps a split layout's internal pad names unique in the graph.
+    """
     out_w, out_h = canvas
     plan = None if force_fit else rng.reframe
     mode = ReframeMode.FIT if force_fit else (plan.mode if plan else default)
 
     src_w, src_h = info.video.display_size if info.video else (out_w, out_h)
+    if mode is ReframeMode.SPLIT_STACK and plan and plan.panes:
+        return _stack_filter(plan.panes, (src_w, src_h), canvas, label)
     parts: list[str] = []
 
     if mode is not ReframeMode.FIT and plan and plan.crop_width and plan.crop_height:
@@ -165,6 +178,46 @@ def _reframe_filter(
     parts.append(f"pad={out_w}:{out_h}:(ow-iw)/2:(oh-ih)/2:color=black")
     parts.append("setsar=1")
     return ",".join(parts)
+
+
+def _stack_filter(
+    panes: list[Pane], source: tuple[int, int], canvas: tuple[int, int], label: str
+) -> str:
+    """Split the picture, frame each region as one band, and stack the bands.
+
+    Returned as a sub-graph that sits inside the range's chain: it starts from
+    that chain's stream and ends with one stacked stream the chain continues
+    from, so everything after it -- frame rate, padding, captions -- is shared
+    with the single-crop route.
+    """
+    src_w, src_h = source
+    out_w, out_h = canvas
+    heights = [max(2, round(out_h * pane.share / 2) * 2) for pane in panes[:-1]]
+    heights.append(out_h - sum(heights))
+    names = [f"{label}p{index}" for index in range(len(panes))]
+    graph = [f"split={len(panes)}" + "".join(f"[{name}]" for name in names)]
+    stacked: list[str] = []
+    for pane, name, band_h in zip(panes, names, heights, strict=True):
+        width = max(2, min(pane.width, src_w) // 2 * 2)
+        height = max(2, min(pane.height, src_h) // 2 * 2)
+        x = min(pane.x, src_w - width)
+        y = min(pane.y, src_h - height)
+        chain = [f"crop={width}:{height}:{x}:{y}"]
+        if pane.fit is PaneFit.COVER:
+            chain += [
+                f"scale={out_w}:{band_h}:force_original_aspect_ratio=increase:flags=lanczos",
+                f"crop={out_w}:{band_h}",
+            ]
+        else:
+            chain += [
+                f"scale={out_w}:{band_h}:force_original_aspect_ratio=decrease:flags=lanczos",
+                f"pad={out_w}:{band_h}:(ow-iw)/2:(oh-ih)/2:color=black",
+            ]
+        chain.append("setsar=1")
+        graph.append(f"[{name}]{','.join(chain)}[{name}s]")
+        stacked.append(f"[{name}s]")
+    graph.append(f"{''.join(stacked)}vstack=inputs={len(panes)},setsar=1")
+    return ";".join(graph)
 
 
 @dataclass(frozen=True)
@@ -399,7 +452,9 @@ def build_filtergraph(
         visual_duration = rng.visual_content_end - rng.effective_video_start
         vchain.append(f"trim=duration={visual_duration:.9f}")
         vchain.append("setpts=PTS-STARTPTS")
-        vchain.append(_reframe_filter(rng, media.video_info, canvas, edl.default_reframe))
+        vchain.append(
+            _reframe_filter(rng, media.video_info, canvas, edl.default_reframe, label=f"r{index}")
+        )
         if rng.speed != 1.0:
             vchain.append(f"setpts=PTS/{rng.speed:.6f}")
         vchain.append(f"fps={fps}")
