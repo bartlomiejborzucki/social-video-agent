@@ -258,6 +258,7 @@ def stage_render(
         load_brand(edl.brand_profile)
     if contract is not None:
         _check_audio_policy(edl, contract)
+        _check_movement(edl, motion_plan if renderer is Renderer.REMOTION else None, contract)
     if (
         renderer is Renderer.FFMPEG
         and contract is not None
@@ -394,6 +395,23 @@ def stage_render(
         {"output": str(output), "renderer": renderer.value},
     )
     return output
+
+
+def _check_movement(edl: EDL, plan: MotionPlan | None, contract: BrandContract) -> None:
+    """Hold every zoom -- a range's static one and a timed punch-in -- to the brand."""
+    limit = contract.brand.punch_in_max
+    problems = [
+        f"range {index} zooms to {rng.zoom:g}, above the brand limit {limit:g}"
+        for index, rng in enumerate(edl.ranges)
+        if rng.zoom > limit + 1e-9
+    ]
+    if plan is not None:
+        problems += plan.punch_in_problems(limit=limit, intensity=contract.brand.motion_intensity)
+    if problems:
+        raise ValidationError(
+            "movement exceeds the project's brand contract:\n"
+            + "\n".join(f"  - {p}" for p in problems)
+        )
 
 
 def _check_audio_policy(edl: EDL, contract: BrandContract) -> None:

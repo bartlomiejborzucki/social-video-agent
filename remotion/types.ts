@@ -22,12 +22,23 @@ export type SocialVideoProps = {
   fontFamily: string;
   fontSource: string | null;
   elements: MotionElement[];
+  punchIns: PunchIn[];
   captions: CaptionCue[];
   captionStyle: CaptionStyle | null;
   captionLayout: CaptionLayout | null;
   logoSource: string | null;
   logoUsage: 'none' | 'optional' | 'required';
   safeMargins: {top: number; right: number; bottom: number; left: number};
+};
+
+/** A timed push in on the picture only; captions and graphics stay put. */
+export type PunchIn = {
+  start: number;
+  end: number;
+  scale: number;
+  focus_x: number;
+  focus_y: number;
+  reason: string;
 };
 
 export type CaptionWord = {text: string; start: number; end: number; emphasis?: boolean};

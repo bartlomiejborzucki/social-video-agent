@@ -103,5 +103,17 @@ reason, so you can inspect and override it.
 ## Punch-ins
 
 Off by default. When enabled, a punch-in should mark an editorial moment — a
-shift in argument, the arrival of the point. Set `zoom` on the specific range,
-typically 1.08 to 1.12. Do not apply them on a timer.
+shift in argument, the arrival of the point. Do not apply them on a timer.
+
+Two forms:
+
+- `zoom` on an EDL range holds one scale for the whole range, typically 1.08 to
+  1.12. Both renderers draw it.
+- A timed push in `motion-plan.json` `punch_ins` (Remotion only): `start`,
+  `end`, `scale`, an optional fixed point `focus_x`/`focus_y` (fractions of the
+  frame; the default `0.5`/`0.4` sits on a face) and a `reason`. It eases in,
+  holds and eases out; captions and graphics do not move. At least 0.4 s long,
+  never overlapping.
+
+Rendering refuses any zoom above the brand's `punch_in_max`, and any punch-in
+when the project sets `punch_in_intensity: 0`.

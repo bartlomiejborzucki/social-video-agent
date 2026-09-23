@@ -16,6 +16,8 @@ ACTIVE_WORD_HIGHLIGHT = "active_word_highlight"
 ACTIVE_WORD_UNAVAILABLE = "active_word_highlight_unavailable"
 #: Recorded when the contract lists brand keywords and the renderer coloured them.
 KEYWORD_EMPHASIS = "keyword_emphasis"
+#: Recorded when the motion plan's timed punch-ins were drawn.
+PUNCH_IN = "punch_in"
 #: Recorded when caption lines were wrapped against the real font's metrics.
 CAPTION_LAYOUT_MEASURED = "caption_layout_measured"
 #: Recorded when the font could not be measured and a conservative estimate of

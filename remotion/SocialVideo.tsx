@@ -2,6 +2,7 @@ import React, {useEffect, useState} from 'react';
 import {Video} from '@remotion/media';
 import {
   AbsoluteFill,
+  Easing,
   Sequence,
   cancelRender,
   continueRender,
@@ -18,6 +19,7 @@ import type {
   CaptionStyle,
   CaptionWord,
   MotionElement,
+  PunchIn,
   SocialVideoProps,
 } from './types';
 
@@ -250,11 +252,44 @@ const MotionGraphic: React.FC<{
   );
 };
 
+/**
+ * The picture's scale and fixed point at this frame.
+ *
+ * Each punch-in eases in over a quarter of its length (at most 0.35 s), holds,
+ * and eases back out, so the push reads as a deliberate move rather than a
+ * jump. Outside every punch-in the picture is untouched.
+ */
+const usePunchIn = (punchIns: PunchIn[]): {scale: number; origin: string} => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const now = frame / fps;
+  const active = punchIns.find((p) => now >= p.start && now < p.end);
+  if (!active) {
+    return {scale: 1, origin: '50% 50%'};
+  }
+  const ease = Math.min(0.35, (active.end - active.start) / 4);
+  const amount = interpolate(
+    now,
+    [active.start, active.start + ease, active.end - ease, active.end],
+    [0, 1, 1, 0],
+    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.inOut(Easing.cubic)},
+  );
+  return {
+    scale: 1 + (active.scale - 1) * amount,
+    origin: `${active.focus_x * 100}% ${active.focus_y * 100}%`,
+  };
+};
+
 export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
   useProjectFont(props.fontFamily, props.fontSource);
+  const punch = usePunchIn(props.punchIns ?? []);
   return (
     <AbsoluteFill style={{backgroundColor: '#000'}}>
-      <Video src={staticFile(props.source)} style={{width: '100%', height: '100%'}} />
+      <AbsoluteFill
+        style={{overflow: 'hidden', transform: `scale(${punch.scale})`, transformOrigin: punch.origin}}
+      >
+        <Video src={staticFile(props.source)} style={{width: '100%', height: '100%'}} />
+      </AbsoluteFill>
       {props.logoSource && props.logoUsage !== 'none' ? (
         <img
           src={staticFile(props.logoSource)}

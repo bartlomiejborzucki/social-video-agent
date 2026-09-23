@@ -219,3 +219,53 @@ def test_remotion_draws_the_keyword_and_the_highlight(tmp_path: Path) -> None:
     assert _yellow_share_left(frame(0.4)) > 0.9
     share = _yellow_share_left(frame(1.2))
     assert 0.2 < share < 0.8
+
+
+@pytest.mark.skipif(not HAS_REMOTION, reason="Remotion dependencies/browser not installed")
+def test_a_punch_in_scales_the_picture_and_only_while_it_runs(tmp_path: Path) -> None:
+    from social_video.remotion import render_motion_design
+    from social_video.schemas.motion import MotionPlan, PunchIn
+
+    base = tmp_path / "disc.mp4"
+    # A white disc on black, centred on the punch-in's fixed point, so its area
+    # measures the scale directly.
+    subprocess.run(
+        [
+            "ffmpeg", "-v", "error",
+            "-f", "lavfi", "-i", f"color=c=black:s={WIDTH}x{HEIGHT}:r=30:d=2",
+            "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+            "-vf", "geq=lum='if(lt(hypot(X-W/2,Y-H/2),60),255,0)':cb=128:cr=128",
+            "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(base),
+        ],
+        check=True,
+    )  # fmt: skip
+    plan = MotionPlan(
+        rationale="Punch-in check.",
+        punch_ins=[
+            PunchIn(start=0.6, end=1.8, scale=1.3, focus_x=0.5, focus_y=0.5, reason="the point")
+        ],
+    )
+    output, features, _ = render_motion_design(
+        base,
+        tmp_path / "out.mp4",
+        plan,
+        duration_in_frames=60,
+        fps=30,
+        width=WIDTH,
+        height=HEIGHT,
+        staging_root=tmp_path / "stage",
+    )
+
+    def white_area(at: float) -> int:
+        png = tmp_path / f"punch-{at:.2f}.png"
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-ss", f"{at:.3f}", "-i", str(output),
+             "-frames:v", "1", str(png)],
+            check=True,
+        )  # fmt: skip
+        with Image.open(png) as image:
+            return int((np.asarray(image.convert("L")) > 128).sum())
+
+    before, held = white_area(0.3), white_area(1.2)
+    assert "punch_in" in features
+    assert held / before == pytest.approx(1.3**2, rel=0.08)

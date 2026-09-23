@@ -11,6 +11,7 @@ from uuid import uuid4
 from social_video.captions.features import (
     CAPTION_LAYOUT_ESTIMATED,
     CAPTION_LAYOUT_MEASURED,
+    PUNCH_IN,
     caption_features,
     highlight_possible,
 )
@@ -45,6 +46,9 @@ def render_motion_design(
     if base_video.resolve() == output.resolve():
         raise ValidationError("Remotion output must not overwrite its technical base video")
     plates: dict[str, Path] = {}
+    for punch in plan.punch_ins:
+        if punch.end * fps > duration_in_frames + 1:
+            raise ValidationError(f"punch-in at {punch.start:.2f}s ends after the video timeline")
     for index, element in enumerate(plan.elements):
         if element.end * fps > duration_in_frames + 1:
             raise ValidationError(
@@ -96,6 +100,8 @@ def render_motion_design(
         logo_source = f"brand-logo{logo_path.suffix.casefold()}"
     highlight = highlight_possible(caption_style, captions)
     features = caption_features(caption_style, captions, highlight=highlight)
+    if plan.punch_ins:
+        features.append(PUNCH_IN)
     # Lay the captions out before touching the filesystem or the toolchain, so
     # a cue that cannot be drawn in full is reported as a contract problem
     # rather than discovered as clipped text in a finished render.
@@ -166,6 +172,9 @@ def render_motion_design(
                 if layout is not None
                 else None
             ),
+            "punchIns": [
+                item.model_dump(mode="json", exclude={"schema_version"}) for item in plan.punch_ins
+            ],
             "logoSource": logo_source,
             "logoUsage": logo_usage,
             "safeMargins": safe_margins or {"top": 6, "right": 6, "bottom": 12, "left": 6},

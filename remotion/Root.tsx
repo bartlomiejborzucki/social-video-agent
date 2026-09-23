@@ -15,6 +15,7 @@ const defaults: SocialVideoProps = {
   fontFamily: 'Inter, Arial, sans-serif',
   fontSource: null,
   elements: [],
+  punchIns: [],
   captions: [],
   captionStyle: null,
   captionLayout: null,
