@@ -28,7 +28,8 @@ def atomic_target(target: Path) -> Iterator[Path]:
     partial = target.with_name(f".{target.name}.{uuid4().hex}.partial")
     try:
         yield partial
-        with partial.open("rb") as handle:
+        # Windows refuses to flush a read-only handle (EBADF), so open for update.
+        with partial.open("r+b") as handle:
             os.fsync(handle.fileno())
         partial.replace(target)
     finally:

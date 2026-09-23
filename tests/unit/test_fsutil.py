@@ -51,3 +51,31 @@ def test_timestamps_are_utc_to_the_second() -> None:
     parsed = datetime.fromisoformat(stamp)
     assert parsed.utcoffset() is not None and parsed.utcoffset().total_seconds() == 0
     assert parsed.microsecond == 0
+
+
+def test_the_flush_uses_a_handle_windows_will_flush(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows' fsync fails with EBADF on a read-only handle; emulate that rule."""
+    import errno
+    import os
+    import sys
+
+    from social_video import fsutil
+
+    real_fsync = os.fsync
+
+    def windows_like_fsync(fd: int) -> None:
+        if sys.platform != "win32":
+            import fcntl
+
+            if fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE == os.O_RDONLY:
+                raise OSError(errno.EBADF, "Bad file descriptor")
+        real_fsync(fd)
+
+    monkeypatch.setattr(fsutil.os, "fsync", windows_like_fsync)
+
+    with atomic_target(tmp_path / "final.json") as partial:
+        partial.write_text("{}", encoding="utf-8")
+
+    assert (tmp_path / "final.json").read_text(encoding="utf-8") == "{}"
