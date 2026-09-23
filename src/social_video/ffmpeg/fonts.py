@@ -191,3 +191,23 @@ def default_caption_font() -> FontInfo | None:
 def describe_coverage(info: FontInfo) -> dict[str, bool]:
     """Which language samples a font can render. Used by ``doctor``."""
     return {name: info.covers(sample) for name, sample in COVERAGE_SAMPLES.items()}
+
+
+def font_family_name(path: Path) -> str | None:
+    """The family name a font file declares, which is what libass matches on.
+
+    The typographic family (name ID 16) wins over the legacy one (ID 1), which
+    splits heavy weights into families of their own.
+    """
+    try:
+        from fontTools.ttLib import TTFont  # type: ignore
+
+        font = TTFont(str(path), fontNumber=0, lazy=True)
+        names = font["name"]
+        for name_id in (16, 1):
+            record = names.getName(name_id, 3, 1) or names.getName(name_id, 1, 0)
+            if record is not None:
+                return str(record.toUnicode()).strip() or None
+    except Exception:
+        return None
+    return None

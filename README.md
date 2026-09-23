@@ -318,7 +318,9 @@ delivery_output: exports/social
 
 Validation resolves local assets and writes `edit/brand-contract.json`. Stage 2
 renders from this contract; it does not merely copy branding into context.
-Rounded backgrounds are drawn deterministically by Remotion. Stage 4 requires
+Rounded caption backgrounds are drawn from the measured layout by either
+renderer: Remotion, or libass on the FFmpeg route with the brand font loaded
+from the project. Stage 4 requires
 both technical QA and `edit/qa/qa-brand.json`.
 
 ### Voice cleanup is measured, not applied

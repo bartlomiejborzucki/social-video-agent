@@ -16,7 +16,12 @@ from pathlib import Path
 from social_video.analysis.scenes import detect_scenes, scene_cut_times
 from social_video.captions.ass import write_ass
 from social_video.captions.chunk import build_caption_track
-from social_video.captions.features import caption_features, highlight_possible
+from social_video.captions.features import (
+    CAPTION_LAYOUT_ESTIMATED,
+    CAPTION_LAYOUT_MEASURED,
+    caption_features,
+    highlight_possible,
+)
 from social_video.captions.srt import write_srt
 from social_video.editorial.compile import compile_plan
 from social_video.editorial.draft import draft_edit_plan
@@ -279,16 +284,14 @@ def stage_render(
     if contract is not None:
         _check_audio_policy(edl, contract)
         _check_movement(edl, motion_plan if renderer is Renderer.REMOTION else None, contract)
-    if (
+    # A rounded caption box on the FFmpeg route is drawn by libass from the
+    # same measured layout the Remotion compositor uses.
+    rounded_on_ffmpeg = (
         renderer is Renderer.FFMPEG
         and contract is not None
         and captions is not None
         and contract.brand.captions.background_style.value == "rounded_box"
-    ):
-        raise ValidationError(
-            "caption background_style=rounded_box requires the Remotion renderer; "
-            "FFmpeg/libass cannot render the configured rounded contract exactly"
-        )
+    )
     q: Quality = QUALITIES[quality]
     out_dir = workspace.previews if quality != "final" else workspace.final
     output = output or out_dir / ("final.mp4" if quality == "final" else "preview.mp4")
@@ -315,6 +318,14 @@ def stage_render(
         if renderer is Renderer.REMOTION:
             remotion_caption_style = contract.brand.captions
             base_captions = None
+    caption_fonts_dir: Path | None = None
+    boxed_layout = None
+    if rounded_on_ffmpeg:
+        assert contract is not None and captions is not None
+        base_captions, boxed_layout, caption_fonts_dir = _rounded_box_captions(
+            captions, contract, edl, workspace
+        )
+        caption_track = load_artifact(CaptionTrack, captions.with_suffix(".json"))
     # The project decides whether the voice is repaired; `audio_cleanup=False`
     # is the per-render escape hatch, so one render can be compared with the
     # untouched audio without editing the contract.
@@ -328,6 +339,7 @@ def stage_render(
         quality=q,
         caption_file=base_captions,
         audio_cleanup_policy=cleanup_policy,
+        caption_fonts_dir=caption_fonts_dir,
     )
     if renderer is Renderer.REMOTION:
         from social_video.remotion import render_motion_design
@@ -381,15 +393,19 @@ def stage_render(
         manifest_obj.tool_versions["remotion"] = runtime.locked_version if runtime else "unknown"
     else:
         # libass draws the ASS track; it honours the same contracted features.
-        # It wraps internally and has no truncation mode, so there is no
-        # measured layout to record for this route.
-        caption_layout = None
+        # A plain track wraps inside libass, so there is no measured layout to
+        # record; a rounded-box track was laid out here and records its layout.
+        caption_layout = boxed_layout
         style = contract.brand.captions if contract else None
         applied_caption_features = caption_features(
             style,
             caption_track,
             highlight=highlight_possible(style, caption_track),
         )
+        if boxed_layout is not None:
+            applied_caption_features.append(
+                CAPTION_LAYOUT_MEASURED if boxed_layout.measured else CAPTION_LAYOUT_ESTIMATED
+            )
     if contract is not None:
         manifest_obj.brand_contract_sha256 = contract.project_config_sha256
         manifest_obj.caption_style = contract.brand.captions.model_dump(
@@ -418,6 +434,43 @@ def stage_render(
         {"output": str(output), "renderer": renderer.value},
     )
     return output
+
+
+def _rounded_box_captions(captions: Path, contract: BrandContract, edl: EDL, workspace: Workspace):
+    """Lay out the caption track and write it as a rounded-box ASS document."""
+    from social_video.captions.ass import render_boxed_ass
+    from social_video.captions.fit import layout_captions
+    from social_video.ffmpeg.fonts import font_family_name
+    from social_video.fsutil import atomic_write_bytes
+
+    json_path = captions.with_suffix(".json")
+    if not json_path.is_file():
+        raise ValidationError(
+            f"caption data required to draw rounded caption boxes is missing: {json_path}"
+        )
+    track = load_artifact(CaptionTrack, json_path)
+    style = contract.brand.captions
+    font_file = Path(contract.resolved_font_file) if contract.resolved_font_file else None
+    layout = layout_captions(
+        list(track.cues),
+        style,
+        width=edl.output_width,
+        height=edl.output_height,
+        safe_margins=contract.safe_margins,
+        font_file=font_file,
+    )
+    document = render_boxed_ass(
+        track,
+        style,
+        layout,
+        width=edl.output_width,
+        height=edl.output_height,
+        safe_margins=contract.safe_margins,
+        font_name=(font_family_name(font_file) if font_file else None) or style.font_family,
+    )
+    target = workspace.cache / "captions" / f"{captions.stem}.rounded.ass"
+    atomic_write_bytes(target, document.encode("utf-8"))
+    return target, layout, (font_file.parent if font_file else None)
 
 
 def _check_movement(edl: EDL, plan: MotionPlan | None, contract: BrandContract) -> None:

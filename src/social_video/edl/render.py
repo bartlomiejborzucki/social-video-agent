@@ -437,6 +437,7 @@ def build_filtergraph(
     loudnorm: str | None,
     mix: AudioMix | None = None,
     cleanup: str | None = None,
+    caption_fonts_dir: Path | None = None,
 ) -> tuple[str, str, str]:
     """Build the whole filter graph. Returns (graph, video_label, audio_label)."""
     video_labels: list[str] = []
@@ -546,7 +547,8 @@ def build_filtergraph(
 
     # Captions are burned last, so nothing can be composited over them.
     if caption_file is not None:
-        parts.append(f"{vlabel}subtitles={escape_filter_path(caption_file)}[vs]")
+        fonts = f":fontsdir={escape_filter_path(caption_fonts_dir)}" if caption_fonts_dir else ""
+        parts.append(f"{vlabel}subtitles={escape_filter_path(caption_file)}{fonts}[vs]")
         vlabel = "[vs]"
 
     if loudnorm:
@@ -612,8 +614,13 @@ def render_edl(
     quality: Quality = FINAL,
     caption_file: Path | None = None,
     audio_cleanup_policy: str = "none",
+    caption_fonts_dir: Path | None = None,
 ) -> RenderManifest:
-    """Render an EDL to a file. Returns a manifest describing what was made."""
+    """Render an EDL to a file. Returns a manifest describing what was made.
+
+    ``caption_fonts_dir`` lets libass load the brand's own font file, so the
+    captions it draws are the ones that were measured.
+    """
     warnings = validate_edl(edl, manifest)
     for warning in warnings:
         log.warning("edl: %s", warning)
@@ -654,6 +661,7 @@ def render_edl(
         loudnorm=loudnorm,
         mix=mix,
         cleanup=cleanup.chain,
+        caption_fonts_dir=caption_fonts_dir,
     )
 
     output = output.resolve()

@@ -108,9 +108,10 @@ carry word timings: the renderer records the features it actually drew and brand
 QA fails if a contracted one was dropped.
 
 Generate captions from the compiled brand contract. The EDL stores its
-fingerprint, never an unresolvable project/profile name. Rounded caption boxes
-are rendered by Remotion; an FFmpeg-only run fails rather than silently
-approximating that contract.
+fingerprint, never an unresolvable project/profile name. Rounded caption boxes are drawn by
+both renderers from the same measured layout; on the FFmpeg route libass draws
+them with the brand font loaded from the project, so a project that cannot use
+Remotion keeps its caption contract.
 
 ## Stage 3 — supervising-editor review
 

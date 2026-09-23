@@ -10,6 +10,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   (reveals two to five points), `chapter`, `cta`, `progress` and `logo_reveal`,
   in the brand's typography and colours, inside the safe margins and clear of
   the caption area.
+- `workflow renderer remotion` switches an existing workspace, legacy FFmpeg
+  ones included, to Remotion through the Stage 0 licence gate.
+
+### Changed
+
+- Rounded caption boxes no longer require Remotion: on the FFmpeg route libass
+  draws them from the same measured layout, with the brand font loaded from
+  the project, and the render records that layout for brand QA.
 
 ## [1.0.0] - 2026-09-23
 
