@@ -206,8 +206,8 @@ def test_migrated_config_compiles_into_the_executable_contract(tmp_path: Path) -
     assert contract.music_policy == "optional"
     assert contract.output_fps == "30/1"
     # The contract stores a resolved path, and resolving is native: on Windows
-    # a rootless POSIX path lands on the current drive.
-    assert contract.delivery_output == str(Path("/mnt/d/out").resolve())
+    # a rootless POSIX path lands on the project root's drive, not the cwd's.
+    assert contract.delivery_output == str((project / "/mnt/d/out").resolve())
 
 
 def test_migrate_does_not_mutate_the_caller_mapping() -> None:
