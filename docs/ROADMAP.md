@@ -24,18 +24,12 @@ The common gaps against that field are animated word-level captions,
 filler-word and retake removal, punch-in zoom, active-speaker framing and
 per-segment layouts, NLE export, and URL ingest.
 
-## 0.7 — stabilisation
+## 0.7 — stabilisation (done)
 
-- Remove the `cloud` extra, which nothing uses, and keep `align` and
-  `diarize` documented as unwired until 0.8 and 0.9 connect them.
-- One atomic writer and one UTC timestamp helper.
-- Turn a failed source probe in EDL validation into a named problem instead of
-  a raw exception.
-- CI: coverage report (threshold later), Python 3.10–3.13 matrix, `--frozen`
-  everywhere, PSScriptAnalyzer for the Windows adapter, property tests for
-  `paths.py` on both path flavours.
-- Split `cli.py` by sub-app and `render_edl` by filtergraph stage; direct tests
-  for `transcribe`, `edl/validate`, and `doctor`.
+Remotion from an installed wheel, one atomic writer, named probe failures, the
+full Python matrix with coverage and a type-checked 3.10 floor, PowerShell lint,
+path property tests, and the CLI and renderer split into smaller units. See the
+changelog for detail.
 
 ## 0.8 — edit quality
 

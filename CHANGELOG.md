@@ -12,6 +12,25 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   dependencies and headless browser into the app cache. Until now the default
   renderer only worked from a repository checkout.
 - `docs/ROADMAP.md`.
+- CI tests Python 3.10 through 3.13, type-checks the 3.10 floor in its own
+  environment, reports branch coverage, and lints the PowerShell adapter with
+  PSScriptAnalyzer. Property tests generate Windows, WSL mount and UNC paths
+  the example tests never listed.
+
+### Changed
+
+- The CLI is a package with one module per command group; `social_video.cli:app`
+  and `python -m social_video.cli` are unchanged, and every command's help text
+  is identical.
+- `render_edl` is split into input collection, loudness planning and the encode
+  step.
+- Every finished file is published through one atomic writer with a unique
+  staging name, so two concurrent runs can no longer collide on a shared
+  `.partial` file. Artifact JSON uses it too.
+
+### Removed
+
+- The `cloud` extra, which nothing used.
 
 ### Fixed
 
@@ -21,6 +40,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 - The Remotion bridge handed node a relative staging path while running it from
   the compositor directory; the staging root is now resolved first.
 - Two transcription backends that do not exist were still being imported.
+- Registering a JPEG or WebP plate from the agent's image tool failed: Pillow
+  inferred the format from the `.partial` staging name.
+- EDL validation turned an unreadable source into an uncaught ffprobe error on
+  its second probe; it is now a named problem, and each source is probed once.
 - A Windows unit test expected a rootless output path on the cwd's drive; it is
   resolved against the project root, so it lands on the project's drive.
 
