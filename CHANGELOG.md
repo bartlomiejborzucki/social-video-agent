@@ -4,6 +4,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-23
+
 ### Added
 
 - An installed wheel can render with Remotion. The wheel now carries the
@@ -46,6 +48,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ### Changed
 
+- The guided route now recommends OpenAI Astra where it recommended Sol
+  (Stages 1 and 3) and Sol where it recommended Terra (Stages 2 and 4); Terra
+  is no longer recommended. Claude alternatives are unchanged.
 - Rendering refuses any zoom above the brand's `punch_in_max`, and any punch-in
   when the project sets `punch_in_intensity: 0`.
 - The transcript cache is keyed on the backend as well, so switching backends
@@ -80,6 +85,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   record the version the compositor pins.
 - `split_stack` was a declared reframe mode that rendered as a plain centre
   crop.
+- Every artifact write failed on Windows: the atomic writer flushed through a
+  read-only handle, which Windows refuses with `EBADF`.
+- Several required `doctor` checks could fail without saying what to do.
 - Registering a JPEG or WebP plate from the agent's image tool failed: Pillow
   inferred the format from the `.partial` staging name.
 - EDL validation turned an unreadable source into an uncaught ffprobe error on
