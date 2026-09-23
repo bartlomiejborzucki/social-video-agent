@@ -50,6 +50,13 @@ caption_style:
   max_chars_per_cue: 24
   position: lower_safe_zone
   bottom_margin_pct: 22
+  # Colour the word being spoken while it is spoken.
+  active_word_highlight: false
+  highlight_color: "#FFD400"
+  # Brand words drawn in their own colour wherever they are spoken. One word
+  # per entry; list inflected forms separately.
+  emphasis_words: []
+  emphasis_color: "#FFD400"
 safe_margins:
   top: 6
   right: 6
@@ -152,6 +159,10 @@ def compile_brand_contract(
             max_lines=style.max_lines,
             max_words_per_cue=style.max_words_per_cue,
             max_chars_per_cue=style.max_chars_per_cue,
+            highlight_active_word=style.active_word_highlight,
+            highlight_colour=style.highlight_color,
+            emphasis_words=list(style.emphasis_words),
+            emphasis_colour=style.emphasis_color,
         ),
         accent_colour=(config.brand_colors or [style.background_color])[0],
         logo_path=str(logo_file) if logo_file else None,

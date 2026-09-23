@@ -46,8 +46,34 @@ class CaptionConfig(BaseModel):
         "lower_safe_zone"
     )
     bottom_margin_pct: float = Field(default=22, ge=0, le=45)
+    #: Colour the word being spoken, exactly while it is spoken. Needs word
+    #: timings in the caption track, which local transcription provides.
+    active_word_highlight: bool = False
+    highlight_color: str = "#FFD400"
+    #: Brand words drawn in `emphasis_color` wherever they are spoken, matched
+    #: case-insensitively and ignoring punctuation. Inflected forms are
+    #: listed separately: `Studio` does not also match `Studia`.
+    emphasis_words: list[str] = Field(default_factory=list, max_length=100)
+    emphasis_color: str = "#FFD400"
 
-    @field_validator("text_color", "background_color", "outline_color")
+    @field_validator("emphasis_words")
+    @classmethod
+    def _emphasis_words(cls, values: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for value in values:
+            word = value.strip()
+            if not word or any(ch.isspace() for ch in word):
+                raise ValueError(
+                    f"emphasis_words entries are single words; got {value!r}. "
+                    "List each word of a phrase separately."
+                )
+            if word not in cleaned:
+                cleaned.append(word)
+        return cleaned
+
+    @field_validator(
+        "text_color", "background_color", "outline_color", "highlight_color", "emphasis_color"
+    )
     @classmethod
     def _colour(cls, value: str) -> str:
         if len(value) != 7 or not value.startswith("#"):

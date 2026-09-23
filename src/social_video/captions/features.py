@@ -14,6 +14,8 @@ from social_video.schemas.captions import CaptionTrack
 ACTIVE_WORD_HIGHLIGHT = "active_word_highlight"
 #: Recorded when it was asked for and the caption data could not support it.
 ACTIVE_WORD_UNAVAILABLE = "active_word_highlight_unavailable"
+#: Recorded when the contract lists brand keywords and the renderer coloured them.
+KEYWORD_EMPHASIS = "keyword_emphasis"
 #: Recorded when caption lines were wrapped against the real font's metrics.
 CAPTION_LAYOUT_MEASURED = "caption_layout_measured"
 #: Recorded when the font could not be measured and a conservative estimate of
@@ -45,6 +47,8 @@ def caption_features(
         applied.append(ACTIVE_WORD_HIGHLIGHT)
     elif style.highlight_active_word:
         applied.append(ACTIVE_WORD_UNAVAILABLE)
+    if style.emphasis_words:
+        applied.append(KEYWORD_EMPHASIS)
     if style.background_style.value != "none":
         applied.append(f"background_{style.background_style.value}")
     if style.bold:

@@ -219,9 +219,11 @@ def _caption_payload(
     render as spoken whenever highlighting was enabled.
     """
     from social_video.captions.chunk import apply_case
+    from social_video.captions.emphasis import emphasis_keys, is_emphasised
 
     if layout is None or captions is None:
         return []
+    keys = emphasis_keys(caption_style.emphasis_words if caption_style else [])
     by_index = {cue.index: cue for cue in captions.cues}
     payload: list[dict] = []
     for drawn in layout.cues:
@@ -229,26 +231,28 @@ def _caption_payload(
         item = cue.model_dump(mode="json", exclude={"schema_version", "words"})
         item["font_size_px"] = drawn.font_size_px
         case = caption_style.case if caption_style else CaptionCase.AS_SPOKEN
-        item["lines"] = [
-            {
-                **line.payload(with_words=False),
-                **(
+        lines = []
+        for line in drawn.lines:
+            entry = line.payload(with_words=False)
+            if highlight and line.words:
+                entry["words"] = [
                     {
-                        "words": [
-                            {
-                                "text": apply_case(word.text, case),
-                                "start": word.start,
-                                "end": word.end,
-                            }
-                            for word in line.words
-                        ]
+                        "text": apply_case(word.text, case),
+                        "start": word.start,
+                        "end": word.end,
+                        "emphasis": is_emphasised(word.text, keys),
                     }
-                    if highlight
-                    else {}
-                ),
-            }
-            for line in drawn.lines
-        ]
+                    for word in line.words
+                ]
+            elif keys:
+                # No highlight to time, so the words come from the measured
+                # line itself; a start after the end means never active.
+                entry["words"] = [
+                    {"text": text, "start": 1.0, "end": 0.0, "emphasis": is_emphasised(text, keys)}
+                    for text in line.text.split(" ")
+                ]
+            lines.append(entry)
+        item["lines"] = lines
         payload.append(item)
     return payload
 

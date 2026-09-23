@@ -30,7 +30,7 @@ export type SocialVideoProps = {
   safeMargins: {top: number; right: number; bottom: number; left: number};
 };
 
-export type CaptionWord = {text: string; start: number; end: number};
+export type CaptionWord = {text: string; start: number; end: number; emphasis?: boolean};
 
 /**
  * One line, already wrapped and already measured in Python.
@@ -42,7 +42,7 @@ export type CaptionWord = {text: string; start: number; end: number};
 export type CaptionLine = {
   text: string;
   width_px: number;
-  /** Only shipped when the brand contract asks for an active-word highlight. */
+  /** Shipped when the contract asks for an active-word highlight or emphasis words. */
   words?: CaptionWord[];
 };
 
@@ -83,4 +83,6 @@ export type CaptionStyle = {
   max_chars_per_cue: number;
   highlight_active_word: boolean;
   highlight_colour: string;
+  emphasis_words: string[];
+  emphasis_colour: string;
 };

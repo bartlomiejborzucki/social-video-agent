@@ -5,7 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
-from social_video.captions.features import ACTIVE_WORD_HIGHLIGHT, ACTIVE_WORD_UNAVAILABLE
+from social_video.captions.features import (
+    ACTIVE_WORD_HIGHLIGHT,
+    ACTIVE_WORD_UNAVAILABLE,
+    KEYWORD_EMPHASIS,
+)
 from social_video.edl.voice import (
     DEESSER_MAX,
     MAX_COMPRESSION_RATIO,
@@ -105,6 +109,18 @@ def check_brand(
                     if ACTIVE_WORD_UNAVAILABLE in applied
                     else ""
                 )
+            ),
+        )
+        add(
+            "caption keyword emphasis",
+            not style.emphasis_words or KEYWORD_EMPHASIS in applied,
+            (
+                "not requested by the contract"
+                if not style.emphasis_words
+                else "applied"
+                if KEYWORD_EMPHASIS in applied
+                else f"the contract lists emphasis words but "
+                f"{render.caption_renderer or 'the renderer'} did not colour them"
             ),
         )
         add(

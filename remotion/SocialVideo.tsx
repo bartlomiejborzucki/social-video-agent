@@ -114,11 +114,12 @@ const Caption: React.FC<{
             // line Python already fitted, and must not collapse its spaces.
             style={{whiteSpace: 'pre'}}
           >
-            {highlight && line.words && line.words.length > 0 ? (
+            {line.words && line.words.length > 0 ? (
               <ActiveWords
                 words={line.words}
                 cueStart={cue.start}
-                highlight={style.highlight_colour}
+                highlight={highlight ? style.highlight_colour : undefined}
+                emphasis={style.emphasis_colour}
               />
             ) : (
               line.text
@@ -131,17 +132,18 @@ const Caption: React.FC<{
 };
 
 /**
- * The active-word highlight the bold-caption brand contract asks for.
+ * The active-word highlight and brand-keyword emphasis the contract asks for.
  *
- * The FFmpeg route has always drawn this with ASS \k timing. Until now the
- * Remotion route silently dropped the word timings and rendered flat text, so
- * the default renderer quietly produced something other than the contract.
+ * The spoken word takes the highlight colour while it is spoken; a brand
+ * keyword rests in the emphasis colour. The FFmpeg route draws the same thing
+ * with timed ASS colour transforms.
  */
 const ActiveWords: React.FC<{
   words: CaptionWord[];
   cueStart: number;
-  highlight: string;
-}> = ({words, cueStart, highlight}) => {
+  highlight?: string;
+  emphasis: string;
+}> = ({words, cueStart, highlight, emphasis}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   // The sequence is offset to the cue, so add the cue start back to compare
@@ -150,9 +152,10 @@ const ActiveWords: React.FC<{
   return (
     <>
       {words.map((word, index) => {
-        const active = now >= word.start && now < word.end;
+        const active = highlight !== undefined && now >= word.start && now < word.end;
+        const colour = active ? highlight : word.emphasis ? emphasis : undefined;
         return (
-          <span key={`${word.start}-${index}`} style={{color: active ? highlight : undefined}}>
+          <span key={`${word.start}-${index}`} style={{color: colour}}>
             {index === 0 ? '' : ' '}
             {word.text}
           </span>

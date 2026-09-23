@@ -45,6 +45,14 @@ Caption settings worth knowing:
 - `outline_or_shadow: none` is the reference on a background box. An outline
   thickens every glyph and costs the line width long words need.
 - `case` defaults to as-spoken. Uppercase is a style choice, not a default.
+- `active_word_highlight: true` colours the word being spoken, exactly while it
+  is spoken, in `highlight_color`. Both renderers draw the same thing.
+- `emphasis_words` lists brand keywords drawn in `emphasis_color` wherever they
+  are spoken. One word per entry, matched ignoring case and edge punctuation;
+  inflected forms are separate entries (`Studio` does not match `Studia`). Brand
+  QA fails a render that was asked for either and did not draw it. Use it for
+  a handful of names, not for decoration: a caption where every third word is
+  coloured emphasises nothing.
 
 Captions are never truncated to fit. Layout is measured against the project
 font in Python and handed to Remotion as explicit lines, so nothing is wrapped

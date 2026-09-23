@@ -7,6 +7,7 @@ that lights every word *not yet* spoken -- produced perfectly valid ASS.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -94,3 +95,127 @@ def test_the_highlight_follows_the_spoken_word(tmp_path: Path) -> None:
 
     assert first > 0.9, "while the first word is spoken, the highlight is on the left"
     assert second < 0.1, "while the second word is spoken, the highlight is on the right"
+
+
+def _two_words() -> CaptionTrack:
+    return CaptionTrack(
+        cues=[
+            CaptionCue(
+                index=1,
+                start=0.0,
+                end=1.6,
+                text="MMMM WWWW",
+                words=[
+                    CaptionWord(text="MMMM", start=0.0, end=0.8),
+                    CaptionWord(text="WWWW", start=0.8, end=1.6),
+                ],
+            )
+        ]
+    )
+
+
+def test_a_brand_keyword_is_drawn_in_its_colour(tmp_path: Path) -> None:
+    style = CaptionStyle(
+        emphasis_words=["mmmm"],
+        emphasis_colour="#FFD400",
+        primary_colour="#FFFFFF",
+        font_size_pct=6.0,
+        max_lines=1,
+    )
+    subtitles = write_ass(
+        _two_words(), style, tmp_path / "captions.ass", width=WIDTH, height=HEIGHT
+    )
+
+    for at in (0.4, 1.2):
+        assert _yellow_share_left(_frame(tmp_path, subtitles, at)) > 0.9
+
+
+ROOT = Path(__file__).resolve().parents[2]
+HAS_REMOTION = (
+    shutil.which("node") is not None
+    and (ROOT / "node_modules/remotion").is_dir()
+    and (ROOT / "node_modules/.remotion").is_dir()
+)
+
+
+@pytest.mark.skipif(not HAS_REMOTION, reason="Remotion dependencies/browser not installed")
+def test_remotion_draws_the_keyword_and_the_highlight(tmp_path: Path) -> None:
+    from social_video.remotion import render_motion_design
+    from social_video.schemas.motion import MotionPlan
+
+    base = tmp_path / "base.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"color=c=black:s={WIDTH}x{HEIGHT}:r=30:d=2",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=48000:cl=stereo",
+            "-t",
+            "2",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            str(base),
+        ],
+        check=True,
+    )
+    style = CaptionStyle(
+        emphasis_words=["mmmm"],
+        emphasis_colour="#FFD400",
+        highlight_active_word=True,
+        highlight_colour="#FFD400",
+        primary_colour="#FFFFFF",
+        font_size_pct=6.0,
+        max_lines=1,
+        outline_width=0,
+    )
+    output, features, _ = render_motion_design(
+        base,
+        tmp_path / "out.mp4",
+        MotionPlan(rationale="Caption colour check."),
+        duration_in_frames=60,
+        fps=30,
+        width=WIDTH,
+        height=HEIGHT,
+        staging_root=tmp_path / "stage",
+        captions=_two_words(),
+        caption_style=style,
+    )
+
+    def frame(at: float) -> np.ndarray:
+        png = tmp_path / f"remotion-{at:.2f}.png"
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-v",
+                "error",
+                "-y",
+                "-ss",
+                f"{at:.3f}",
+                "-i",
+                str(output),
+                "-frames:v",
+                "1",
+                str(png),
+            ],
+            check=True,
+        )
+        with Image.open(png) as image:
+            return np.asarray(image.convert("RGB")).astype(int)
+
+    assert "keyword_emphasis" in features
+    # While the keyword is spoken only it is yellow; while the second word is
+    # spoken both are, because the keyword rests in its emphasis colour.
+    assert _yellow_share_left(frame(0.4)) > 0.9
+    share = _yellow_share_left(frame(1.2))
+    assert 0.2 < share < 0.8

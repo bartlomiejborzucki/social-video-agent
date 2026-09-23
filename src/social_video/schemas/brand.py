@@ -85,6 +85,9 @@ class CaptionStyle(Artifact):
     min_cue_duration: float = Field(default=0.6, gt=0.0)
     highlight_active_word: bool = False
     highlight_colour: str = "#FFD400"
+    #: Brand keywords drawn in ``emphasis_colour`` wherever they are spoken.
+    emphasis_words: list[str] = Field(default_factory=list)
+    emphasis_colour: str = "#FFD400"
     speaker_colours: dict[str, str] = Field(default_factory=dict)
 
 

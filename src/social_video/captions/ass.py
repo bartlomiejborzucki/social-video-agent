@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from social_video.captions.emphasis import emphasis_keys, is_emphasised
 from social_video.schemas.brand import CaptionPosition, CaptionStyle
 from social_video.schemas.captions import CaptionTrack
 
@@ -122,14 +123,17 @@ def render_ass(
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
 
+    keys = emphasis_keys(style.emphasis_words)
     for cue in sorted(track.cues, key=lambda c: c.start):
         speaker_colour = style.speaker_colours.get(cue.speaker) if cue.speaker else None
         name = _speaker_style(cue.speaker) if speaker_colour else "Default"
-        text = (
-            _active_word(cue, style, base=speaker_colour or style.primary_colour)
-            if style.highlight_active_word and cue.words
-            else escape_text(cue.text)
-        )
+        base = speaker_colour or style.primary_colour
+        if style.highlight_active_word and cue.words:
+            text = _active_word(cue, style, base=base, keys=keys)
+        elif keys:
+            text = _emphasised(cue.text, style, base=base, keys=keys)
+        else:
+            text = escape_text(cue.text)
         lines.append(
             f"Dialogue: 0,{format_timestamp(cue.start)},{format_timestamp(cue.end)},"
             f"{name},,0,0,0,,{text}"
@@ -138,7 +142,19 @@ def render_ass(
     return "\n".join(lines) + "\n"
 
 
-def _active_word(cue, style: CaptionStyle, *, base: str) -> str:
+def _emphasised(text: str, style: CaptionStyle, *, base: str, keys: frozenset[str]) -> str:
+    """Recolour brand keywords inside an already-cased cue, word by word."""
+    plain = hex_to_ass_colour(base)
+    emphasis = hex_to_ass_colour(style.emphasis_colour)
+    return " ".join(
+        f"{{\\1c{emphasis}}}{escape_text(word)}{{\\1c{plain}}}"
+        if is_emphasised(word, keys)
+        else escape_text(word)
+        for word in text.split(" ")
+    )
+
+
+def _active_word(cue, style: CaptionStyle, *, base: str, keys: frozenset[str] = frozenset()) -> str:
     """Colour only the word being spoken, exactly while it is spoken.
 
     Each word starts in the cue's colour, switches to the highlight colour when
@@ -155,10 +171,12 @@ def _active_word(cue, style: CaptionStyle, *, base: str) -> str:
     """
     from social_video.captions.chunk import apply_case
 
-    plain = hex_to_ass_colour(base)
     active = hex_to_ass_colour(style.highlight_colour)
     parts: list[str] = []
     for word in cue.words:
+        # A brand keyword rests in its emphasis colour and is still
+        # highlighted while spoken, like every other word.
+        plain = hex_to_ass_colour(style.emphasis_colour if is_emphasised(word.text, keys) else base)
         begin = max(0, round((word.start - cue.start) * 1000))
         end = max(begin + 10, round((word.end - cue.start) * 1000))
         text = escape_text(apply_case(word.text, style.case))
