@@ -5,7 +5,7 @@ from io import StringIO
 import pytest
 from rich.console import Console
 
-from social_video import cli
+from social_video.cli import workflow as cli
 
 
 @pytest.mark.parametrize(
