@@ -8,12 +8,13 @@ implemented wrongly would pass the unit tests and fail here.
 from __future__ import annotations
 
 import math
+import tempfile
 from pathlib import Path
 
 import pytest
 
 from social_video.edl.render import render_edl
-from social_video.edl.voice import MAX_NOISE_REDUCTION_DB
+from social_video.edl.voice import MAX_NOISE_REDUCTION_DB, _window_levels
 from social_video.schemas.edl import EDL, EDLRange
 from social_video.sources import build_manifest
 from tests.conftest import ffmpeg, requires_ffmpeg
@@ -206,3 +207,17 @@ def test_the_policy_and_the_flag_both_leave_the_audio_as_recorded(tmp_path: Path
     assert off["measured"] == {}
     # Nothing was measured either: `none` must not even analyse the audio.
     assert off["applied"] == [] and off["skipped"] == []
+
+
+def test_window_measurement_survives_a_filter_hostile_temp_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The report path is a filter option, so the temp directory must be escaped."""
+    hostile = tmp_path / "it's, a;b=c [x]"
+    hostile.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(hostile))
+    source = _voice(tmp_path / "voice.mp4", seconds=2.0)
+
+    levels = _window_levels(["-i", str(source)], "[0:a]anull[s]", "[s]")
+
+    assert levels

@@ -41,6 +41,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from social_video.ffmpeg.filters import escape_filter_path
 from social_video.ffmpeg.run import run_ffmpeg
 
 log = logging.getLogger(__name__)
@@ -416,7 +417,7 @@ def _window_levels(inputs: list[str], speech_graph: str, out_label: str) -> list
             f"asetnsamples=n={WINDOW_SAMPLES},"
             "astats=metadata=1:reset=1:measure_perchannel=none,"
             "ametadata=mode=print:key=lavfi.astats.Overall.RMS_level"
-            f":file={_escape(report)}[vm]"
+            f":file={escape_filter_path(report)}[vm]"
         )
         args = [*inputs, "-filter_complex", graph, "-map", "[vm]", "-f", "null", "-"]
         try:
@@ -479,8 +480,3 @@ def _percentile(values: list[float], percent: float) -> float:
     high = min(low + 1, len(ordered) - 1)
     weight = position - low
     return ordered[low] * (1 - weight) + ordered[high] * weight
-
-
-def _escape(path: Path) -> str:
-    """Escape a path for a filter option value."""
-    return str(path).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
