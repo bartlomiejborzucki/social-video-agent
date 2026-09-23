@@ -127,11 +127,7 @@ def _load_builtin_backends() -> None:
     """
     from importlib import import_module
 
-    for module in (
-        "social_video.transcribe.faster_whisper",
-        "social_video.transcribe.whisperx_backend",
-        "social_video.transcribe.elevenlabs",
-    ):
+    for module in ("social_video.transcribe.faster_whisper",):
         try:
             import_module(module)
         except ImportError:
