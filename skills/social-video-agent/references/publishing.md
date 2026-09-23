@@ -56,3 +56,14 @@ whether the clip opens on an image rather than black, and whether a caption is
 on screen within the first second — muted autoplay is the normal case, so a
 silent first second is a lost viewer. `qa/opening-contact-sheet.png` covers the
 first three seconds for the same targeted inspection the ending sheet gets.
+
+## Handing the edit to a human editor
+
+`social-video-agent export WORKSPACE` writes the cut to `exports/` as FCPXML
+(Final Cut, Resolve), Premiere/FCP7 XML, OpenTimelineIO and CMX 3600 EDL, or one
+of them with `--format`. Cuts land on the same frames as in the render; media
+is referenced by absolute path. The command lists what the timeline cannot
+carry -- framing, punch-ins, speed, holds, captions, overlays, music, effects,
+voice cleanup and motion graphics -- so tell the user those stay in the render
+and captions come from the workspace's SRT/ASS.
+

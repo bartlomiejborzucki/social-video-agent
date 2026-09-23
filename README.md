@@ -380,6 +380,10 @@ graphic is valid when that serves the material better.
 - Speaker-aware framing by correlating mouth movement with the speech envelope.
 - One long recording into several standalone shorts, each in its own workspace.
 - Content-addressed transcription caching and immutable source files.
+- NLE export of the cut as FCPXML, Premiere/FCP7 XML, OpenTimelineIO and CMX 3600
+  EDL (`social-video-agent export WORKSPACE`), frame-for-frame with the render
+  and read back by OpenTimelineIO in CI. Crops, captions, graphics and audio
+  processing are listed as not exported rather than dropped silently.
 
 ## CLI
 

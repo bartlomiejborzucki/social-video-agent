@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import typer
+from rich.markup import escape
 from rich.table import Table
 
 from social_video.cli._apps import (
@@ -242,3 +243,53 @@ def apply_editorial_review(
     else:
         verb = "updated" if changed else "approved without changes"
         console.print(f"[green]{verb}[/green] {ws.edl}", soft_wrap=True)
+
+
+@app.command("export")
+def export_timeline(
+    workspace_dir: Path = typer.Argument(..., help="Workspace with edl.json and sources."),
+    formats: list[str] = typer.Option(
+        [], "--format", "-f", help="fcpxml, xmeml (Premiere), otio or edl (CMX 3600). Default: all."
+    ),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Directory to write to."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Write the edit as an NLE timeline for Premiere, Resolve, Final Cut or OTIO.
+
+    The cuts travel; crops, captions, graphics and audio processing do not, and
+    every such omission is listed.
+    """
+    from social_video.export import FORMATS, build_export_timeline, write_export
+    from social_video.pipeline import load_workspace_artifacts
+    from social_video.workspace.layout import Workspace
+
+    ws = Workspace.at(workspace_dir)
+    chosen = formats or list(FORMATS)
+
+    def run():
+        unknown = [f for f in chosen if f not in FORMATS]
+        if unknown:
+            raise ValueError(
+                f"unknown export format(s) {', '.join(unknown)}; expected {', '.join(FORMATS)}"
+            )
+        manifest, edl = load_workspace_artifacts(ws)
+        timeline = build_export_timeline(edl, manifest)
+        paths = [write_export(timeline, fmt, output or ws.exports) for fmt in chosen]
+        return timeline, paths
+
+    timeline, paths = _guard(run)
+    if as_json:
+        console.print_json(
+            data={
+                "files": [str(p) for p in paths],
+                "notes": timeline.notes,
+                "fps": str(timeline.fps),
+            }
+        )
+        return
+    for path in paths:
+        console.print(f"[green]written[/green] {path}", soft_wrap=True)
+    if timeline.notes:
+        console.print("\n[bold]Not in the timeline[/bold]")
+        for note in timeline.notes:
+            console.print(f"  - {escape(note)}")

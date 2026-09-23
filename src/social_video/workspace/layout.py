@@ -172,6 +172,11 @@ class Workspace:
         return self.root / "delivery-manifest.json"
 
     @property
+    def exports(self) -> Path:
+        """NLE timelines written from the EDL for a human editor."""
+        return self.root / "exports"
+
+    @property
     def cut_candidates(self) -> Path:
         """Filler, stutter, false-start and pause spans awaiting the agent."""
         return self.analysis / "cut-candidates.json"
