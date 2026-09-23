@@ -132,6 +132,9 @@ def _check_runtime(report: DoctorReport) -> None:
             else "wsl.exe unusable",
             "Install WSL2 with `wsl --install`; nothing is installed for you."
             if Problem.WSL_MISSING in problems
+            else "wsl.exe did not answer. Run `wsl --status` and `wsl --update` in "
+            "PowerShell, then rerun doctor."
+            if Problem.WSL_BROKEN in problems
             else "",
         )
     )
