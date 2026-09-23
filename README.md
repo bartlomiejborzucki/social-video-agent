@@ -579,4 +579,6 @@ The project is Apache-2.0 and incorporates attributed MIT-licensed work from [br
   audio correlation on top of it.
 - Actual Windows 11 `/mnt/c` acceptance must be recorded for each release; generic Linux CI is not equivalent.
 
+Planned work is tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
+
 See [CHANGELOG.md](CHANGELOG.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md) for public project policies.
