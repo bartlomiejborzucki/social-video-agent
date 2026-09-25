@@ -27,4 +27,10 @@ app.add_typer(config_app, name="config")
 app.add_typer(image_app, name="image")
 app.add_typer(shorts_app, name="shorts")
 app.add_typer(cuts_app, name="cuts")
+motion_app = typer.Typer(
+    help="Propose accents (hook card, figures, steps, punch-ins, transitions) and sound under them."
+)
+app.add_typer(motion_app, name="motion")
+broll_app = typer.Typer(help="Match clips from your own library to what is said, and cut them in.")
+app.add_typer(broll_app, name="broll")
 app.add_typer(license_app, name="remotion-license")

@@ -172,6 +172,16 @@ class Workspace:
         return self.root / "delivery-manifest.json"
 
     @property
+    def broll_candidates(self) -> Path:
+        """B-roll clips from the user's library matched to the transcript."""
+        return self.analysis / "broll-candidates.json"
+
+    @property
+    def accent_candidates(self) -> Path:
+        """Accents `motion suggest` found, awaiting the agent."""
+        return self.analysis / "accent-candidates.json"
+
+    @property
     def exports(self) -> Path:
         """NLE timelines written from the EDL for a human editor."""
         return self.root / "exports"
