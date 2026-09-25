@@ -22,6 +22,9 @@ import type {
   PunchIn,
   SocialVideoProps,
 } from './types';
+import {DATA_GRAPHICS, DataGraphic} from './DataGraphics';
+import {stylePack} from './stylePacks';
+import {useTransition} from './Transitions';
 
 const useProjectFont = (family: string, source: string | null): void => {
   const [handle] = useState(() => delayRender('Load project motion-design font'));
@@ -122,6 +125,8 @@ const Caption: React.FC<{
                 cueStart={cue.start}
                 highlight={highlight ? style.highlight_colour : undefined}
                 emphasis={style.emphasis_colour}
+                animation={highlight ? style.animation ?? 'none' : 'none'}
+                boxText={boxed ? style.background_colour : '#111111'}
               />
             ) : (
               line.text
@@ -145,7 +150,9 @@ const ActiveWords: React.FC<{
   cueStart: number;
   highlight?: string;
   emphasis: string;
-}> = ({words, cueStart, highlight, emphasis}) => {
+  animation?: 'none' | 'pop' | 'box';
+  boxText?: string;
+}> = ({words, cueStart, highlight, emphasis, animation = 'none', boxText = '#111111'}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   // The sequence is offset to the cue, so add the cue start back to compare
@@ -156,11 +163,37 @@ const ActiveWords: React.FC<{
       {words.map((word, index) => {
         const active = highlight !== undefined && now >= word.start && now < word.end;
         const colour = active ? highlight : word.emphasis ? emphasis : undefined;
+        // pop springs the spoken word up; box slides a highlight behind it.
+        // Both use transform and box-shadow, which never change the measured
+        // layout, so a line cannot reflow or overflow while it animates.
+        const since = now - word.start;
+        // Kept small: a scaled word grows over the spaces beside it, so the
+        // pop is mostly a lift, with just enough scale to read as a spring.
+        const popped =
+          active && animation === 'pop'
+            ? interpolate(since, [0, 0.1, 0.28], [0, 1, 0.6], {
+                extrapolateLeft: 'clamp',
+                extrapolateRight: 'clamp',
+              })
+            : 0;
+        const boxed = active && animation === 'box';
         return (
-          <span key={`${word.start}-${index}`} style={{color: colour}}>
+          <React.Fragment key={`${word.start}-${index}`}>
             {index === 0 ? '' : ' '}
-            {word.text}
-          </span>
+            <span
+              style={{
+                display: 'inline-block',
+                color: boxed ? boxText : colour,
+                transform: `translateY(${-0.14 * popped}em) scale(${1 + 0.06 * popped})`,
+                background: boxed ? highlight : undefined,
+                boxShadow: boxed ? `0 0 0 0.14em ${highlight}` : undefined,
+                borderRadius: boxed ? '0.18em' : undefined,
+                WebkitTextStroke: boxed ? '0' : undefined,
+              }}
+            >
+              {word.text}
+            </span>
+          </React.Fragment>
         );
       })}
     </>
@@ -499,13 +532,23 @@ const usePunchIn = (punchIns: PunchIn[]): {scale: number; origin: string} => {
 export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
   useProjectFont(props.fontFamily, props.fontSource);
   const punch = usePunchIn(props.punchIns ?? []);
+  const cut = useTransition(props.transitions ?? []);
+  const pack = stylePack(props.style);
   return (
     <AbsoluteFill style={{backgroundColor: '#000'}}>
       <AbsoluteFill
-        style={{overflow: 'hidden', transform: `scale(${punch.scale})`, transformOrigin: punch.origin}}
+        style={{
+          overflow: 'hidden',
+          transform: `translateX(${cut.shiftX}px) scale(${punch.scale * cut.scale})`,
+          transformOrigin: punch.origin,
+          filter: cut.blur > 0.05 ? `blur(${cut.blur}px)` : undefined,
+        }}
       >
         <Video src={staticFile(props.source)} style={{width: '100%', height: '100%'}} />
       </AbsoluteFill>
+      {cut.flash > 0.01 ? (
+        <AbsoluteFill style={{backgroundColor: props.accentColor, opacity: cut.flash}} />
+      ) : null}
       {props.logoSource && props.logoUsage !== 'none' ? (
         <img
           src={staticFile(props.logoSource)}
@@ -524,7 +567,18 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
         const duration = Math.max(1, Math.round((element.end - element.start) * props.fps));
         return (
           <Sequence key={`${element.type}-${index}`} from={from} durationInFrames={duration}>
-            {EXTENDED.has(element.type) ? (
+            {DATA_GRAPHICS.has(element.type) ? (
+              <DataGraphic
+                element={element}
+                accent={props.accentColor}
+                text={props.textColor}
+                background={props.backgroundColor}
+                font={props.fontFamily}
+                durationInFrames={duration}
+                safeMargins={props.safeMargins}
+                pack={pack}
+              />
+            ) : EXTENDED.has(element.type) ? (
               <ExtendedGraphic
                 element={element}
                 accent={props.accentColor}

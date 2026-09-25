@@ -361,6 +361,7 @@ def stage_render(
             render_plan.accent_color = contract.brand.accent_colour
             render_plan.text_color = contract.brand.captions.primary_colour
             render_plan.background_color = contract.brand.background_colour
+            render_plan.style = contract.brand.style_pack
         _rendered, applied_caption_features, caption_layout = render_motion_design(
             render_target,
             output,
@@ -482,7 +483,13 @@ def _check_movement(edl: EDL, plan: MotionPlan | None, contract: BrandContract) 
         if rng.zoom > limit + 1e-9
     ]
     if plan is not None:
+        from social_video.motion.energy import energy_preset
+
         problems += plan.punch_in_problems(limit=limit, intensity=contract.brand.motion_intensity)
+        problems += plan.transition_problems(
+            per_minute=energy_preset(contract.brand.motion_energy).transitions_per_minute,
+            duration=edl.total_duration,
+        )
     if problems:
         raise ValidationError(
             "movement exceeds the project's brand contract:\n"

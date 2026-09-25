@@ -28,9 +28,9 @@ def test_textless_graphics_refuse_words(kind: str) -> None:
 def test_a_list_has_two_to_five_short_points() -> None:
     _element("list", items=["Nagraj", "Wytnij", "Opublikuj"])
     for items in (["Tylko jeden"], ["x" * 61, "ok"]):
-        with pytest.raises(PydanticValidationError, match="two to five items"):
+        with pytest.raises(PydanticValidationError, match="2 to 5 items"):
             _element("list", items=items)
-    with pytest.raises(PydanticValidationError, match="only used by a list"):
+    with pytest.raises(PydanticValidationError, match="only used by lists"):
         _element("quote", text="Cytat", items=["a", "b"])
 
 

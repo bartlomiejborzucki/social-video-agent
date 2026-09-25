@@ -115,6 +115,8 @@ class ProjectConfig(BaseModel):
     logo_usage: str | None = None
     safe_margins: dict[str, float] | None = None
     punch_in_intensity: str | float | None = None
+    motion_energy: str | None = None
+    style_pack: str | None = None
     broll_density: str | float | None = None
     music_policy: str | None = None
     sfx_policy: str | None = None

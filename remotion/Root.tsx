@@ -16,6 +16,8 @@ const defaults: SocialVideoProps = {
   fontSource: null,
   elements: [],
   punchIns: [],
+  transitions: [],
+  style: 'editorial',
   captions: [],
   captionStyle: null,
   captionLayout: null,

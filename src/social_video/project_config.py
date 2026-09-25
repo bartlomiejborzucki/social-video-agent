@@ -64,6 +64,10 @@ safe_margins:
   left: 6
 editing_profile: calm-expert
 punch_in_intensity: 0.25
+# How much the cut moves: calm (restrained), lively (Reels/Shorts rhythm) or bold.
+motion_energy: lively
+# Visual family of the motion layer: editorial, bold-social or tech-minimal.
+style_pack: editorial
 broll_density: 0
 music_policy: none
 sfx_policy: none
@@ -137,6 +141,9 @@ def compile_brand_contract(
     if config.logo_usage == "required" and logo_file is None:
         raise ValidationError("branding requires a logo, but logo_file was not configured")
     style = config.caption_style
+    from social_video.motion.energy import energy_preset
+
+    energy = energy_preset(config.motion_energy)
     brand = BrandProfile(
         name=config.brand_name,
         captions=CaptionStyle(
@@ -163,12 +170,22 @@ def compile_brand_contract(
             highlight_colour=style.highlight_color,
             emphasis_words=list(style.emphasis_words),
             emphasis_colour=style.emphasis_color,
+            animation=style.animation or energy.caption_animation,
         ),
         accent_colour=(config.brand_colors or [style.background_color])[0],
         logo_path=str(logo_file) if logo_file else None,
         logo_usage=config.logo_usage,
         safe_margin_pct=max(config.safe_margins.values(), default=6),
-        motion_intensity=config.punch_in_intensity,
+        # calm keeps the configured intensity exactly; a livelier energy raises
+        # it, but a project that set 0 (no movement) stays still.
+        motion_intensity=(
+            config.punch_in_intensity
+            if energy.name == "calm" or config.punch_in_intensity == 0
+            else max(config.punch_in_intensity, energy.motion_intensity)
+        ),
+        punch_in_max=energy.punch_in_max,
+        motion_energy=energy.name,
+        style_pack=config.style_pack,
         broll_density=config.broll_density,
         music_enabled=config.music_policy != "none",
         sfx_enabled=config.sfx_policy != "none",

@@ -18,6 +18,12 @@ ACTIVE_WORD_UNAVAILABLE = "active_word_highlight_unavailable"
 KEYWORD_EMPHASIS = "keyword_emphasis"
 #: Recorded when the motion plan's timed punch-ins were drawn.
 PUNCH_IN = "punch_in"
+#: Recorded when the motion plan's transitions were drawn.
+TRANSITIONS = "transitions"
+#: Recorded when the spoken word was animated as the contract asks (pop, box).
+CAPTION_ANIMATION = "caption_animation"
+#: Recorded when an animation was asked for and this renderer cannot draw it.
+CAPTION_ANIMATION_UNAVAILABLE = "caption_animation_unavailable"
 #: Recorded when caption lines were wrapped against the real font's metrics.
 CAPTION_LAYOUT_MEASURED = "caption_layout_measured"
 #: Recorded when the font could not be measured and a conservative estimate of
@@ -41,10 +47,14 @@ def caption_features(
     captions: CaptionTrack | None,
     *,
     highlight: bool,
+    animated: bool = False,
 ) -> list[str]:
+    """What was drawn. ``animated`` says whether this renderer can move words."""
     if style is None or captions is None:
         return []
     applied = ["burned_in"]
+    if highlight and style.animation not in ("", "none"):
+        applied.append(CAPTION_ANIMATION if animated else CAPTION_ANIMATION_UNAVAILABLE)
     if highlight:
         applied.append(ACTIVE_WORD_HIGHLIGHT)
     elif style.highlight_active_word:

@@ -88,6 +88,9 @@ class CaptionStyle(Artifact):
     #: Brand keywords drawn in ``emphasis_colour`` wherever they are spoken.
     emphasis_words: list[str] = Field(default_factory=list)
     emphasis_colour: str = "#FFD400"
+    #: How the spoken word moves: none, pop (it springs up) or box (a highlight
+    #: box slides behind it). Drawn by Remotion.
+    animation: str = "none"
     speaker_colours: dict[str, str] = Field(default_factory=dict)
 
 
@@ -118,6 +121,10 @@ class BrandProfile(Artifact):
         "constant zooming is not a style, it is a tell.",
     )
     transition_default: str = "cut"
+    #: calm, lively or bold; see social_video.motion.energy.
+    motion_energy: str = "calm"
+    #: Visual family of the motion layer: editorial, bold-social, tech-minimal.
+    style_pack: str = "editorial"
     broll_density: float = Field(default=0.0, ge=0.0, le=1.0)
     music_enabled: bool = False
     sfx_enabled: bool = False

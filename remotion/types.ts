@@ -10,7 +10,11 @@ export type MotionElement = {
     | 'chapter'
     | 'cta'
     | 'progress'
-    | 'logo_reveal';
+    | 'logo_reveal'
+    | 'hook_card'
+    | 'chart'
+    | 'compare'
+    | 'steps';
   start: number;
   end: number;
   text: string;
@@ -35,12 +39,23 @@ export type SocialVideoProps = {
   fontSource: string | null;
   elements: MotionElement[];
   punchIns: PunchIn[];
+  transitions: Transition[];
+  /** Style pack of the motion layer (editorial, bold-social, tech-minimal). */
+  style: string;
   captions: CaptionCue[];
   captionStyle: CaptionStyle | null;
   captionLayout: CaptionLayout | null;
   logoSource: string | null;
   logoUsage: 'none' | 'optional' | 'required';
   safeMargins: {top: number; right: number; bottom: number; left: number};
+};
+
+/** An effect across one cut, centred on its output time. */
+export type Transition = {
+  at: number;
+  style: 'zoom' | 'slide' | 'flash';
+  duration: number;
+  reason: string;
 };
 
 /** A timed push in on the picture only; captions and graphics stay put. */
@@ -108,4 +123,5 @@ export type CaptionStyle = {
   highlight_colour: string;
   emphasis_words: string[];
   emphasis_colour: string;
+  animation: 'none' | 'pop' | 'box';
 };

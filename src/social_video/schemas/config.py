@@ -55,6 +55,8 @@ class CaptionConfig(BaseModel):
     #: listed separately: `Studio` does not also match `Studia`.
     emphasis_words: list[str] = Field(default_factory=list, max_length=100)
     emphasis_color: str = "#FFD400"
+    #: How the spoken word moves. Empty means "what motion_energy implies".
+    animation: Literal["", "none", "pop", "box"] = ""
 
     @field_validator("emphasis_words")
     @classmethod
@@ -102,6 +104,11 @@ class ProjectVideoConfig(BaseModel):
     safe_margins: dict[str, float] = Field(default_factory=dict)
     editing_profile: str = "calm-expert"
     punch_in_intensity: float = Field(default=0.25, ge=0, le=1)
+    #: One setting for how much the cut moves: punch-ins, transitions, caption
+    #: animation and how many accents `motion suggest` proposes.
+    motion_energy: Literal["calm", "lively", "bold"] = "calm"
+    #: Visual family of the Remotion layer, in the brand's colours and font.
+    style_pack: Literal["editorial", "bold-social", "tech-minimal"] = "editorial"
     broll_density: float = Field(default=0, ge=0, le=1)
     music_policy: Literal["none", "optional", "required"] = "none"
     sfx_policy: Literal["none", "optional", "required"] = "none"

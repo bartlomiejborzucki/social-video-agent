@@ -501,7 +501,13 @@ def _build_context(root: Path, sources: ContextSources) -> ProjectContext:
         else {},
         visual_style={
             key: config[key]
-            for key in ("punch_in_intensity", "broll_density", "image_generation_policy")
+            for key in (
+                "punch_in_intensity",
+                "motion_energy",
+                "style_pack",
+                "broll_density",
+                "image_generation_policy",
+            )
             if key in config
         },
         fonts=[
@@ -520,7 +526,7 @@ def _build_context(root: Path, sources: ContextSources) -> ProjectContext:
         caption_guidelines=config.get("caption_style") or {},
         editing_guidelines={
             key: config[key]
-            for key in ("editing_profile", "punch_in_intensity", "broll_density")
+            for key in ("editing_profile", "punch_in_intensity", "motion_energy", "broll_density")
             if key in config
         },
         audio_guidelines={

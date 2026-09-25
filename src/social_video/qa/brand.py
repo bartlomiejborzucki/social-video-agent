@@ -8,6 +8,7 @@ from typing import Protocol
 from social_video.captions.features import (
     ACTIVE_WORD_HIGHLIGHT,
     ACTIVE_WORD_UNAVAILABLE,
+    CAPTION_ANIMATION_UNAVAILABLE,
     KEYWORD_EMPHASIS,
 )
 from social_video.edl.voice import (
@@ -110,6 +111,18 @@ def check_brand(
                     else ""
                 )
             ),
+        )
+        add(
+            "caption word animation",
+            CAPTION_ANIMATION_UNAVAILABLE not in applied,
+            (
+                f"the contract animates the spoken word ({style.animation}); "
+                f"{render.caption_renderer or 'this renderer'} draws it as a colour highlight "
+                "only. Render with Remotion for the animation."
+                if CAPTION_ANIMATION_UNAVAILABLE in applied
+                else "as contracted"
+            ),
+            warning=True,
         )
         add(
             "caption keyword emphasis",

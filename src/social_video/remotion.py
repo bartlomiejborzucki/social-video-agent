@@ -12,6 +12,7 @@ from social_video.captions.features import (
     CAPTION_LAYOUT_ESTIMATED,
     CAPTION_LAYOUT_MEASURED,
     PUNCH_IN,
+    TRANSITIONS,
     caption_features,
     highlight_possible,
 )
@@ -48,6 +49,9 @@ def render_motion_design(
     plates: dict[str, Path] = {}
     if logo_path is None and any(e.type is MotionElementType.LOGO_REVEAL for e in plan.elements):
         raise ValidationError("a logo_reveal needs a logo; set logo_file in the project config")
+    for transition in plan.transitions:
+        if (transition.at + transition.duration / 2) * fps > duration_in_frames + 1:
+            raise ValidationError(f"transition at {transition.at:.2f}s runs past the video end")
     for punch in plan.punch_ins:
         if punch.end * fps > duration_in_frames + 1:
             raise ValidationError(f"punch-in at {punch.start:.2f}s ends after the video timeline")
@@ -101,9 +105,11 @@ def render_motion_design(
             raise ValidationError(f"configured logo does not exist: {logo_path}")
         logo_source = f"brand-logo{logo_path.suffix.casefold()}"
     highlight = highlight_possible(caption_style, captions)
-    features = caption_features(caption_style, captions, highlight=highlight)
+    features = caption_features(caption_style, captions, highlight=highlight, animated=True)
     if plan.punch_ins:
         features.append(PUNCH_IN)
+    if plan.transitions:
+        features.append(TRANSITIONS)
     # Lay the captions out before touching the filesystem or the toolchain, so
     # a cue that cannot be drawn in full is reported as a contract problem
     # rather than discovered as clipped text in a finished render.
@@ -174,6 +180,11 @@ def render_motion_design(
                 if layout is not None
                 else None
             ),
+            "transitions": [
+                item.model_dump(mode="json", exclude={"schema_version"})
+                for item in plan.transitions
+            ],
+            "style": plan.style,
             "punchIns": [
                 item.model_dump(mode="json", exclude={"schema_version"}) for item in plan.punch_ins
             ],
