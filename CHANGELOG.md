@@ -6,6 +6,21 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ### Added
 
+- `motion_energy` (`calm`, `lively`, `bold`) and `style_pack` (`editorial`,
+  `bold-social`, `tech-minimal`) in project config: one setting sizes
+  punch-ins, transitions, accent density and caption word animation, and the
+  render refuses movement above its limits.
+- Remotion transitions on cuts (`zoom`, `slide`, `flash`), `pop` and `box`
+  active-word animation, and four graphics: `hook_card`, `chart`, `compare`
+  and `steps`.
+- `motion suggest/accept`: accent candidates found in the transcript (hook,
+  figures, steps, questions, punchlines, turns, jumping cuts), spaced to the
+  energy level and snapped to the beats of a licensed music bed.
+- `motion sfx` (sound under the motion from the user's own library),
+  `motion variants` (hook A/B previews) and `motion sheet` (a contact sheet of
+  every animated moment).
+- `broll suggest/accept`: clips from the user's own library matched to the
+  transcript by file name and tags, tolerant of Polish inflection.
 - Seven more Remotion graphics: `quote`, `stat` (counts a figure up), `list`
   (reveals two to five points), `chapter`, `cta`, `progress` and `logo_reveal`,
   in the brand's typography and colours, inside the safe margins and clear of

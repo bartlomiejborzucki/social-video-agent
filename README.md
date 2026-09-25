@@ -1,84 +1,82 @@
 # social-video-agent
 
-An agent-native, local-first editor that turns existing recordings into Reels,
-Shorts and TikToks. A coding agent (Codex or Claude) makes the editorial
-decisions from an inspectable transcript; FFmpeg cuts frame-accurately, Remotion
-adds a planned motion-design layer, and every step leaves an artifact you can
-read, change and resume from. Sources are never modified, media stays on your
-machine, and no paid AI API key is required.
+**An agent-native, local-first editor that turns existing recordings into Reels,
+Shorts and TikToks.**
+
+A coding agent (Codex or Claude) makes the editorial decisions from an
+inspectable transcript. FFmpeg cuts frame-accurately, Remotion adds a designed
+motion layer, and every step leaves an artifact you can read, change and resume
+from. Sources are never modified, media stays on your machine, and no paid AI
+API key is required.
 
 ```text
 recording → local transcript → edit plan → EDL + motion plan → FFmpeg base → Remotion → QA → delivery
 ```
 
+**Contents:** [What it can do](#what-it-can-do) ·
+[Quick start](#quick-start) · [Installation](#installation) ·
+[How it works](#how-it-works) · [Motion design](#motion-design) ·
+[CLI](#cli) · [Development](#development-and-releases) ·
+[Privacy and licences](#privacy-and-licences) ·
+[Known limitations](#known-limitations)
+
 ## What it can do
 
 **Edit from the transcript**
-- Local transcription with faster-whisper (Polish, English and the rest of
-  Whisper's languages), word-level timings, content-addressed caching; optional
+- Local transcription with faster-whisper (Polish, English and every other
+  Whisper language) with word timings and content-addressed caching; optional
   WhisperX word alignment and pyannote speaker diarization.
-- An editorial plan the agent writes and you can review, compiled into a
-  word-aligned EDL (`compile`). Nothing is cut that the plan does not say.
+- An editorial plan the agent writes and you review, compiled into a
+  word-aligned EDL. Nothing is cut that the plan does not say.
 - Cut candidates found from timing — hesitations (`yyy`, `eee`, `um`), doubled
-  words, restarted phrases, long pauses — each with an id and a confidence, and
-  applied only when the agent accepts them (`cuts find` / `cuts accept`).
-- One long recording into several standalone shorts, each in its own workspace.
+  words, restarted phrases, long pauses — applied only when the agent accepts
+  them.
+- One long recording into several standalone shorts.
+
+**Motion that holds a viewer**
+- One `motion_energy` setting — `calm`, `lively`, `bold` — sets punch-ins,
+  transitions, accent density and caption animation together.
+- Accent candidates found in what is said: a hook card from the first line,
+  counting figures, numbered steps, callouts for questions, push-ins on
+  punchlines and turns, transitions on jumping cuts — snapped to the beat of a
+  licensed music bed.
+- Fifteen brand-driven graphics in three style packs, from hook cards and lower
+  thirds to charts, before/after comparisons and logo reveals.
+- Sound under the motion from your own library, b-roll from your own clips,
+  hook A/B variants and a review sheet of every animated moment.
 
 **Captions that match the brand**
-- Captions laid out against the real font's metrics and never truncated:
-  a cue that cannot fit is refused by name rather than losing its ending.
-- Active-word highlight and brand-keyword emphasis, drawn identically by the
-  Remotion and FFmpeg routes; per-speaker colours with diarization.
+- Laid out against the real font's metrics and never truncated.
+- Active-word highlight with `pop` or `box` animation, brand-keyword emphasis,
+  per-speaker colours and rounded boxes — drawn by both renderers.
 - Glyph preflight, so `Zażółć gęślą jaźń` renders instead of empty boxes.
 
-**Framing and layout for 9:16**
+**Framing for 9:16**
 - Face-aware reframing with smoothing and scene-cut snapping; speaker framing
-  that follows diarized turns and cuts between faces at turn changes.
+  that follows diarized turns and cuts between faces.
 - Split layouts: two speakers stacked, or a screen share above the presenter.
-- Static zoom per range and timed punch-ins that ease in and out, both held to
-  the brand's movement limit.
-
-**Motion design with Remotion**
-- Hooks, lower thirds, callouts, pull quotes, counting figures, revealed lists,
-  chapter titles, calls to action, a progress bar, a logo reveal and designed
-  end cards, in the project's typography and colours, each with a timeline
-  interval and a stated reason.
-- Brand covers, optional image plates from the agent's own image tool, Canva,
-  or the OpenAI/Gemini APIs — backgrounds only; every word is drawn locally.
-- Works from a repository checkout or an installed wheel
-  (`doctor --install-remotion`).
 
 **Audio**
-- Measured voice cleanup: only the repairs a recording measures as needed, each
-  with a ceiling, and every change reported.
-- Loudness normalisation, licence-gated music beds with sidechain ducking, and
-  hand-placed sound effects.
+- Measured voice cleanup: only the repairs a recording needs, each with a
+  ceiling, every change reported.
+- Loudness normalisation, licence-gated music beds with ducking, and sound
+  effects.
 
 **Checks before anything ships**
-- Technical QA of the render against its EDL: duration, frame rate, audio,
-  clipping, silence at cuts, black frames, caption bounds, the opening hook and
-  the ending.
-- Brand QA against an executable brand contract compiled from
-  `.social-video/config.yaml`: fonts, colours, caption geometry, highlight and
-  emphasis, logo, music and voice-cleanup policies.
-- Per-platform safe zones for Reels, Shorts and TikTok.
+- Technical QA of every render against its EDL, brand QA against an executable
+  brand contract, and per-platform safe zones for Reels, Shorts and TikTok.
 
 **Delivery and handoff**
-- Immutable delivery variants with a verified manifest, captions as SRT/VTT or
-  burned in, covers, and validated publishing metadata.
-- Export of the cut to Premiere/FCP7 XML, Final Cut/Resolve FCPXML,
-  OpenTimelineIO and CMX 3600 EDL, frame for frame with the render
-  (`export`).
-- Optional download of a recording you have the right to edit, with a
-  provenance record (`fetch URL --rights "..."`).
+- Immutable delivery variants with a verified manifest, SRT/VTT or burned-in
+  captions, covers and validated publishing metadata.
+- The cut exported to Premiere, Final Cut, DaVinci Resolve (FCPXML),
+  OpenTimelineIO and CMX 3600, frame for frame with the render.
 
 **A workflow an agent can resume**
-- Six persistent stages from set-up to delivery, each gated on the artifacts
-  the next one needs, with a recommended model per stage and a ready-to-send
-  continuation prompt.
-- `doctor` checks the whole toolchain and says what to do about every failure.
-- Runs on Linux, macOS and Windows 11 through WSL2, including a mode where a
-  native Windows agent drives the WSL engine.
+- Six persistent stages, each gated on the artifacts the next one needs, with a
+  recommended model per stage and a ready-to-send continuation prompt.
+- Linux, macOS and Windows 11 through WSL2, including a native Windows agent
+  driving the engine in WSL2.
 
 ## Quick start
 
@@ -97,466 +95,86 @@ social-video-agent qa edit --platform reels
 social-video-agent export edit                            # hand the cut to an NLE
 ```
 
-In normal use the skill drives these steps, adds the Remotion motion layer after
-the Stage 0 licence declaration, and stops at each stage boundary. Setup for
-each platform follows.
+In normal use you simply ask the agent — *“Edit this video into a vertical
+Reel”* — and the skill runs these steps, adds the Remotion motion layer after
+the Stage 0 licence declaration, and stops at each stage boundary.
 
-## Windows 11 + Codex + WSL2
+## Installation
 
-This is the Tier 1 setup. ChatGPT Desktop runs on Windows, while Codex and every media tool run inside WSL2. Do not install a second copy of Python, FFmpeg, or Node natively on Windows for this workflow.
+### Windows 11 with Codex in WSL2 (recommended)
 
-1. Install WSL2 from an Administrator PowerShell terminal, then restart if Windows requests it:
+ChatGPT Desktop runs on Windows while Codex and every media tool run inside
+WSL2. Do not install a second copy of Python, FFmpeg or Node on Windows.
+
+1. Install WSL2 from an Administrator PowerShell, then restart if asked:
 
    ```powershell
    wsl --install
    ```
 
-2. In the ChatGPT desktop app open **Settings → Agent environment**, choose **Windows Subsystem for Linux**, select the desired distribution if offered, and restart the app.
+2. In ChatGPT Desktop open **Settings → Agent environment**, choose **Windows
+   Subsystem for Linux**, pick the distribution and restart the app.
 
-3. Open WSL and clone the repository into the Linux filesystem:
+3. In WSL, clone into the Linux filesystem and bootstrap:
 
    ```bash
-   mkdir -p ~/projects
-   cd ~/projects
+   mkdir -p ~/projects && cd ~/projects
    git clone https://github.com/bartlomiejborzucki/social-video-agent.git
    cd social-video-agent
    ./scripts/wsl/bootstrap.sh
    social-video-agent doctor
    ```
 
-4. Add or open `~/projects/social-video-agent` in Codex and ask:
+4. Open `~/projects/social-video-agent` in Codex and ask for an edit.
 
-   > Edit this video into a vertical Reel.
+Keep the repository in the WSL filesystem, not under `/mnt/c`: Git, Python
+environments, `node_modules`, frame extraction and render caches are much slower
+across the mounted Windows drive. Your media may stay on Windows — see
+[Windows media paths](#windows-media-paths).
 
-Microsoft recommends keeping Linux-tool projects in the WSL filesystem. Do not use `/mnt/c/Users/.../social-video-agent` as the normal repository location: Git, Python environments, `node_modules`, frame extraction, and render caches are substantially slower across the mounted Windows filesystem boundary.
+### Native Windows agent, engine in WSL2 (hybrid)
 
-### Windows media paths
-
-Source and final media may still live on Windows drives:
-
-```text
-C:\Users\User\Videos\Mój film.mp4
-↕
-/mnt/c/Users/User/Videos/Mój film.mp4
-```
-
-Both forms are accepted inside WSL. Pasted drive-letter paths are converted with `wslpath`; spaces and Polish characters are passed as ordinary subprocess arguments, never through a shell.
-
-```bash
-social-video-agent inspect 'C:\Users\User\Videos\Mój film.mp4'
-social-video-agent edit '/mnt/c/Users/User/Videos/Mój film.mp4' \
-  --output '/mnt/c/Users/User/Videos/output/'
-```
-
-For a source under `/mnt/c` or `/mnt/d`, high-I/O intermediate data is stored under `~/.cache/social-video-agent/workspaces/` in Linux. Only the requested final file is copied to the Windows destination. Override the cache root with `SOCIAL_VIDEO_HOME`.
-
-### Two supported runtime modes
-
-The editing engine is always the Linux one. What changes is where the *agent*
-runs:
-
-| Mode | Agent | Engine | When |
-|---|---|---|---|
-| `wsl-native` | inside WSL2 | inside WSL2 | the original setup; nothing about it changes |
-| `windows-agent-wsl-runtime` | native Windows (Codex) | inside WSL2 | the agent keeps its own tools — ImageGen, Canva MCP, Windows Chrome — and delegates all media work to WSL |
-| `linux-native`, `macos-native` | one machine | same machine | unchanged |
-
-`runtime_mode: auto` (the default) decides from the real platform of the agent
-process, whether `wsl.exe` runs, whether the chosen distribution reports WSL 2,
-and whether the engine is installed inside it. It never reads a terminal
-preference: which shell an editor opens says nothing about where the agent runs.
-Pin it with `runtime_mode:` in the project config or `SOCIAL_VIDEO_RUNTIME_MODE`,
-and name a distribution with `wsl_distribution:` or
-`SOCIAL_VIDEO_WSL_DISTRIBUTION` when more than one is installed.
-
-In the hybrid mode the only supported bridge is
+When the agent itself runs natively on Windows, it keeps its own tools —
+ImageGen, Canva MCP, Windows Chrome — and delegates every media operation to the
+engine in WSL2 through one bridge,
 [`scripts/windows/social-video-agent.ps1`](scripts/windows/social-video-agent.ps1).
-It passes arguments as an array (never a command string), starts the engine
-with `wsl.exe --exec` by its absolute path (so `~/.local/bin` need not be on the
-non-interactive PATH), uses no `Invoke-Expression` and no `sh -lc`, tells the
-engine the agent is on Windows so `runtime.json` records the hybrid mode,
-propagates stdout, stderr and the exit code, and refuses to fall back to `ffmpeg.exe`, Windows Python or Windows Node —
-a run that mixed Windows and Linux binaries would not be the run that was
-reviewed. If WSL or the engine is missing it names which one and stops; it never
-installs anything. There is still no native Windows execution engine, Docker
-service, MCP server, or cloud backend.
 
-Install for a native Windows agent, from inside WSL:
+Install from inside WSL:
 
 ```bash
-./scripts/wsl/bootstrap.sh                 # the engine, in WSL only
-python3 scripts/install_skills.py          # copies the skill to Windows .agents\skills
+./scripts/wsl/bootstrap.sh              # the engine, in WSL only
+python3 scripts/install_skills.py       # copies the skill to Windows .agents\skills
 ```
 
-then, from PowerShell:
+Then, from PowerShell:
 
 ```powershell
 .\scripts\windows\social-video-agent.ps1 doctor
 .\scripts\windows\social-video-agent.ps1 -Distribution Ubuntu-24.04 doctor
 ```
 
-Updating an existing 1.0.0 installation: pull the repository inside WSL and
-rerun `./scripts/wsl/bootstrap.sh`, then rerun `python3
-scripts/install_skills.py` — it replaces the old Linux symlink on the Windows
-side with a real copy — and start a new Codex session. A manual
-`/usr/local/bin/social-video-agent` link added as a workaround is no longer
-needed and can be removed.
+The adapter passes arguments as an array, starts the engine with
+`wsl.exe --exec` by its absolute path, never uses `Invoke-Expression` or
+`sh -lc`, tells the engine the agent is on Windows (so `runtime.json` records
+`windows-agent-wsl-runtime`), passes stdout, stderr and the exit code through,
+and refuses to fall back to `ffmpeg.exe`, Windows Python or Windows Node. With
+several WSL 2 distributions and no default it stops rather than choosing one.
 
-`social-video-agent doctor` reports the agent side and the engine side
-separately, and distinguishes a missing WSL install, a broken one, a WSL 1
-distribution, an ambiguous choice of distribution and a missing engine inside a
-working distribution. Capabilities that only the agent can see — its native
-image tool, a Canva connection — are reported as exactly that.
+`runtime_mode: auto` detects the mode from the real platform of the agent
+process — never from a terminal preference. Pin it with `runtime_mode:` or
+`SOCIAL_VIDEO_RUNTIME_MODE`, and name a distribution with `wsl_distribution:` or
+`SOCIAL_VIDEO_WSL_DISTRIBUTION`.
 
-### Remotion is enabled by default
+**Updating a 1.0.0 hybrid installation:** pull inside WSL, rerun
+`./scripts/wsl/bootstrap.sh` and `python3 scripts/install_skills.py` (it
+replaces the old Linux symlink on the Windows side with a real copy), and start
+a new Codex session. A manual `/usr/local/bin/social-video-agent` link is no
+longer needed.
 
-Bootstrap installs the exact Node packages from `package-lock.json`, downloads
-Chrome Headless Shell through Remotion's official command, type-checks the
-composition, and runs a real offline MP4 smoke render. `doctor` treats Node,
-Remotion, and its browser as required. Keep both the repository and
-`node_modules` in the WSL filesystem.
+### Linux and macOS
 
-Remotion uses a source-available license rather than Apache-2.0. Stage 0 stops
-before project discovery or media processing until the user records one of:
-
-- `free_license_eligible` — after confirming the current free-license terms;
-- `company_license_confirmed` — after obtaining the applicable Company License.
-
-See the [current Remotion license](https://www.remotion.dev/license). The CLI
-does not decide legal eligibility. Users who explicitly do not want Remotion
-may select `--renderer ffmpeg`, but that is an opt-out from the default visual
-pipeline.
-
-Declare once per project rather than once per edit:
-
-```bash
-social-video-agent remotion-license attest free_license_eligible \
-  --project-root . --accept-terms
-social-video-agent remotion-license status --project-root . --json
-social-video-agent remotion-license refresh --project-root . --accept-terms
-social-video-agent remotion-license revoke --project-root . --reason "yearly review"
-```
-
-The statement is stored in `.social-video/remotion-license.json` — beside the
-project config, never inside it, because `config.yaml` is branding and this is
-a licensing statement. It records the declaration, the acknowledgement, the
-date, the component versions and the terms URL, and nothing else: eligibility
-is never derived from company size, revenue or any other data, and there is no
-field in which such data could be supplied. `--accept-terms` is the user's own
-act; an assistant must ask and use the answer given.
-
-A workspace created before Remotion became the default keeps the FFmpeg
-renderer until `social-video-agent workflow renderer remotion -w WORKSPACE`
-switches it, through the same licence declaration; a workflow past Stage 2
-returns to Stage 2 so the preview is rendered again.
-
-`workflow init` and `render` take an explicit `--remotion-license` flag first
-(a one-edit declaration), then the edit's own `workflow-state.json` when
-resuming, then the project's stored declaration; with none of those they stop
-and print how to record one. The CLI asks again after a revocation, a change of
-terms URL, a new release line, or a year. See the
-[declaration migration](docs/migrations/0.6-remotion-license-declaration.md).
-
-## Project-aware editing
-
-`social-video-agent` starts from the project, not generic editing defaults. When
-invoked from a repository it performs a bounded local discovery pass before
-editorial planning. It looks for explicit `social-video.yaml` configuration,
-applicable `AGENTS.md`, brandbooks, video and tone-of-voice guidelines, fonts,
-logos, templates, and relevant design assets. It skips `.git`, dependencies,
-virtual environments, builds, caches, models, renders, and temporary frames; it
-does not recursively ingest the whole repository.
-
-The target project root is distinct from the installed plugin/skill root. All
-findings are saved per edit under:
-
-```text
-edit/context/project-context.json
-edit/context/project-context.md
-edit/context/context-sources.json
-```
-
-Explicit user instructions have highest priority, followed by project-specific
-social-video config, project instructions, video guidance, brand guidance,
-templates, the general design system, previous outputs, and finally skill
-defaults. Claims carry a source and confidence; heuristic colors or web fonts
-are not silently promoted to video rules.
-
-Inspect or refresh discovery deterministically:
-
-```bash
-social-video-agent context inspect . --workspace edit
-social-video-agent context refresh . --workspace edit
-```
-
-Initialize and validate a versioned, executable project contract:
-
-```bash
-social-video-agent config init .
-social-video-agent config validate . --workspace edit
-```
-
-A config written before 0.4 stays valid discovery context. To compile it into a
-contract, `config migrate` lists every value that needs a human decision --
-`punch_in_intensity: restrained` has no one correct number, and a margin of
-`0.15` meant 15% when margins were fractions but means a hairline now that they
-are percentages. Renames are applied for you; editorial values are never
-guessed:
-
-```bash
-social-video-agent config migrate .
-```
-
-`.social-video/config.yaml` (or `social-video.yaml`) may specify only the
-fields the project needs, for example:
-
-```yaml
-schema_version: 1
-brand_name: Example
-font: Lato
-font_file: assets/fonts/Lato-Bold.ttf
-caption_style:
-  font_weight: bold
-  text_color: "#FFFFFF"
-  background_color: "#28BCA5"
-  background_style: rounded_box
-  corner_radius: 24
-  outline_color: "#394463"
-  outline_or_shadow: none
-  font_size_pct: 3.6
-  max_lines: 2
-  max_words_per_cue: 4
-  max_chars_per_cue: 24
-  position: lower_safe_zone
-  bottom_margin_pct: 22
-editing_profile: calm-expert
-music_policy: none
-sfx_policy: none
-audio_cleanup_policy: measured
-default_aspect_ratio: "9:16"
-default_resolution: "1080x1920"
-default_fps_policy: "30"
-delivery_output: exports/social
-```
-
-Validation resolves local assets and writes `edit/brand-contract.json`. Stage 2
-renders from this contract; it does not merely copy branding into context.
-Rounded caption backgrounds are drawn from the measured layout by either
-renderer: Remotion, or libass on the FFmpeg route with the brand font loaded
-from the project. Stage 4 requires
-both technical QA and `edit/qa/qa-brand.json`.
-
-### Voice cleanup is measured, not applied
-
-`audio_cleanup_policy: measured` is the default, and it is not a one-button
-"enhance voice". Before mixing anything under the speech the render measures
-this recording: the per-window RMS distribution (the noise floor is the 10th
-percentile, speech the 90th, their difference the usable SNR), energy below
-60 Hz where no voice lives, a narrow band at 50 and 60 Hz for mains hum,
-5-9 kHz for sibilance, and peak level for clipping. Only what crosses its own
-threshold is applied, and each repair has a ceiling:
-
-| Measured | Applied | Ceiling |
-| --- | --- | --- |
-| below-60 Hz energy within 15 dB of the voice | high-pass at 80 Hz | two poles |
-| a narrow mains band within 18 dB of the voice, and concentrated enough to be a tone rather than rumble | notch at the fundamental only | -15 dB |
-| SNR under 20 dB over an audible noise floor | `afftdn` | 10 dB of reduction |
-| 5-9 kHz within 8 dB of the voice | de-esser | intensity 0.15 |
-| loudness range over 12 LU | compressor | 2:1 |
-| peaks at or above -0.1 dBFS | nothing | reported, never repaired |
-
-A well-recorded voice therefore comes out untouched, and the manifest records
-that every check was made and every one was below its threshold. Clipping is
-reported rather than repaired, because reconstructing a flattened waveform is
-invention. Harmonics of a mains hum are left alone for the same reason:
-notching 100 or 120 Hz thins the voice.
-
-Every render says what it changed and how to undo it:
-
-```text
-rendered /project/edit/final/final.mp4
-audio was changed by measured voice cleanup:
-  - high-pass 80 Hz: energy below 60 Hz is -12.1 dB under the voice, above the -15 dB threshold
-  - notch 50 Hz: a narrow band there is -13.1 dB under the voice and concentrated enough to be a tone rather than rumble
-  - denoise 10 dB: the noise floor is -46.9 dBFS, only 9.3 dB under speech
-  to undo: re-render with --no-audio-cleanup, or set audio_cleanup_policy: none in .social-video/config.yaml
-```
-
-The measurement, the applied steps, the skipped steps with their reasons and
-the ceilings all land in the render manifest, and brand QA checks the repair
-against them. Source media is never modified, so the untouched audio is always
-one re-render away.
-
-### Captions are never shortened to fit
-
-The values above are the reference geometry for a 9:16 short, and they are the
-defaults for any key a config omits:
-
-| Key | Reference | Why |
-| --- | --- | --- |
-| `font_size_pct` | `3.6` | ~69 px at 1080x1920, which fits an ordinary Polish phrase in two lines. 5% is ~96 px and does not. |
-| `max_words_per_cue` | `4` | the sentence breaks on words, before the frame edge can |
-| `max_chars_per_cue` | `24` | the hard cue-length limit that forces the split |
-| `outline_or_shadow` | `none` | an outline on a background box thickens every glyph and costs line width |
-| `corner_radius` | `24` | proportionate to the smaller box |
-| `bottom_margin_pct` | `22` | clears the platform UI at the bottom of the frame |
-
-Layout is measured in Python against the project font's own metrics and handed
-to the compositor as explicit lines, so the browser never wraps, clamps or
-ellipsizes anything. When a cue does not fit, the order of resort is: wrap at
-word boundaries, then shrink that cue's font (down to 72% of the contracted
-size), then fail with the cue and its text named. Nothing is ever truncated,
-and `config validate` refuses a geometry whose own text cannot be drawn.
-
-Brand QA checks the geometry that was drawn, not the one that was asked for:
-whether any cue lost text, whether any gained an ellipsis the transcript did
-not have, whether the widest line stayed inside the box, whether a cue was
-longer than the contract allows, and whether the applied style matches the
-contract field by field.
-
-Private local brand assets may remain gitignored. Discovery reads them locally
-but never copies them into this plugin or uploads them.
-
-The root, cache, and state decisions are recorded in
-[ADR-003](docs/architecture/ADR-003-project-context-and-staged-workflow.md).
-
-## Guided multi-model workflow
-
-The default interactive workflow persists state in `edit/workflow-state.json`,
-so changing model or starting a new Codex conversation does not lose progress:
-
-| Stage | OpenAI recommendation | Claude alternative | Work |
-|---|---|---|---|
-| 0/1 | Astra (high) | Claude Opus 5 | discovery + editorial plan |
-| 2 | Sol (medium) | Claude Sonnet 5 | EDL + captions + preview + QA |
-| 3 | Astra (high) | Claude Opus 5 | supervising-editor review |
-| 4 | Sol (medium) | Claude Sonnet 5 | approved fixes + final render |
-| 5 | Luna (low) | Claude Haiku 4.5 | optional mechanical variants |
-
-Claude Fable 5.1 is not a normal step: the escalation tier is suggested only for
-a genuinely difficult narrative reconstruction or deep technical impasse. On the
-OpenAI side Astra is already the strongest recommendation. Claude
-recommendations apply only when that provider is available in the user's host;
-the skill never claims to switch provider or model automatically. Model names
-are mapped from stable conceptual tiers in one configuration file, so future
-model-name changes do not alter workflow schemas.
-
-Initialize and inspect a workflow:
-
-```bash
-social-video-agent workflow init interview.mp4 --project-root . \
-  --remotion-license free_license_eligible --language pl
-social-video-agent workflow status edit --language pl
-social-video-agent workflow complete 1 --workspace edit --language pl
-```
-
-At each boundary, including entry to Stages 4 and 5, the agent validates
-artifacts, saves state, stops, shows the OpenAI recommendation and Claude
-alternative, explains why, and gives a short continuation prompt. It does
-not claim to switch the user's model automatically. Ask “Where are we?” or
-“Continue social-video-agent with Stage 2” in a new conversation to resume.
-
-Use `--workflow-mode continuous` or say “Do everything with the current model”
-to run all stages without handoff stops. “Just make it quickly” does the same,
-but context discovery, artifacts, source safety, and QA remain mandatory.
-Budgets are `economical`, `balanced`, and `quality`; the escalation tier is never
-selected automatically, and the economical budget never recommends Astra.
-
-Example:
-
-> User: Use social-video-agent to turn interview.mp4 into a Reel.
->
-> Agent: I found `docs/brandbook.pdf`, `docs/video-guidelines.md`, and
-> `assets/logo.svg`. I will use the calm educational profile and project
-> typography. Stage 1 will create the editorial plan without rendering.
->
-> Agent after Stage 1: Stage 1 complete. Switch to Sol and send:
-> “Continue social-video-agent with Stage 2.”
-
-Before that first discovery, the agent explains the Remotion license gate and
-records the user's declaration. Stage 2 writes both `edl.json` and
-`motion-plan.json`. The motion plan is project-aware and reviewable: it may use
-restrained hook typography, lower thirds, callouts, and a designed end card,
-but every element needs a timeline interval and reason. It does not add random
-zooms, transitions, or motion merely to appear busy. A clean edit with no extra
-graphic is valid when that serves the material better.
-
-## CLI
-
-The canonical command is `social-video-agent`; `social-video` remains as a compatibility alias.
-
-```bash
-social-video-agent doctor
-social-video-agent context inspect . --workspace edit
-social-video-agent workflow init INPUT --project-root . \
-  --remotion-license free_license_eligible --language en
-social-video-agent workflow status edit
-social-video-agent inspect INPUT
-social-video-agent transcribe INPUT
-social-video-agent pack WORKSPACE
-social-video-agent plan INPUT --profile talking-head --goal '45 second Reel'
-social-video-agent cuts find INPUT --workspace WORKSPACE
-social-video-agent cuts accept --workspace WORKSPACE cut-001 cut-004
-social-video-agent compile INPUT --workspace WORKSPACE
-social-video-agent edit INPUT --profile talking-head
-social-video-agent render WORKSPACE --quality preview --output /path/to/preview.mp4
-social-video-agent qa WORKSPACE --platform reels
-social-video-agent apply-editorial-qa WORKSPACE
-social-video-agent platforms
-social-video-agent shorts list WORKSPACE
-social-video-agent shorts create WORKSPACE --reframe face
-social-video-agent image status
-social-video-agent image prompt --prompt '...'
-social-video-agent image plate WORKSPACE --kind cover_plate --prompt '...' --allow-cloud-image
-social-video-agent image register WORKSPACE --file /tmp/plate.png --prompt '...'
-social-video-agent image capabilities WORKSPACE --chosen-source video_frame --reason '...' 
-social-video-agent cover WORKSPACE --title 'Nikt ci tego nie powie'
-social-video-agent deliver WORKSPACE --output DEST --with-captions --cover --publish
-social-video-agent export WORKSPACE --format fcpxml
-social-video-agent fetch URL --rights 'our own webinar recording'
-```
-
-Generated plates are optional and off by default, and there are four possible
-sources. Two of them — a **native image tool** the host gives its agent
-(ChatGPT/Codex `ImageGen`) and a **Canva** MCP connection — belong to the agent:
-no Python process can call them, and they need no API key of the user's own. The
-other two are the OpenAI and Gemini image APIs, which this CLI calls itself when
-`OPENAI_API_KEY` or `GEMINI_API_KEY` is set.
-
-`image status` therefore reports `cli_can_generate` and says plainly that it
-checked `local_api_integrations_only`, with `native_imagegen: unknown_to_cli`.
-**A missing API key is not evidence that imagery is unavailable**; only the agent
-can settle that, by looking at its own tool list. Nothing is inferred from a
-subscription in either direction.
-
-When the agent uses its own tool it takes the guarded prompt from `image
-prompt`, calls the tool, and hands the file to `image register`, which copies it
-into the workspace, hashes it and records the provenance — naming the tool that
-really drew it and leaving the model empty when the tool reports none. Consent
-is required either way, because the prompt still leaves the machine, and
-`image_generation_policy: none` blocks every route. Preference order: the user's
-own material or a real frame, then Canva when a template is called for, then the
-native tool, then an API with a key, then a locally composed background.
-
-Every word in the finished video is rendered locally by Remotion. Image tools
-draw backgrounds, illustrations and textures — never captions, headlines, CTAs
-or logos, which is the only way Polish diacritics, the brand contract and the
-safe area all survive. See
-[generated-visuals.md](skills/social-video-agent/references/generated-visuals.md)
-and [Canva MCP](docs/canva-mcp.md).
-
-`social-video-agent doctor` checks this project's WSL/Linux environment,
-FFmpeg, Python dependencies, ASR, fonts, Node, locked Remotion packages,
-Chrome Headless Shell, plugin files, and workspace. OpenAI's separate
-`codex doctor` checks Codex itself; the commands are complementary.
-
-GPU/CUDA is optional. CPU mode is supported and setup never installs NVIDIA drivers, CUDA, Docker, or Whisper models. Models download only when transcription first needs one.
-
-## Linux and macOS
-
-The pipeline remains cross-platform. Install Python 3.10–3.13, `uv`, FFmpeg
-with libass, fontconfig, a font with the required glyphs, Node.js 20+, and npm,
-then run:
+Install Python 3.10–3.13, `uv`, FFmpeg with libass, fontconfig, a font with the
+glyphs you need, Node.js 20+ and npm, then:
 
 ```bash
 uv sync --extra dev
@@ -565,136 +183,312 @@ npx remotion browser ensure
 uv run social-video-agent doctor
 ```
 
-An installed wheel (from a GitHub release) carries the compositor sources but not
-Remotion itself. Install its locked npm packages and the headless browser into
-the app cache once, from outside any checkout:
+The WSL bootstrap targets Ubuntu/Debian; other distributions get the exact
+prerequisite list instead. On macOS check that your FFmpeg has the `subtitles`
+filter.
+
+### From a release wheel
+
+A wheel from a GitHub release carries the compositor sources but not Remotion
+itself. Install Remotion's locked packages and headless browser once:
 
 ```bash
 social-video-agent doctor --install-remotion
 ```
 
-The WSL bootstrap is intentionally Linux-only and its automatic package installation targets Ubuntu/Debian. Unsupported distributions receive the exact prerequisite list instead of an attempted `apt` command. macOS users should verify that their FFmpeg build contains the `subtitles` filter.
+### Codex and Claude plugin
 
-## Codex plugin and canonical skill
-
-The one canonical skill is `skills/social-video-agent/SKILL.md`. Plugin metadata follows the current Codex layout:
-
-```text
-.codex-plugin/plugin.json
-.agents/plugins/marketplace.json
-plugins/social-video-agent/
-skills/social-video-agent/
-```
-
-Install from GitHub:
+The one canonical skill is
+[`skills/social-video-agent/SKILL.md`](skills/social-video-agent/SKILL.md).
 
 ```bash
 codex plugin marketplace add bartlomiejborzucki/social-video-agent
 codex plugin add social-video-agent@social-video-agent
 ```
 
-For local development and update instructions, see [docs/plugin-installation.md](docs/plugin-installation.md). The plugin/skill provides workflow knowledge; it does not contain FFmpeg, a virtual environment, `node_modules`, or model weights. ChatGPT Work does not execute this local media runtime; use Codex with its agent environment set to WSL2.
+See [plugin installation](docs/plugin-installation.md). The plugin carries
+workflow knowledge only — no FFmpeg, virtual environment, `node_modules` or
+model weights. `./scripts/build-skill.sh` builds a lightweight
+`dist/social-video-agent-skill.zip`.
 
-Build a lightweight skill upload artifact with:
+### Checking the setup
+
+`social-video-agent doctor` checks the runtime mode, FFmpeg and libass, Python
+dependencies, local transcription, fonts, Node, the locked Remotion packages,
+Chrome Headless Shell, plugin files and the workspace, and says what to do about
+every failure. GPU/CUDA is optional; models download only when transcription
+first needs one.
+
+## How it works
+
+### Staged workflow
+
+State lives in `edit/workflow-state.json`, so changing model or starting a new
+conversation loses nothing. Each stage is gated on the artifacts the next one
+needs:
+
+| Stage | Work | OpenAI | Claude |
+|---|---|---|---|
+| 0/1 | discovery, licence declaration, editorial plan | Astra (high) | Claude Opus 5 |
+| 2 | EDL, captions, motion plan, preview, technical QA | Sol (medium) | Claude Sonnet 5 |
+| 3 | supervising-editor review | Astra (high) | Claude Opus 5 |
+| 4 | approved fixes, final render, brand QA | Sol (medium) | Claude Sonnet 5 |
+| 5 | delivery variants | Luna (low) | Claude Haiku 4.5 |
+
+At each boundary the agent saves state, stops, names the recommended model and
+gives a short continuation prompt; it never claims to switch models itself. Ask
+*“Where are we?”* to resume. `--workflow-mode continuous` runs every stage
+without stops, with every artifact and check still in place. Budgets are
+`economical`, `balanced` and `quality`; the escalation tier (Claude Fable 5.1)
+is never chosen automatically.
 
 ```bash
-./scripts/build-skill.sh
+social-video-agent workflow init interview.mp4 --project-root . --language pl
+social-video-agent workflow status edit --language pl
+social-video-agent workflow complete 1 --workspace edit --language pl
 ```
 
-This creates `dist/social-video-agent-skill.zip` without runtime dependencies or private media.
+### Project context and the brand contract
 
-## Development and release checks
+The agent starts from the project, not from generic defaults. A bounded
+discovery pass reads `social-video.yaml`, `AGENTS.md`, brandbooks, video and
+tone-of-voice guides, fonts, logos and templates — skipping `.git`,
+dependencies, builds, caches and renders — and records every claim with its
+source in `edit/context/`. Explicit user instructions always win.
+
+`social-video-agent config init .` writes `.social-video/config.yaml`;
+`config validate` compiles it into an executable `brand-contract.json` that
+every render and brand QA are held to. Specify only what the project needs:
+
+```yaml
+schema_version: 1
+brand_name: Example
+font: Lato
+font_file: assets/fonts/Lato-Bold.ttf
+brand_colors: ["#28BCA5"]
+caption_style:
+  background_color: "#28BCA5"
+  background_style: rounded_box
+  active_word_highlight: true
+  animation: pop
+  emphasis_words: [Studio, 5G]
+motion_energy: lively
+style_pack: editorial
+music_policy: none
+sfx_policy: optional
+audio_cleanup_policy: measured
+default_resolution: "1080x1920"
+delivery_output: exports/social
+```
+
+A config from before 0.4 stays valid discovery context; `config migrate` lists
+each value that needs a human decision and never guesses an editorial one.
+
+### Captions
+
+Captions are laid out in Python against the project font's own metrics and
+handed to the renderer as explicit lines, so nothing is wrapped, clamped or
+ellipsised later. A cue that does not fit is wrapped, then shrunk (to at most
+72% of its size), then refused with its text named — never truncated.
+
+| Key | Reference | Why |
+|---|---|---|
+| `font_size_pct` | `3.6` | ~69 px at 1080×1920; an ordinary Polish phrase fits two lines |
+| `max_words_per_cue` / `max_chars_per_cue` | `4` / `24` | the sentence breaks on words before the frame edge |
+| `bottom_margin_pct` | `22` | clears the platform UI |
+| `outline_or_shadow` | `none` | an outline on a box costs line width |
+
+Brand QA checks what was drawn: lost text, an added ellipsis, a line wider than
+the box, a missing highlight, emphasis or animation.
+
+### Voice cleanup
+
+`audio_cleanup_policy: measured` measures the recording first — noise floor,
+rumble, mains hum, sibilance, loudness range, clipping — and applies only what
+crosses its threshold, each repair capped:
+
+| Measured | Applied | Ceiling |
+|---|---|---|
+| energy below 60 Hz within 15 dB of the voice | high-pass at 80 Hz | two poles |
+| a narrow mains tone within 18 dB of the voice | notch at the fundamental | −15 dB |
+| SNR under 20 dB over an audible floor | `afftdn` | 10 dB |
+| 5–9 kHz within 8 dB of the voice | de-esser | 0.15 |
+| loudness range over 12 LU | compressor | 2:1 |
+| peaks at or above −0.1 dBFS | nothing | reported, never repaired |
+
+A clean recording comes out untouched. Every render lists what it changed and
+how to undo it (`--no-audio-cleanup` or `audio_cleanup_policy: none`).
+
+### Remotion and its licence
+
+Remotion is the default compositor. It uses a source-available licence, so
+Stage 0 stops until the user records `free_license_eligible` or
+`company_license_confirmed` after reading the
+[current terms](https://www.remotion.dev/license). Declare once per project:
+
+```bash
+social-video-agent remotion-license attest free_license_eligible --project-root . --accept-terms
+social-video-agent remotion-license status --project-root .
+```
+
+The declaration is stored beside the config, asked again after a revocation, a
+new release line or a year, and never derived from company data. Projects that
+cannot use Remotion render with `--renderer ffmpeg`, which still draws rounded
+caption boxes, highlights and emphasis; `workflow renderer remotion` switches an
+existing workspace later.
+
+### Windows media paths
+
+Media may live on Windows drives. Inside WSL both forms are accepted, and a
+pasted drive-letter path is converted once with `wslpath`:
+
+```text
+C:\Users\User\Videos\Mój film.mp4   ↔   /mnt/c/Users/User/Videos/Mój film.mp4
+```
+
+For a source under `/mnt/<drive>`, heavy intermediates stay in
+`~/.cache/social-video-agent` and only the final file is copied back. Override
+the cache root with `SOCIAL_VIDEO_HOME`.
+
+### Images and plates
+
+Cover and end-card backgrounds may come from the user's own material, a real
+frame, Canva, the agent's own image tool, or the OpenAI/Gemini APIs with the
+user's key — in that order of preference, with consent, and blocked entirely by
+`image_generation_policy: none`. Every word on screen is drawn locally; image
+tools only draw backgrounds. See
+[generated visuals](skills/social-video-agent/references/generated-visuals.md).
+
+### Delivery and handoff
+
+Rendering finishes and fully decodes a private file first, then publishes it
+atomically — a partial MP4 never appears under its final name. The delivery
+contract is H.264 `yuv420p` BT.709, constant frame rate, AAC-LC stereo 48 kHz,
+`faststart`, 720×1280 preview and 1080×1920 final.
+
+```bash
+social-video-agent deliver edit --output ./delivery --with-captions --srt --vtt --poster --publish
+social-video-agent export edit --format fcpxml
+```
+
+`delivery-manifest.json` records every file with its hash and the identical EDL
+hash from before and after delivery. `export` writes FCPXML, Premiere/FCP7 XML,
+OpenTimelineIO and CMX 3600, and lists what a timeline cannot carry.
+
+## Motion design
+
+A well-cut short that never moves reads as a recording. The skill gives every
+cut a rhythm — something changes every 3–5 seconds — sized to the project's
+energy level:
+
+| `motion_energy` | Punch-in up to | Transitions | Accents | Spoken word |
+|---|---|---|---|---|
+| `calm` | 1.12 | none | ~4/min | highlight |
+| `lively` | 1.18 | ~4/min | ~10/min | `pop` |
+| `bold` | 1.25 | ~8/min | ~16/min | `box` |
+
+**Accents from what is said.** `motion suggest` finds the hook (the first line,
+as a full-frame hook card), figures (a counting stat), enumerations (numbered
+steps), questions (a callout), punchlines and turns (“ale”, “instead”: a
+push-in) and jumping cuts (a transition). Each has an id and a confidence,
+spaced to the energy level and snapped to the beats of a licensed music bed.
+Nothing changes until the agent accepts it:
+
+```bash
+social-video-agent motion suggest interview.mp4 -w edit
+social-video-agent motion accept -w edit acc-001 acc-003 --kind transition
+```
+
+**Graphics.** Fifteen types, each with a timeline interval and a reason:
+`hook_card`, `hook`, `lower_third`, `callout`, `quote`, `stat`, `chart`,
+`compare`, `list`, `steps`, `chapter`, `cta`, `progress`, `logo_reveal` and
+`end_card`. `style_pack` — `editorial`, `bold-social` or `tech-minimal` — sets
+their look in the brand's colours and font. Transitions (`zoom`, `slide`,
+`flash`) sit on cuts; punch-ins move the picture while captions and graphics
+stay put.
+
+**Sound, b-roll and review.**
+
+```bash
+social-video-agent motion sfx ./sfx -w edit --licensed      # whoosh, pop, hit from your library
+social-video-agent broll suggest interview.mp4 --library ./b-roll -w edit
+social-video-agent broll accept -w edit br-001
+social-video-agent motion variants -w edit --text "Hook A" --text "Hook B"
+social-video-agent motion sheet -w edit                     # qa/motion-sheet.png
+```
+
+B-roll is matched by file name and tags, tolerant of Polish inflection
+(“samochodu” finds `samochod.mp4`). Sound and music are always the user's own
+licensed files; the tool never sources or clears audio. The render refuses any
+movement above the energy level's limits.
+
+## CLI
+
+The command is `social-video-agent` (`social-video` is an alias). Every command
+that reports information supports `--json`.
+
+| Area | Commands |
+|---|---|
+| Setup | `doctor`, `version`, `profiles`, `config init/validate/migrate`, `remotion-license`, `context inspect/refresh` |
+| Workflow | `workflow init/status/resume/complete/renderer` |
+| Source | `inspect`, `fetch URL --rights "..."`, `transcribe [--diarize]`, `pack` |
+| Editing | `plan`, `cuts find/accept`, `compile`, `shorts list/create`, `apply-editorial-qa` |
+| Motion | `motion suggest/accept/sfx/variants/sheet`, `broll suggest/accept` |
+| Render and check | `render`, `edit`, `qa`, `platforms` |
+| Images | `image status/prompt/register/capabilities/plate`, `cover` |
+| Output | `deliver`, `export` |
+
+Run `social-video-agent COMMAND --help` for options.
+
+## Development and releases
 
 ```bash
 uv sync --extra dev
 uv run pytest
-uv run ruff check .
+uv run ruff check . && uv run ruff format --check .
 uv run mypy
 uv run python scripts/validate_distribution.py
-social-video-agent doctor
 ./scripts/release-check.sh
 ```
 
-Tiny media fixtures are generated deterministically with FFmpeg. Automated Linux CI covers unit tests, plugin/skill/package validation, 30/60 fps rendering, paths with spaces and Polish Unicode, caption burn-in, and source immutability. GitHub-hosted Linux is not WSL: actual `/mnt/c` behavior and WSL detection remain a manual release gate in [docs/testing/windows-wsl2-acceptance.md](docs/testing/windows-wsl2-acceptance.md).
+Media fixtures are generated deterministically with FFmpeg. CI runs Python
+3.10–3.13, FFmpeg 6 and 7, unit tests on Windows and macOS, PowerShell
+adapter tests against a stand-in `wsl.exe`, real Remotion renders, wheel
+installation and NLE exports read back by OpenTimelineIO. Generic Linux CI is
+not a real Windows machine: the [Windows 11 acceptance
+checklist](docs/testing/windows-wsl2-acceptance.md) is a manual release gate.
+Releasing and PyPI trusted publishing are described in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
-A dedicated CI job installs Node 24, the locked Remotion graph and Chrome
-Headless Shell, type-checks the React composition, renders a synthetic Polish
-fixture, verifies CFR/AAC timing, runs technical QA, and fully decodes both
-streams. It still does not pretend that generic Linux is a real `/mnt/c` test.
+## Privacy and licences
 
-The social delivery contract is MP4 with H.264/`avc1`, `yuv420p`, BT.709,
-compatible constant frame rate, AAC-LC stereo at 48 kHz with continuous sample
-timestamps, `faststart`, 720×1280 preview, and 1080×1920 final. Rendering first
-finishes and fully decodes a private file in Linux cache, then atomically
-publishes `preview.mp4` or `final.mp4`; a partial MP4 never appears under the
-destination name. Technical QA always writes `qa-report.json`.
+Media processing is local. Models are downloaded once on first use and never
+committed. Nothing leaves the machine unless the user asks for it — an image
+prompt to a cloud tool, a URL download — and says so.
 
-Stage 5 publishes durable, hashed variants without changing editorial state:
-
-```bash
-social-video-agent deliver edit --output ./delivery \
-  --with-captions --no-captions --srt --vtt --poster
-```
-
-`delivery-manifest.json` records file paths, sizes, formats, QA statuses and
-SHA-256 values, plus the identical EDL hash from before and after delivery.
-
-### Full branded workflow example
-
-```bash
-social-video-agent config init .
-# Edit .social-video/config.yaml and point font_file/logo_file at local assets.
-social-video-agent config validate . --workspace edit
-# Once per project; later edits and sessions reuse this declaration.
-social-video-agent remotion-license attest free_license_eligible \
-  --project-root . --accept-terms
-social-video-agent workflow init interview.mp4 --project-root . --workspace edit \
-  --language pl
-# Stages 1-4 create/approve edit-plan.json, edl.json, captions, preview and final.
-social-video-agent qa edit --output edit/final/final.mp4
-social-video-agent workflow complete 4 --workspace edit --language pl
-social-video-agent deliver edit --output ./delivery \
-  --with-captions --no-captions --srt --vtt --poster --resolution 720x1280
-social-video-agent workflow complete 5 --workspace edit --language pl
-```
-
-If a privacy-safe picture ends before its audio, validation requires an
-explicit EDL ending strategy. It will not silently create a multi-second still.
-See [the artifact contract](skills/social-video-agent/references/artifacts.md).
-
-## Privacy and licenses
-
-Media processing is local by default. Models are downloaded once on first use and are not committed. Cloud transcription, if added explicitly, must disclose that media leaves the machine.
-
-The project is Apache-2.0 and incorporates attributed MIT-licensed work from [browser-use/video-use](https://github.com/browser-use/video-use). See [UPSTREAM.md](UPSTREAM.md), [NOTICE](NOTICE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+The project is Apache-2.0 and includes attributed MIT-licensed work from
+[browser-use/video-use](https://github.com/browser-use/video-use). See
+[UPSTREAM.md](UPSTREAM.md), [NOTICE](NOTICE) and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Known limitations
 
-- The legacy `edit` command remains a continuous mechanical path; normal skill use now creates a project-aware staged plan and stops at guided handoffs.
-- Candidate selection for multi-short workflows is editorial and stays with the
-  agent; `shorts create` only materialises what was already chosen.
-- Platform reserved zones are conservative estimates of the feed UI, not
-  published specifications. Verify on a real device before a campaign.
-- Music and effects are never sourced or licence-cleared by this tool. It mixes
-  a local file the project already holds the rights to, and records that claim.
-- Speaker framing is audio-correlated mouth motion, not neural active-speaker
-  detection. With a diarized transcript it follows each speaker's turns and cuts
-  between faces at turn changes; without one it declines to choose rather than
-  guessing when two faces move with the audio equally. `LR-ASD` remains the next
-  step recorded in the audit.
-- Generated plates are backgrounds only and need the user's own API key. There is
-  no image generation on a host without one, by design.
-- WhisperX alignment and pyannote diarization are opt-in and are not exercised in
-  CI, which never installs PyTorch; their tests stand in the libraries' call
-  shapes. Diarization needs your own Hugging Face token for the gated weights.
-- Remotion draws a fixed vocabulary of eleven brand-driven graphics. It does not
-  invent bespoke illustration or 3D work. Professional quality
-  still depends on the source, project guidance, Stage 1 decisions, and Stage 3
-  supervising-editor review.
-- Face-aware framing follows the most prominent face; `--reframe speaker` adds
-  audio correlation on top of it.
-- Actual Windows 11 `/mnt/c` acceptance must be recorded for each release; generic Linux CI is not equivalent.
+- Clip selection for multi-short workflows and every accepted cut, accent and
+  b-roll clip stay editorial decisions: the code proposes, the agent decides.
+- Platform safe zones are conservative estimates of the feed UI, not published
+  specifications; check on a real device before a campaign.
+- Music and effects are never sourced or licence-cleared by this tool.
+- Speaker framing uses audio-correlated mouth motion and diarized turns, not
+  neural active-speaker detection (`LR-ASD` is the recorded next step).
+- WhisperX and pyannote are opt-in and not exercised in CI, which never
+  installs PyTorch; diarization needs your own Hugging Face token.
+- The graphics vocabulary is fixed; the tool does not invent bespoke
+  illustration or 3D work.
+- Word animation (`pop`, `box`) is drawn by Remotion; the FFmpeg route draws a
+  colour highlight instead and brand QA says so.
+- Windows 11 `/mnt/c` acceptance is recorded by hand for each release.
 
-Planned work is tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
-
-See [CHANGELOG.md](CHANGELOG.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md) for public project policies.
+**Project documents:** [roadmap](docs/ROADMAP.md) ·
+[changelog](CHANGELOG.md) · [contributing](CONTRIBUTING.md) ·
+[security](SECURITY.md) · [architecture decisions](docs/architecture/) ·
+[artifact contract](skills/social-video-agent/references/artifacts.md)

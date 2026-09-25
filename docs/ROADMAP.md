@@ -61,6 +61,22 @@ Moved to "Under consideration": direct upload to platforms. It needs each
 platform's credentials and publishes on the user's behalf, which is a larger
 decision than an export.
 
+## 1.2 — motion energy (done)
+
+One `motion_energy` level (`calm`, `lively`, `bold`) that sets punch-ins,
+transitions, accent density and caption word animation together; `zoom`,
+`slide` and `flash` transitions on cuts; `pop` and `box` word animation; hook
+cards, charts, comparisons and numbered steps; three style packs. The render
+refuses movement above the level's limits.
+
+## 1.3 — motion from the transcript (done)
+
+`motion suggest/accept` proposes accents from what is said — hook, figures,
+steps, questions, punchlines, turns and jumping cuts — spaced to the energy
+level and snapped to the beats of a licensed music bed, for the agent to accept
+by id. Sound effects from the user's own library, b-roll matched to the
+transcript by file name and tags, hook A/B variants and a motion review sheet.
+
 ## 2.0 / 3.0 — long term
 
 Not resourced today.
@@ -72,7 +88,6 @@ Not resourced today.
 
 - Neural active-speaker detection (LR-ASD, MIT), behind an optional extra.
 - Direct, opt-in upload to platforms using the user's own credentials.
-- B-roll from the user's own library, matched to the transcript.
 - Caption translation (no dubbing).
 - Batch processing of several recordings.
 - Automated WSL2 acceptance on a self-hosted Windows runner.
