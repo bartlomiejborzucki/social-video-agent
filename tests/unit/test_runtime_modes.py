@@ -9,6 +9,7 @@ arrives through `Probes`, and these tests supply it.
 from __future__ import annotations
 
 import subprocess
+import sys
 
 import pytest
 
@@ -461,6 +462,10 @@ def test_a_utf16_listing_decoded_as_utf8_still_parses() -> None:
     assert parse_distributions(garbled) == (Distribution("Ubuntu", 2, True),)
 
 
+# The engine side of the hybrid mode runs inside WSL, so this test writes a
+# workspace through Linux path handling. A native Windows temporary directory
+# is a drive-letter path that only a real wslpath could translate.
+@pytest.mark.skipif(sys.platform == "win32", reason="simulates the engine inside WSL")
 def test_stage_0_through_the_adapter_records_the_hybrid_mode(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
