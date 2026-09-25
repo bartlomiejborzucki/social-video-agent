@@ -4,6 +4,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-09-25
+
+### Fixed
+
+- The hybrid-mode Stage 0 test simulated the engine inside WSL with a native
+  Windows temporary directory, which only a real `wslpath` could translate, so
+  the Windows unit job failed. It now runs where the engine runs, off Windows.
+
 ## [1.3.0] - 2026-09-25
 
 Motion design: energy levels, style packs, transitions and accents proposed
