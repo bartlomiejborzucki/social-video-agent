@@ -43,3 +43,28 @@ Run this checklist on a real Windows 11 machine. Generic Linux CI does not prove
 - [ ] Hash the source before and after and confirm it is unchanged.
 
 Record the Windows version, WSL distribution, `codex --version`, doctor JSON, and checklist result in the release notes.
+
+## Native Windows agent, WSL2 engine
+
+Run these from a native PowerShell (not inside WSL), after `bootstrap.sh` and
+`python3 scripts/install_skills.py` inside WSL.
+
+- [ ] `Get-Command wsl.exe -All` lists more than one `wsl.exe`, and
+      `.\scripts\windows\social-video-agent.ps1 doctor` still runs.
+- [ ] `.\scripts\windows\social-video-agent.ps1 doctor` runs the engine's
+      `doctor` (not "distribution 'doctor' is not installed") and its
+      `runtime mode` line reads `windows-agent-wsl-runtime`.
+- [ ] `echo $env:PATH` inside `wsl.exe -d <distro> --exec /usr/bin/printenv PATH`
+      does not contain `~/.local/bin`, and the adapter still finds the engine
+      with no `/usr/local/bin/social-video-agent` link present.
+- [ ] `Get-Item "$HOME\.agents\skills\social-video-agent"` shows no `LinkType`,
+      and `Get-Content "$HOME\.agents\skills\social-video-agent\SKILL.md"`
+      prints the skill.
+- [ ] `.\scripts\windows\social-video-agent.ps1 workflow init
+      "C:\Users\Test User\Videos\Mój film (2026) $x.mp4" --project-root
+      "C:\Users\Test User\projekt"` starts, and `edit\runtime.json` records
+      `"runtime_mode": "windows-agent-wsl-runtime"` and `"agent_platform": "win32"`.
+- [ ] With two WSL 2 distributions and no default, the adapter stops with
+      `no_distribution`; `-Distribution <name>` runs in exactly that one.
+- [ ] `Get-Command ffmpeg, node, python -ErrorAction SilentlyContinue` on the
+      Windows side is not what the run used: every media step ran in WSL.

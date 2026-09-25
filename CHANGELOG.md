@@ -13,6 +13,27 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 - `workflow renderer remotion` switches an existing workspace, legacy FFmpeg
   ones included, to Remotion through the Stage 0 licence gate.
 
+### Fixed
+
+- Windows adapter: with more than one `wsl.exe` on PATH (System32 and the
+  WindowsApps alias), their paths were joined into one command that does not
+  exist. System32 is preferred, otherwise the first match is used.
+- Windows adapter: `social-video-agent.ps1 doctor` bound `doctor` to the
+  `-Distribution` parameter. Adapter options are now parsed by hand, only
+  before the first engine argument, so every engine argument passes through.
+- The engine in `~/.local/bin` was not found by a non-interactive `wsl.exe`
+  call. The adapter and the runtime check now locate it by absolute path and
+  start it with `wsl.exe --exec` -- no shell, no login PATH, no manual link;
+  `SOCIAL_VIDEO_WSL_ENGINE` names a non-standard location.
+- `install_skills.py` run in WSL put a Linux symlink on the Windows drive, which
+  a native Windows agent could not follow. A Windows destination now gets an
+  atomic copy, replacing an earlier install and nothing else.
+- Diagnostics run through the adapter reported `wsl-native`. The adapter shares
+  `SOCIAL_VIDEO_AGENT_PLATFORM=windows` through `WSLENV`, so `doctor` and
+  `runtime.json` record `windows-agent-wsl-runtime`.
+- `wsl --list --verbose` output decoded with NULs between characters was never
+  parsed by the Python runtime check.
+
 ### Changed
 
 - Rounded caption boxes no longer require Remotion: on the FFmpeg route libass

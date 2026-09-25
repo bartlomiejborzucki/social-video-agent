@@ -24,8 +24,13 @@ One adapter, kept in the repository:
 .\scripts\windows\social-video-agent.ps1 workflow init "C:\Users\User\Videos\Mój film.mp4" --project-root "C:\Users\User\projects\reel"
 ```
 
-It resolves WSL2, picks the distribution, checks the engine is installed, and
-passes your arguments through as an array. Do not build a `wsl.exe` command
+It resolves WSL2 (preferring `C:\Windows\System32\wsl.exe` over the
+WindowsApps alias), picks the distribution, finds the engine by absolute path
+(`$env:SOCIAL_VIDEO_WSL_ENGINE`, then `~/.local/bin`, `/usr/local/bin`,
+`/usr/bin`), and starts it with `wsl.exe --exec` -- one program, an argument
+array, no Linux shell. The first argument after the adapter's own options is
+the engine's command: `doctor` above is the engine's `doctor`. Put
+`-Distribution <name>` before it, or `--` to end the adapter's options. Do not build a `wsl.exe` command
 string yourself, do not use `Invoke-Expression`, and do not reach for
 `ffmpeg.exe`, Windows Python or Windows Node when something fails — the adapter
 refuses those on purpose.
@@ -62,6 +67,11 @@ clean up files this workflow created, inside that cache directory.
 
 ## Stage 0
 
+The adapter tells the engine that the agent is on Windows
+(`SOCIAL_VIDEO_AGENT_PLATFORM=windows`, shared through `WSLENV` with the chosen
+distribution), so `runtime.json` and `doctor` record
+`windows-agent-wsl-runtime`, not `wsl-native`.
+
 `workflow init` writes `runtime.json`: the agent platform, the runtime mode,
 the distribution and its WSL version, the project path on each side, the cache
 root, which engine binaries exist, the image policy and the Remotion licence
@@ -82,8 +92,15 @@ the agent can establish. Report the one it names rather than a general failure.
 ## Installation
 
 The engine is installed in WSL as it always was (clone the repository there and
-run `./scripts/wsl/bootstrap.sh`). The Windows side gets only the skill folder,
-so Codex can recognise the request — no FFmpeg, Node, Python or Remotion is
-duplicated on Windows. Re-running the installer is harmless. After the skill
+run `./scripts/wsl/bootstrap.sh`). It lands in `~/.local/bin`, which is not on
+the PATH of a non-interactive `wsl.exe` call; the adapter finds it there by
+absolute path, so no login shell and no link in `/usr/local/bin` are needed.
+
+The Windows side gets only the skill folder, so Codex can recognise the
+request — no FFmpeg, Node, Python or Remotion is duplicated on Windows. From
+WSL, `python3 scripts/install_skills.py` copies it (real files, not a symlink:
+Windows cannot follow a link into `/home/...`) to the Windows user's
+`.agents\skills`. Re-run it after updating the repository to refresh the copy;
+it replaces only an earlier install of the skill. After the skill
 list changes, a new session (or an app restart) may be needed before the skill
 is found.
