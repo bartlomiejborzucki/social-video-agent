@@ -169,13 +169,36 @@ and name a distribution with `wsl_distribution:` or
 
 In the hybrid mode the only supported bridge is
 [`scripts/windows/social-video-agent.ps1`](scripts/windows/social-video-agent.ps1).
-It passes arguments as an array (never a command string), uses no
-`Invoke-Expression` and no `sh -lc`, propagates stdout, stderr and the exit
-code, and refuses to fall back to `ffmpeg.exe`, Windows Python or Windows Node —
+It passes arguments as an array (never a command string), starts the engine
+with `wsl.exe --exec` by its absolute path (so `~/.local/bin` need not be on the
+non-interactive PATH), uses no `Invoke-Expression` and no `sh -lc`, tells the
+engine the agent is on Windows so `runtime.json` records the hybrid mode,
+propagates stdout, stderr and the exit code, and refuses to fall back to `ffmpeg.exe`, Windows Python or Windows Node —
 a run that mixed Windows and Linux binaries would not be the run that was
 reviewed. If WSL or the engine is missing it names which one and stops; it never
 installs anything. There is still no native Windows execution engine, Docker
 service, MCP server, or cloud backend.
+
+Install for a native Windows agent, from inside WSL:
+
+```bash
+./scripts/wsl/bootstrap.sh                 # the engine, in WSL only
+python3 scripts/install_skills.py          # copies the skill to Windows .agents\skills
+```
+
+then, from PowerShell:
+
+```powershell
+.\scripts\windows\social-video-agent.ps1 doctor
+.\scripts\windows\social-video-agent.ps1 -Distribution Ubuntu-24.04 doctor
+```
+
+Updating an existing 1.0.0 installation: pull the repository inside WSL and
+rerun `./scripts/wsl/bootstrap.sh`, then rerun `python3
+scripts/install_skills.py` — it replaces the old Linux symlink on the Windows
+side with a real copy — and start a new Codex session. A manual
+`/usr/local/bin/social-video-agent` link added as a workaround is no longer
+needed and can be removed.
 
 `social-video-agent doctor` reports the agent side and the engine side
 separately, and distinguishes a missing WSL install, a broken one, a WSL 1
