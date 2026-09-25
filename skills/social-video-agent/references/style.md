@@ -63,6 +63,16 @@ a cue longer than the contract, or a style that does not match the contract.
 `config validate` refuses a caption geometry whose own text cannot be drawn at
 the configured resolution.
 
+## Motion energy and style packs
+
+`motion_energy: calm | lively | bold` in the project config sets, at once, the
+largest punch-in, how many transitions are allowed, how many accents `motion
+suggest` proposes and how the spoken word animates. `style_pack: editorial |
+bold-social | tech-minimal` sets the look of every graphic, in the brand's
+colours and font. `caption_style.animation: pop | box` overrides the word
+animation (Remotion draws it; the FFmpeg route draws a colour highlight and
+brand QA warns). See [motion-design.md](motion-design.md).
+
 ## Captions
 
 Generated from word timings and mapped onto the *output* timeline, so they stay

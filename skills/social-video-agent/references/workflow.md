@@ -96,9 +96,10 @@ context or reinterpret the story without a concrete execution conflict. Create
 the exact `edl.json`, captions, and 9:16 framing. `social-video-agent compile
 SOURCE -w WORKSPACE` builds a word-aligned `edl.json` from the plan, accepted
 cuts included; it refuses to overwrite an existing EDL without `--force`. For the default renderer also
-write `motion-plan.json`: use explicit project style sources, record a rationale
-for every graphic (see artifacts.md for the vocabulary), and leave `elements` empty when no
-graphic improves the story. FFmpeg first creates the frame-accurate base edit;
+write `motion-plan.json`: run `motion suggest`, accept the accents that serve
+the story, add the graphics it cannot see, and keep the rhythm the project's
+`motion_energy` asks for (see motion-design.md). Every graphic keeps its
+reason. FFmpeg first creates the frame-accurate base edit;
 Remotion composites the approved motion layer; then FFmpeg/ffprobe QA the final
 `preview.mp4`. Write `qa/qa-technical.json`, stop, and hand off for editorial
 review.
@@ -116,6 +117,10 @@ Remotion keeps its caption contract.
 ## Stage 3 — supervising-editor review
 
 Recommended tier: `editorial_strong`.
+
+For a Remotion render, `social-video-agent motion sheet -w WORKSPACE` writes
+`qa/motion-sheet.png`: one labelled frame per graphic, punch-in and transition.
+Check each lands on its words, stays readable, and covers no face or caption.
 
 Read context, plan, EDL, and technical QA. Inspect the preview efficiently:
 first 1–3 seconds, relevant cut boundaries, key transitions, final ten seconds,

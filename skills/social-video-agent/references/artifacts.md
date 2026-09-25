@@ -177,6 +177,16 @@ Allowed element types:
 - `progress` — a thin bar filling across its interval; no text.
 - `logo_reveal` — the contract's logo animated in; no text, and it needs
   `logo_file` in the project config.
+- `hook_card` — the opening line as a full-frame designed card; starts within
+  the first 0.5 s, `text` at most 90 characters.
+- `chart` — 2–6 `items` written "Label: number"; bars grow and values count.
+- `compare` — exactly 2 `items` written "Label: text" (before/after).
+- `steps` — 2–5 numbered `items`, revealed in order.
+
+`transitions` lists effects across cuts: `at` (the cut's output time), `style`
+(`zoom`, `slide`, `flash`), `duration` (0.2–0.8 s) and `reason`. How many are
+allowed per minute depends on `motion_energy`. `punch_ins` are described in
+style.md.
 
 An
 `end_card` may add `image_asset` (a local PNG/JPEG/WebP background) and

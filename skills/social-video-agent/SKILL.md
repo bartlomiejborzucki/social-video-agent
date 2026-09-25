@@ -101,11 +101,11 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
   Windows.
 - Never hide missing privacy-safe footage with an automatic long freeze, loop,
   zoom, transition, or synthetic motion.
-- For every Remotion workflow, Stage 2 writes `motion-plan.json`. Use discovered
-  project typography/colors and only story-serving elements from the
-  vocabulary in references/artifacts.md (hook, lower third, callout, end card,
-  quote, stat, list, chapter, CTA, progress bar, logo reveal). Remotion enriches an approved edit; it does not decide
-  the story or repair insufficient footage.
+- For every Remotion workflow, Stage 2 writes `motion-plan.json`, built from
+  `motion suggest` candidates the agent accepts plus graphics it adds, sized to
+  the project's `motion_energy`. Read [motion-design.md](references/motion-design.md).
+  Remotion enriches an approved edit; it does not decide the story or repair
+  insufficient footage.
 - Stage 2 compiles project config into `brand-contract.json`; render only a
   matching EDL/contract. Stage 4 requires technical QA and `qa/qa-brand.json`.
 - Music and effects are licence-gated and policy-gated: `audio_bed` and every
@@ -150,9 +150,13 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 | Several clips from long video | [shorts.md](references/shorts.md) |
 | Setup/render failures | [troubleshooting.md](references/troubleshooting.md) |
 | Agent on Windows, engine in WSL2 | [hybrid-runtime.md](references/hybrid-runtime.md) |
+| Hook card, graphics, punch-ins, transitions, b-roll | [motion-design.md](references/motion-design.md) |
 
-After project rules and user overrides, default to restraint: meaning, clarity,
-natural rhythm, clean cuts, audio, framing, captions, then effects. Technical
+After project rules and user overrides, work in this order: meaning, clarity,
+clean cuts, audio, framing, captions, then motion. Then give the cut rhythm:
+something should change every 3–5 seconds — a cut, a punch-in, a graphic, a
+caption accent — at the project's `motion_energy`. Motion always serves the
+words on screen; it never decorates silence. Technical
 success is not editorial approval: Stage 3 must inspect the opening sheet, hook,
 story, cut boundaries, final ten seconds, dense final-five-second sheet, last
 frame, and motion/audio ending, then always write valid `qa-editorial.json`.
