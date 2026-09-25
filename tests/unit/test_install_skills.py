@@ -34,9 +34,9 @@ def installer(monkeypatch: pytest.MonkeyPatch):
 @pytest.mark.parametrize(
     ("destination", "copy"),
     [
-        ("/mnt/c/Users/bartl/.agents/skills/social-video-agent", True),
+        ("/mnt/c/Users/User/.agents/skills/social-video-agent", True),
         ("/mnt/d/Profile/.agents/skills/social-video-agent", True),
-        ("/home/bartl/.agents/skills/social-video-agent", False),
+        ("/home/user/.agents/skills/social-video-agent", False),
     ],
 )
 def test_a_windows_drive_seen_from_wsl_gets_a_copy(installer, destination: str, copy: bool) -> None:

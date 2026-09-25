@@ -35,7 +35,7 @@ TWO_NO_DEFAULT = (
     "  Ubuntu-24.04      Running         2\r\n"
     "  Ubuntu-22.04      Stopped         2\r\n"
 )
-HOME = "/home/bartłomiej"
+HOME = "/home/użytkownik"
 LOCAL_ENGINE = f"{HOME}/.local/bin/social-video-agent"
 
 
