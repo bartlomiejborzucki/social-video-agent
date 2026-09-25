@@ -1,6 +1,6 @@
 {
   "name": "social-video-agent",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "description": "Create project-aware social clips through a persistent staged workflow, deterministic FFmpeg editing, and Remotion motion design in WSL.",
   "author": {
     "name": "Bartlomiej Borzucki",

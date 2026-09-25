@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-25
+
+Motion design: energy levels, style packs, transitions and accents proposed
+from the transcript.
+
 ### Added
 
 - `motion_energy` (`calm`, `lively`, `bold`) and `style_pack` (`editorial`,
@@ -28,6 +33,16 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 - `workflow renderer remotion` switches an existing workspace, legacy FFmpeg
   ones included, to Remotion through the Stage 0 licence gate.
 
+### Changed
+
+- Rounded caption boxes no longer require Remotion: on the FFmpeg route libass
+  draws them from the same measured layout, with the brand font loaded from
+  the project, and the render records that layout for brand QA.
+
+## [1.0.1] - 2026-09-25
+
+Repairs the Windows agent to WSL2 engine mode.
+
 ### Fixed
 
 - Windows adapter: with more than one `wsl.exe` on PATH (System32 and the
@@ -48,12 +63,6 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   `runtime.json` record `windows-agent-wsl-runtime`.
 - `wsl --list --verbose` output decoded with NULs between characters was never
   parsed by the Python runtime check.
-
-### Changed
-
-- Rounded caption boxes no longer require Remotion: on the FFmpeg route libass
-  draws them from the same measured layout, with the brand font loaded from
-  the project, and the render records that layout for brand QA.
 
 ## [1.0.0] - 2026-09-23
 
