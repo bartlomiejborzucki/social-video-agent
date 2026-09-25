@@ -39,6 +39,7 @@ MIXED = """  NAME              STATE           VERSION
 * Ubuntu-24.04      Running         2
   Legacy            Stopped         1
 """
+LOCAL_ENGINE = "/home/user/.local/bin/social-video-agent"
 POLISH_HEADER = """  NAZWA     STAN            WERSJA
 * Ubuntu    Uruchomiono     2
 """
@@ -57,6 +58,7 @@ def _windows(
     listing: str = ONE_WSL2,
     wsl: bool = True,
     engine: subprocess.CompletedProcess[str] | None = None,
+    engine_installed: bool = True,
 ) -> Probes:
     """A Windows agent, with whatever WSL story the test needs."""
     calls: list[list[str]] = []
@@ -69,6 +71,12 @@ def _windows(
                 if listing is not None
                 else _completed(returncode=1, stderr="boom")
             )
+        program = argv[argv.index("--exec") + 1]
+        if program == "/usr/bin/printenv":
+            return _completed("/home/user\n")
+        if program == "/usr/bin/test":
+            found = engine_installed and argv[-1] == LOCAL_ENGINE
+            return _completed(returncode=0 if found else 1)
         return engine or _completed("0.5.0\n")
 
     probes = Probes(
@@ -116,10 +124,18 @@ def test_a_windows_agent_delegates_into_wsl2() -> None:
     assert status.distribution == Distribution(name="Ubuntu", version=2, default=True)
     assert status.engine_version == "0.5.0"
     assert status.to_dict()["engine_platform"] == "wsl"
-    # The engine is asked for its version through `wsl -- <command>`, as argv.
+    # The engine is found and asked for its version with `wsl --exec`, as argv:
+    # no shell, so no login PATH is needed and nothing is parsed as syntax.
     engine_call = probes.calls[-1]
-    assert engine_call[:4] == ["C:\\Windows\\System32\\wsl.exe", "--distribution", "Ubuntu", "--"]
-    assert engine_call[4:] == ["social-video-agent", "version"]
+    assert engine_call == [
+        "C:\\Windows\\System32\\wsl.exe",
+        "--distribution",
+        "Ubuntu",
+        "--exec",
+        LOCAL_ENGINE,
+        "version",
+    ]
+    assert all("--" not in call for call in probes.calls)
 
 
 def test_the_mode_can_be_pinned_explicitly() -> None:
@@ -214,7 +230,7 @@ def test_only_wsl1_is_installed() -> None:
 def test_wsl_works_but_the_engine_is_missing() -> None:
     status = detect_runtime(
         env={},
-        probes=_windows(engine=_completed(returncode=127, stderr="social-video-agent: not found")),
+        probes=_windows(engine_installed=False),
     )
 
     assert status.problems == (Problem.ENGINE_MISSING,)
@@ -375,7 +391,8 @@ def test_the_adapter_exists_and_refuses_the_unsafe_shortcuts() -> None:
     # The things it must do.
     assert "exit $LASTEXITCODE" in code
     assert "--distribution" in code
-    assert "@EngineArgs" in code, "arguments are passed as an array, never joined"
+    assert "@engineArgs" in code, "arguments are passed as an array, never joined"
+    assert "--exec" in code, "the engine is started without the Linux shell"
     for problem in ("wsl_missing", "wsl_broken", "no_distribution", "wsl1_only", "engine_missing"):
         assert problem in code, problem
 
@@ -384,3 +401,115 @@ def _executable_lines(text: str) -> str:
     """The script without its help block or comment lines."""
     body = text.split("#>", 1)[-1]
     return "\n".join(line for line in body.splitlines() if not line.strip().startswith("#"))
+
+
+# --- the engine's side of the hybrid mode -----------------------------------
+
+
+def _inside_wsl() -> Probes:
+    def no_wsl_exe(argv):
+        raise AssertionError(f"the engine must not call wsl.exe back: {argv}")
+
+    return Probes(platform="linux", inside_wsl=lambda: True, run=no_wsl_exe)
+
+
+def test_the_engine_knows_a_windows_agent_started_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    from social_video import __version__, runtime
+
+    monkeypatch.setattr(runtime, "_wsl_version", lambda: 2)
+
+    status = detect_runtime(
+        env={"SOCIAL_VIDEO_AGENT_PLATFORM": "windows", DISTRIBUTION_ENV: "Ubuntu-24.04"},
+        probes=_inside_wsl(),
+    )
+
+    assert status.mode is RuntimeMode.WINDOWS_AGENT_WSL_RUNTIME
+    assert status.usable
+    assert status.agent_platform == "win32"
+    assert status.distribution == Distribution(name="Ubuntu-24.04", version=2)
+    assert status.engine_version == __version__
+    assert status.to_dict()["engine_platform"] == "wsl"
+
+
+def test_without_the_adapter_inside_wsl_is_still_wsl_native() -> None:
+    status = detect_runtime(env={"WSL_DISTRO_NAME": "Ubuntu"}, probes=_inside_wsl())
+
+    assert status.mode is RuntimeMode.WSL_NATIVE
+
+
+def test_the_engine_side_falls_back_to_wsls_own_distribution_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from social_video import runtime
+
+    monkeypatch.setattr(runtime, "_wsl_version", lambda: 2)
+
+    status = detect_runtime(
+        env={"SOCIAL_VIDEO_AGENT_PLATFORM": "windows", "WSL_DISTRO_NAME": "Debian"},
+        probes=_inside_wsl(),
+    )
+
+    assert status.distribution is not None and status.distribution.name == "Debian"
+
+
+def test_a_utf16_listing_decoded_as_utf8_still_parses() -> None:
+    """What subprocess hands back from `wsl --list --verbose` on Windows."""
+    raw = "  NAME      STATE           VERSION\r\n* Ubuntu    Running         2\r\n"
+    garbled = raw.encode("utf-16-le").decode("utf-8")
+    assert "\x00" in garbled
+
+    assert parse_distributions(garbled) == (Distribution("Ubuntu", 2, True),)
+
+
+def test_stage_0_through_the_adapter_records_the_hybrid_mode(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from social_video import paths, runtime
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.runtime import RuntimeRecord
+    from social_video.schemas.workflow import Renderer
+    from social_video.workflow import create_workflow
+    from social_video.workspace.layout import Workspace
+
+    monkeypatch.setattr(paths, "is_wsl", lambda: True)
+    monkeypatch.setattr(runtime, "_wsl_version", lambda: 2)
+    monkeypatch.setattr(runtime.sys, "platform", "linux")
+    monkeypatch.setenv("SOCIAL_VIDEO_AGENT_PLATFORM", "windows")
+    monkeypatch.setenv(DISTRIBUTION_ENV, "Ubuntu")
+    monkeypatch.delenv(MODE_ENV, raising=False)
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "input.mp4").write_bytes(b"fixture")
+    workspace = Workspace.at(project / "edit")
+
+    create_workflow(
+        [project / "input.mp4"], workspace, project_root=project, renderer=Renderer.FFMPEG
+    )
+
+    record = load_artifact(RuntimeRecord, workspace.runtime_record)
+    assert record.runtime_mode == "windows-agent-wsl-runtime"
+    assert record.agent_platform == "win32"
+    assert record.engine_platform == "wsl"
+    assert record.wsl_distribution == "Ubuntu"
+    assert record.problems == []
+
+
+def test_doctor_through_the_adapter_reports_the_hybrid_mode_without_false_alarms(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from social_video import doctor, paths, runtime
+
+    monkeypatch.setattr(paths, "is_wsl", lambda: True)
+    monkeypatch.setattr(runtime, "_wsl_version", lambda: 2)
+    monkeypatch.setattr(runtime.sys, "platform", "linux")
+    monkeypatch.setenv("SOCIAL_VIDEO_AGENT_PLATFORM", "windows")
+    monkeypatch.setenv(DISTRIBUTION_ENV, "Ubuntu")
+    monkeypatch.delenv(MODE_ENV, raising=False)
+    report = doctor.DoctorReport()
+
+    doctor._check_runtime(report)
+
+    by_name = {check.name: check for check in report.checks}
+    assert by_name["runtime mode"].ok
+    assert by_name["runtime mode"].detail.startswith("windows-agent-wsl-runtime")
+    assert all(by_name[name].ok for name in ("wsl2", "wsl distribution", "wsl engine"))

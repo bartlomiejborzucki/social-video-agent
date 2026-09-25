@@ -35,14 +35,26 @@ import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 
 #: Environment overrides. A project config may also pin both; the environment
 #: wins so one session can be redirected without editing a shared file.
 MODE_ENV = "SOCIAL_VIDEO_RUNTIME_MODE"
 DISTRIBUTION_ENV = "SOCIAL_VIDEO_WSL_DISTRIBUTION"
+#: Set to ``windows`` by the Windows adapter, and shared into WSL through
+#: WSLENV. Inside WSL it is the only way to know the agent is not: from the
+#: engine's side of the boundary a delegated run looks exactly like wsl-native.
+AGENT_PLATFORM_ENV = "SOCIAL_VIDEO_AGENT_PLATFORM"
+#: A Linux path to the engine inside the distribution, when it is not in one of
+#: the standard places.
+ENGINE_PATH_ENV = "SOCIAL_VIDEO_WSL_ENGINE"
 
 #: The engine executable, looked for inside the distribution.
 ENGINE_COMMAND = "social-video-agent"
+#: Where the engine is looked for, after ``$HOME/.local/bin``. `wsl.exe --exec`
+#: uses the non-interactive PATH, which does not contain ~/.local/bin, so the
+#: engine is always run by absolute path rather than by name.
+ENGINE_SYSTEM_PATHS = (f"/usr/local/bin/{ENGINE_COMMAND}", f"/usr/bin/{ENGINE_COMMAND}")
 
 #: WSL 1 cannot run this engine usefully: it has no real kernel, so the
 #: FFmpeg/Remotion stack and the /proc interfaces we probe behave differently.
@@ -181,8 +193,11 @@ def detect_runtime(
         environment.get(DISTRIBUTION_ENV) or configured_distribution or ""
     ).strip() or None
 
+    delegated = (environment.get(AGENT_PLATFORM_ENV) or "").strip().casefold() == "windows"
     if requested in {"", "auto", "detect"}:
         mode, explicit = _detected_mode(probe), False
+        if delegated and mode is RuntimeMode.WSL_NATIVE:
+            mode = RuntimeMode.WINDOWS_AGENT_WSL_RUNTIME
     else:
         try:
             mode, explicit = RuntimeMode(requested), True
@@ -199,6 +214,11 @@ def detect_runtime(
             )
 
     if mode is RuntimeMode.WINDOWS_AGENT_WSL_RUNTIME:
+        if probe.platform != "win32" and probe.is_inside_wsl():
+            # This process is the engine, started by the Windows adapter. The
+            # Windows side already checked WSL and chose the distribution;
+            # calling wsl.exe back from here would ask a question it answered.
+            return _engine_side_status(environment, distribution, explicit=explicit)
         return _hybrid_status(probe, distribution, explicit=explicit)
     return RuntimeStatus(
         mode=mode,
@@ -220,6 +240,66 @@ def _single_machine_detail(mode: RuntimeMode, probe: Probes) -> str:
     if mode is RuntimeMode.WSL_NATIVE:
         return "agent and engine both inside WSL; no boundary to cross"
     return f"agent and engine both on {probe.platform}; no boundary to cross"
+
+
+def _engine_side_status(
+    environment: Mapping[str, str], distribution: str | None, *, explicit: bool
+) -> RuntimeStatus:
+    """The hybrid mode as seen from inside WSL, where the engine runs."""
+    from social_video import __version__
+
+    name = distribution or (environment.get("WSL_DISTRO_NAME") or "").strip() or "unknown"
+    here = Distribution(name=name, version=_wsl_version(), default=False)
+    delegated = (environment.get(AGENT_PLATFORM_ENV) or "").strip().casefold() == "windows"
+    return RuntimeStatus(
+        mode=RuntimeMode.WINDOWS_AGENT_WSL_RUNTIME,
+        agent_platform="win32" if delegated else "unknown",
+        distribution=here,
+        distributions=(here,),
+        engine_version=__version__,
+        problems=() if here.is_wsl2 else (Problem.WSL1_ONLY,),
+        detail=(
+            f"agent on Windows (through the adapter), engine in {name} (WSL {here.version})"
+            if here.is_wsl2
+            else f"{name} is WSL {here.version}; the engine needs WSL 2"
+        ),
+        explicit=explicit,
+    )
+
+
+def _wsl_version() -> int:
+    """2 on a WSL2 kernel, 1 on WSL1. WSL1 has no real Linux kernel release."""
+    try:
+        release = Path("/proc/sys/kernel/osrelease").read_text(encoding="utf-8").casefold()
+    except OSError:
+        return MINIMUM_WSL_VERSION
+    return 2 if "wsl2" in release or "microsoft-standard" in release else 1
+
+
+def find_engine(probe: Probes, binary: str, distribution: str) -> str | None:
+    """The engine's absolute path inside a distribution, found without a shell.
+
+    ``wsl.exe --exec`` runs one program with an argv array and no shell, so a
+    login shell's PATH is never needed and nothing is parsed as shell syntax.
+    """
+    candidates: list[str] = []
+    explicit = (os.environ.get(ENGINE_PATH_ENV) or "").strip()
+    if explicit:
+        candidates.append(explicit)
+    home = probe.execute(
+        [binary, "--distribution", distribution, "--exec", "/usr/bin/printenv", "HOME"]
+    )
+    linux_home = (home.stdout or "").strip().splitlines()[:1]
+    if home.returncode == 0 and linux_home:
+        candidates.append(f"{linux_home[0].rstrip('/')}/.local/bin/{ENGINE_COMMAND}")
+    candidates.extend(ENGINE_SYSTEM_PATHS)
+    for candidate in candidates:
+        test = probe.execute(
+            [binary, "--distribution", distribution, "--exec", "/usr/bin/test", "-x", candidate]
+        )
+        if test.returncode == 0:
+            return candidate
+    return None
 
 
 def _hybrid_status(
@@ -273,9 +353,23 @@ def _hybrid_status(
             detail=detail,
             explicit=explicit,
         )
-    version = probe.execute(
-        [binary, "--distribution", chosen.name, "--", ENGINE_COMMAND, "version"]
-    )
+    engine = find_engine(probe, binary, chosen.name)
+    if engine is None:
+        return RuntimeStatus(
+            mode=RuntimeMode.WINDOWS_AGENT_WSL_RUNTIME,
+            agent_platform=probe.platform,
+            distribution=chosen,
+            distributions=found,
+            problems=(Problem.ENGINE_MISSING,),
+            detail=(
+                f"`{ENGINE_COMMAND}` was not found inside {chosen.name} (~/.local/bin, "
+                "/usr/local/bin, /usr/bin, or $SOCIAL_VIDEO_WSL_ENGINE). Install the engine "
+                "in that distribution (./scripts/wsl/bootstrap.sh in the repository); do "
+                "not install FFmpeg, Node or Python on the Windows side."
+            ),
+            explicit=explicit,
+        )
+    version = probe.execute([binary, "--distribution", chosen.name, "--exec", engine, "version"])
     if version.returncode != 0:
         output = _tail(version.stderr or version.stdout)
         missing = "not found" in output.casefold() or "no such file" in output.casefold()
@@ -310,7 +404,9 @@ def parse_distributions(listing: str) -> tuple[Distribution, ...]:
     the header is skipped positionally rather than matched by name.
     """
     distributions: list[Distribution] = []
-    for raw in listing.replace("\\x00", "").splitlines():
+    # UTF-16 decoded as a single-byte encoding leaves a NUL after every
+    # character; they are removed before anything is matched.
+    for raw in listing.replace("\x00", "").splitlines():
         line = raw.strip()
         if not line:
             continue

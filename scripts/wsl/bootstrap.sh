@@ -122,4 +122,8 @@ if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
   echo '  export PATH="$HOME/.local/bin:$PATH"'
 fi
 
+echo "Engine: $HOME/.local/bin/social-video-agent"
+echo "  A native Windows agent reaches it through scripts/windows/social-video-agent.ps1,"
+echo "  which runs it by that absolute path; no login shell or /usr/local/bin link is needed."
+echo "  To make the skill visible to that agent, run: python3 scripts/install_skills.py"
 echo "READY: run social-video-agent doctor"
