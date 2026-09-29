@@ -130,6 +130,26 @@ social-video-agent deliver WORKSPACE --output DEST --with-captions --cover --pub
 frame from the finished video. Write the title as editorial copy: it is the same
 promise the first spoken line makes, not a description of the file.
 
+## Cover layouts
+
+Pick the layout from where the face is and what the title promises:
+
+| `--layout` | Use when | Rules |
+|---|---|---|
+| `bottom` (default) | face in the upper half; a statement title | ≤ 7 words; the face must stay clear |
+| `top` | face or product in the lower half | ≤ 7 words; keep the logo off the title |
+| `boxed` | busy frame or plate; a punchy hook | ≤ 5 words; one idea per line |
+| `number` | a list, a count or a result ("3", "-40%") | `--figure` ≤ 8 chars; the title explains it |
+
+Every layout keeps the type inside the 3:4 centre a profile grid shows and
+records `grid_safe` and `text_box` in `cover.json`. When unsure, draw two or
+three and compare them:
+`cover WORKSPACE --title "…" --layout bottom --layout boxed` writes
+`assets/covers/cover-<layout>.jpg` and `qa/cover-sheet.png` (grid crop
+outlined) without choosing one. Look at the sheet, show it to the user, then
+run `cover` again with the one they pick. Never put a promise on the cover the
+video does not keep.
+
 ## End-card plate
 
 An `end_card` element in `motion-plan.json` may carry `image_asset` pointing at a

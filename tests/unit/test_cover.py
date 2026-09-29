@@ -101,3 +101,100 @@ def test_a_garbage_plate_is_rejected_with_the_path_named(tmp_path: Path) -> None
     broken.write_bytes(b"not an image")
     with pytest.raises(ValidationError, match=r"broken\.png"):
         compose_cover(tmp_path / "cover.jpg", title="T", style=CoverStyle(), plate=broken)
+
+
+LONG_TITLE = "Trzy błędy, które zabijają zasięgi Twoich rolek"
+
+
+@pytest.mark.parametrize("layout", ["bottom", "top", "boxed", "number"])
+def test_every_layout_keeps_its_type_inside_the_profile_grid(tmp_path: Path, layout: str) -> None:
+    design = compose_cover(
+        tmp_path / f"{layout}.jpg",
+        title=LONG_TITLE,
+        subtitle="Zażółć gęślą jaźń",
+        style=CoverStyle(),
+        plate=_plate(tmp_path / "plate.png"),
+        layout=layout,  # type: ignore[arg-type]
+        figure="3" if layout == "number" else None,
+    )
+    assert design.layout == layout
+    assert design.grid_safe is True
+    left, top, right, bottom = design.text_box or []
+    assert 240 <= top < bottom <= 1680
+    assert 0 <= left < right <= 1080
+
+
+def test_top_and_bottom_put_the_type_where_they_say(tmp_path: Path) -> None:
+    plate = _plate(tmp_path / "plate.png")
+    top = compose_cover(
+        tmp_path / "t.jpg", title="Tytuł", style=CoverStyle(), plate=plate, layout="top"
+    )
+    bottom = compose_cover(tmp_path / "b.jpg", title="Tytuł", style=CoverStyle(), plate=plate)
+    assert (top.text_box or [])[3] < 960 < (bottom.text_box or [])[1]
+
+
+def test_grid_band_only_crops_tall_covers() -> None:
+    from social_video.cover import grid_band
+
+    assert grid_band(1080, 1920) == (240, 1680)
+    assert grid_band(1080, 1350) == (0, 1350)
+    assert grid_band(1080, 1080) == (0, 1080)
+
+
+def test_the_number_layout_needs_a_short_figure(tmp_path: Path) -> None:
+    target = tmp_path / "cover.jpg"
+    with pytest.raises(ValidationError, match="--figure"):
+        compose_cover(target, title="T", style=CoverStyle(), layout="number")
+    with pytest.raises(ValidationError, match="keep it to 8"):
+        compose_cover(target, title="T", style=CoverStyle(), layout="number", figure="123456789")
+    with pytest.raises(ValidationError, match="only by the number layout"):
+        compose_cover(target, title="T", style=CoverStyle(), figure="3")
+    assert not target.exists()
+
+
+def test_boxed_type_is_dark_on_a_light_accent() -> None:
+    from social_video.cover import _ink_on
+
+    style = CoverStyle(accent="#FFD400", text_colour="#FFFFFF", background_colour="#101114")
+    assert _ink_on("#FFD400", style) == "#101114"
+    assert _ink_on("#1A237E", style) == "#FFFFFF"
+
+
+def test_several_layouts_compare_side_by_side(tmp_path: Path) -> None:
+    from social_video.cover import compare_covers
+
+    plate = _plate(tmp_path / "plate.png")
+    designs = [
+        compose_cover(tmp_path / f"{layout}.jpg", title="Tytuł", style=CoverStyle(),
+                      plate=plate, layout=layout)  # type: ignore[arg-type]
+        for layout in ("bottom", "boxed")
+    ]  # fmt: skip
+    sheet = compare_covers(designs, tmp_path / "sheet.png", tile_width=200)
+    with Image.open(sheet) as image:
+        assert image.size == (404, round(1920 * 200 / 1080))
+
+
+def test_the_cli_draws_a_review_sheet_without_choosing_a_cover(tmp_path: Path) -> None:
+    import json
+
+    from typer.testing import CliRunner
+
+    from social_video.cli import app
+
+    workspace = tmp_path / "edit"
+    plate = _plate(tmp_path / "plate.png")
+    args = ["cover", str(workspace), "--title", "Tytuł", "--plate", str(plate)]
+    result = CliRunner().invoke(
+        app, [*args, "--layout", "top", "--layout", "number", "--figure", "3", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert [c["layout"] for c in payload["covers"]] == ["top", "number"]
+    assert payload["covers"][1]["figure"] == "3"
+    assert Path(payload["sheet"]).is_file()
+    assert not (workspace / "cover.json").exists()
+
+    single = CliRunner().invoke(app, [*args, "--layout", "boxed", "--json"])
+    assert single.exit_code == 0, single.output
+    assert json.loads(single.output)["layout"] == "boxed"
+    assert (workspace / "cover.json").is_file()

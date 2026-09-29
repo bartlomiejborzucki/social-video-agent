@@ -34,6 +34,11 @@ _MAX_TITLE_LINES = 4
 #: Matches CoverDesign.title. Checked before drawing so a too-long title fails
 #: with a reason rather than writing a file and then failing validation.
 _MAX_TITLE_CHARS = 120
+_MAX_FIGURE_CHARS = 8
+
+CoverLayout = Literal["bottom", "top", "boxed", "number"]
+#: The layouts `cover` can draw; references/generated-visuals.md says when to use which.
+COVER_LAYOUTS: tuple[str, ...] = ("bottom", "top", "boxed", "number")
 
 
 @dataclass(frozen=True)
@@ -108,8 +113,23 @@ def compose_cover(
     plate: Path | None = None,
     frame: Path | None = None,
     frame_at: float | None = None,
+    layout: CoverLayout = "bottom",
+    figure: str | None = None,
 ) -> CoverDesign:
     """Draw the cover and return its inspectable design record."""
+    if layout not in COVER_LAYOUTS:
+        raise ValidationError(
+            f"unknown cover layout {layout!r}; choose one of {', '.join(COVER_LAYOUTS)}"
+        )
+    figure = " ".join(figure.split()) if figure else None
+    if layout == "number" and not figure:
+        raise ValidationError('the number layout needs --figure, e.g. "3" or "-40%"')
+    if figure and len(figure) > _MAX_FIGURE_CHARS:
+        raise ValidationError(
+            f"the cover figure is {len(figure)} characters; keep it to {_MAX_FIGURE_CHARS}"
+        )
+    if figure and layout != "number":
+        raise ValidationError("--figure is drawn only by the number layout")
     title = " ".join(title.split())
     if not title:
         raise ValidationError("a cover needs a title")
@@ -131,9 +151,9 @@ def compose_cover(
         if source is not None
         else Image.new("RGB", (style.width, style.height), style.background_colour)
     )
-    canvas = _apply_scrim(canvas, style)
-    font_path = _resolve_font(style, f"{title} {subtitle or ''}")
-    _draw_text(canvas, title, subtitle, style, font_path)
+    canvas = _apply_scrim(canvas, style, _SCRIMS[layout])
+    font_path = _resolve_font(style, f"{figure or ''} {title} {subtitle or ''}")
+    canvas, box = _place_type(canvas, layout, title, subtitle, figure, style, font_path)
     if style.logo_file is not None:
         _draw_logo(canvas, style)
 
@@ -145,6 +165,10 @@ def compose_cover(
         height=style.height,
         title=title,
         subtitle=subtitle,
+        layout=layout,
+        figure=figure,
+        text_box=list(box),
+        grid_safe=is_grid_safe(box, style.width, style.height),
         background=background_kind,
         frame_at=frame_at if background_kind == "frame" else None,
         plate=str(plate) if plate else None,
@@ -155,13 +179,18 @@ def compose_cover(
     )
 
 
-def _apply_scrim(canvas: Image.Image, style: CoverStyle) -> Image.Image:
-    """Darken the lower half so white type stays legible over any background."""
+def _apply_scrim(canvas: Image.Image, style: CoverStyle, kind: str = "bottom") -> Image.Image:
+    """Darken where the type sits so white type stays legible over any background."""
     scrim = Image.new("L", (1, style.height))
     for y in range(style.height):
         position = y / max(1, style.height - 1)
-        # Flat and light across the top third, ramping to near-opaque at the base.
-        value = 40 if position < 0.35 else 40 + int(205 * ((position - 0.35) / 0.65) ** 1.6)
+        if kind == "top":
+            position = 1.0 - position
+        if kind == "flat":
+            value = 90
+        else:
+            # Flat and light across the far third, ramping to near-opaque at the text.
+            value = 40 if position < 0.35 else 40 + int(205 * ((position - 0.35) / 0.65) ** 1.6)
         scrim.putpixel((0, y), min(235, value))
     mask = scrim.resize((style.width, style.height))
     shade = Image.new("RGB", canvas.size, "#05070A")
@@ -208,53 +237,218 @@ def _bold_variant(path: Path) -> Path:
     return path
 
 
-def _draw_text(
+def grid_band(width: int, height: int) -> tuple[int, int]:
+    """Rows a 3:4 profile-grid crop of a tall cover keeps (Instagram shows the centre)."""
+    visible = width * 4 / 3
+    if height <= visible:
+        return 0, height
+    offset = int((height - visible) / 2)
+    return offset, height - offset
+
+
+def is_grid_safe(box: tuple[int, int, int, int], width: int, height: int) -> bool:
+    top, bottom = grid_band(width, height)
+    return box[1] >= top and box[3] <= bottom
+
+
+def _place_type(
+    canvas: Image.Image,
+    layout: str,
+    title: str,
+    subtitle: str | None,
+    figure: str | None,
+    style: CoverStyle,
+    font_path: Path | None,
+) -> tuple[Image.Image, tuple[int, int, int, int]]:
+    """Draw the type on its own layer, measure what was actually drawn, and nudge it
+    into the zone. Line heights are estimates; descenders and accents are not."""
+    layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    _DRAW[layout](layer, title, subtitle, figure, style, font_path)
+    drawn = layer.getbbox()
+    if drawn is None:
+        raise ValidationError("the cover type drew nothing")
+    _left, top, _right, bottom = _zone(style)
+    shift = 0
+    if drawn[3] > bottom:
+        shift = bottom - drawn[3]
+    if drawn[1] + shift < top:
+        shift = top - drawn[1]
+    placed = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    placed.paste(layer, (0, shift))
+    composed = canvas.convert("RGBA")
+    composed.alpha_composite(placed)
+    box = (drawn[0], drawn[1] + shift, drawn[2], drawn[3] + shift)
+    return composed.convert("RGB"), box
+
+
+def _zone(style: CoverStyle) -> tuple[int, int, int, int]:
+    """Where type may sit: inside the safe margins and inside the profile-grid crop."""
+    top_pct, right_pct, bottom_pct, left_pct = style.margins
+    grid_top, grid_bottom = grid_band(style.width, style.height)
+    return (
+        int(style.width * left_pct / 100),
+        max(int(style.height * top_pct / 100), grid_top),
+        style.width - int(style.width * right_pct / 100),
+        min(style.height - int(style.height * bottom_pct / 100), grid_bottom),
+    )
+
+
+def _fit(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font_path: Path | None,
+    *,
+    width: int,
+    height: int,
+    start: int,
+    minimum: int,
+    max_lines: int = _MAX_TITLE_LINES,
+) -> tuple[ImageFont.FreeTypeFont, list[str], int]:
+    """The largest size at which ``text`` wraps into the box, down to ``minimum``."""
+    size = start
+    while True:
+        font = _load_font(font_path, size)
+        lines = _wrap(draw, text, font, width)
+        fits = len(lines) <= max_lines and int(size * 1.08) * len(lines) <= height
+        if fits or size <= minimum:
+            return font, lines, size
+        size = max(minimum, int(size * 0.92))
+
+
+def _subtitle_lines(draw, subtitle, font_path, size, width):
+    if not subtitle:
+        return None, [], 0
+    font = _load_font(font_path, max(18, int(size * 0.42)))
+    lines = _wrap(draw, subtitle, font, width)[:2]
+    return font, lines, int(size * 0.42 * 1.25) * len(lines) + int(size * 0.35)
+
+
+def _draw_stack(
     canvas: Image.Image,
     title: str,
     subtitle: str | None,
     style: CoverStyle,
     font_path: Path | None,
+    *,
+    anchor: str,
 ) -> None:
+    """Accent bar, title and subtitle, left-aligned, anchored to the zone's top or bottom."""
     draw = ImageDraw.Draw(canvas)
-    _top_pct, right_pct, bottom_pct, left_pct = style.margins
-    left = int(style.width * left_pct / 100)
-    right = style.width - int(style.width * right_pct / 100)
-    bottom = style.height - int(style.height * bottom_pct / 100)
-    max_width = right - left
-
-    size = int(style.height * _TITLE_START_PCT / 100)
-    minimum = int(style.height * _TITLE_MIN_PCT / 100)
-    while True:
-        font = _load_font(font_path, size)
-        lines = _wrap(draw, title, font, max_width)
-        if len(lines) <= _MAX_TITLE_LINES or size <= minimum:
-            break
-        size = max(minimum, int(size * 0.92))
+    left, top, right, bottom = _zone(style)
+    width = right - left
+    font, lines, size = _fit(
+        draw, title, font_path, width=width, height=int((bottom - top) * 0.55),
+        start=int(style.height * _TITLE_START_PCT / 100),
+        minimum=int(style.height * _TITLE_MIN_PCT / 100),
+    )  # fmt: skip
     line_height = int(size * 1.08)
-    block_height = line_height * len(lines)
-
-    subtitle_font = None
-    subtitle_lines: list[str] = []
-    if subtitle:
-        subtitle_font = _load_font(font_path, max(18, int(size * 0.42)))
-        subtitle_lines = _wrap(draw, subtitle, subtitle_font, max_width)[:2]
-        block_height += int(size * 0.42 * 1.25) * len(subtitle_lines) + int(size * 0.35)
-
-    y = bottom - block_height
+    sub_font, sub_lines, sub_height = _subtitle_lines(draw, subtitle, font_path, size, width)
     bar_height = max(6, int(style.height * 0.006))
-    bar_y = y - int(size * 0.45)
-    draw.rectangle(
-        (left, bar_y, left + int(max_width * 0.22), bar_y + bar_height),
-        fill=style.accent,
-    )
+    lead = int(size * 0.45)
+    block = line_height * len(lines) + sub_height
+    y = top + lead if anchor == "top" else bottom - block
+    bar = (left, y - lead, left + int(width * 0.22), y - lead + bar_height)
+    draw.rectangle(bar, fill=style.accent)
     for line in lines:
         draw.text((left, y), line, font=font, fill=style.text_colour)
         y += line_height
-    if subtitle_font is not None:
+    if sub_font is not None:
         y += int(size * 0.35)
-        for line in subtitle_lines:
-            draw.text((left, y), line, font=subtitle_font, fill=style.accent)
+        for line in sub_lines:
+            draw.text((left, y), line, font=sub_font, fill=style.accent)
             y += int(size * 0.42 * 1.25)
+
+
+def _draw_bottom(canvas, title, subtitle, figure, style, font_path):
+    _draw_stack(canvas, title, subtitle, style, font_path, anchor="bottom")
+
+
+def _draw_top(canvas, title, subtitle, figure, style, font_path):
+    _draw_stack(canvas, title, subtitle, style, font_path, anchor="top")
+
+
+def _draw_boxed(canvas, title, subtitle, figure, style, font_path):
+    """Each title line on its own accent block, centred: the sticker look."""
+    draw = ImageDraw.Draw(canvas)
+    left, top, right, bottom = _zone(style)
+    width = right - left
+    font, lines, size = _fit(
+        draw, title, font_path, width=int(width * 0.86), height=int((bottom - top) * 0.5),
+        start=int(style.height * 6.8 / 100), minimum=int(style.height * _TITLE_MIN_PCT / 100),
+    )  # fmt: skip
+    pad_x, pad_y = int(size * 0.28), int(size * 0.14)
+    line_height = int(size * 1.08) + 2 * pad_y + int(size * 0.08)
+    sub_font, sub_lines, sub_height = _subtitle_lines(draw, subtitle, font_path, size, width)
+    ink = _ink_on(style.accent, style)
+    centre = (left + right) // 2
+    y = bottom - line_height * len(lines) - sub_height
+    for line in lines:
+        x0, y0, x1, y1 = draw.textbbox((0, 0), line, font=font)
+        x = centre - (x1 - x0) // 2 - x0
+        plate = (x + x0 - pad_x, y + y0 - pad_y, x + x1 + pad_x, y + y1 + pad_y)
+        draw.rounded_rectangle(plate, radius=int(size * 0.18), fill=style.accent)
+        draw.text((x, y), line, font=font, fill=ink)
+        y += line_height
+    if sub_font is not None:
+        y += int(size * 0.2)
+        for line in sub_lines:
+            x0, _y0, x1, _y1 = draw.textbbox((0, 0), line, font=sub_font)
+            x = centre - (x1 - x0) // 2 - x0
+            draw.text((x, y), line, font=sub_font, fill=style.text_colour)
+            y += int(size * 0.42 * 1.25)
+
+
+def _draw_number(canvas, title, subtitle, figure, style, font_path):
+    """One huge figure in the accent colour over the title: '3 mistakes', '-40%'."""
+    assert figure is not None
+    draw = ImageDraw.Draw(canvas)
+    left, top, right, bottom = _zone(style)
+    width = right - left
+    fig_size = int(style.height * 0.2)
+    while fig_size > int(style.height * 0.06):
+        fig_font = _load_font(font_path, fig_size)
+        if draw.textlength(figure, font=fig_font) <= width:
+            break
+        fig_size = int(fig_size * 0.92)
+    fig_font = _load_font(font_path, fig_size)
+    font, lines, size = _fit(
+        draw, title, font_path, width=width, height=int((bottom - top) * 0.3),
+        start=int(style.height * 6.0 / 100), minimum=int(style.height * _TITLE_MIN_PCT / 100),
+        max_lines=3,
+    )  # fmt: skip
+    line_height = int(size * 1.08)
+    sub_font, sub_lines, sub_height = _subtitle_lines(draw, subtitle, font_path, size, width)
+    fx0, fy0, _fx1, fy1 = draw.textbbox((0, 0), figure, font=fig_font)
+    figure_height = fy1 - fy0
+    gap = int(size * 0.3)
+    y = bottom - sub_height - line_height * len(lines) - gap - figure_height
+    draw.text((left - fx0, y - fy0), figure, font=fig_font, fill=style.accent)
+    y += figure_height + gap
+    for line in lines:
+        draw.text((left, y), line, font=font, fill=style.text_colour)
+        y += line_height
+    if sub_font is not None:
+        y += int(size * 0.35)
+        for line in sub_lines:
+            draw.text((left, y), line, font=sub_font, fill=style.text_colour)
+            y += int(size * 0.42 * 1.25)
+
+
+def _ink_on(fill: str, style: CoverStyle) -> str:
+    """Dark type on a light accent, the brand's text colour on a dark one."""
+    value = fill.lstrip("#")
+    r, g, b = (int(value[i : i + 2], 16) / 255 for i in (0, 2, 4))
+    luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return style.background_colour if luminance > 0.55 else style.text_colour
+
+
+_DRAW = {
+    "bottom": _draw_bottom,
+    "top": _draw_top,
+    "boxed": _draw_boxed,
+    "number": _draw_number,
+}
+_SCRIMS = {"bottom": "bottom", "top": "top", "boxed": "flat", "number": "bottom"}
 
 
 def _draw_logo(canvas: Image.Image, style: CoverStyle) -> None:
@@ -307,3 +501,31 @@ def _wrap(
             continue
         broken.extend(textwrap.wrap(line, max(4, len(line) // 2)) or [line])
     return broken
+
+
+def compare_covers(designs: list[CoverDesign], output: Path, *, tile_width: int = 360) -> Path:
+    """The candidate covers side by side, each with the profile-grid crop outlined."""
+    if not designs:
+        raise ValidationError("there are no covers to compare")
+    tiles: list[Image.Image] = []
+    for design in designs:
+        with Image.open(design.path) as image:
+            tile = image.convert("RGB")
+        scale = tile_width / tile.width
+        tile = tile.resize((tile_width, round(tile.height * scale)), Image.Resampling.LANCZOS)
+        draw = ImageDraw.Draw(tile)
+        top, bottom = grid_band(design.width, design.height)
+        if (top, bottom) != (0, design.height):
+            edge = (0, round(top * scale), tile.width - 1, round(bottom * scale))
+            draw.rectangle(edge, outline=(255, 255, 255), width=2)
+        draw.rectangle((0, 0, tile.width, 26), fill=(0, 0, 0))
+        label = design.layout + ("" if design.grid_safe is not False else "  (outside grid)")
+        draw.text((6, 6), label, fill=(255, 255, 255))
+        tiles.append(tile)
+    height = max(t.height for t in tiles)
+    sheet = Image.new("RGB", (len(tiles) * (tile_width + 4) - 4, height), "#000000")
+    for index, tile in enumerate(tiles):
+        sheet.paste(tile, (index * (tile_width + 4), 0))
+    output.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(output)
+    return output

@@ -26,11 +26,19 @@ def cover(
     frame_at: float | None = typer.Option(
         None, "--frame-at", help="Take the background from the finished video at this second."
     ),
+    layouts: list[str] = typer.Option(
+        ["bottom"],
+        "--layout",
+        help="bottom, top, boxed or number. Repeat to draw several side by side for review.",
+    ),
+    figure: str | None = typer.Option(
+        None, "--figure", help="The big figure the number layout draws, e.g. 3 or -40%."
+    ),
     output: Path | None = typer.Option(None, "--output", "-o"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Compose the cover still: brand typography over a real frame or a plate."""
-    from social_video.cover import CoverStyle, compose_cover, extract_frame
+    from social_video.cover import CoverStyle, compare_covers, compose_cover, extract_frame
     from social_video.schemas.base import load_artifact, save_artifact
     from social_video.schemas.config import BrandContract
     from social_video.schemas.visuals import VisualAssets, VisualKind
@@ -68,6 +76,45 @@ def cover(
             raise typer.Exit(1)
         frame_at = frame_at if frame_at is not None else 0.5
         frame = _guard(lambda: extract_frame(source, frame_at, ws.cache / "cover-frame.jpg"))
+    chosen = list(dict.fromkeys(layouts))
+    if len(chosen) > 1:
+        # A review, not a decision: nothing is recorded as the cover.
+        if output is not None:
+            err_console.print("[red]error:[/red] --output takes one layout")
+            raise typer.Exit(1)
+        designs = [
+            _guard(
+                lambda layout=layout: compose_cover(
+                    ws.assets / "covers" / f"cover-{layout}.jpg",
+                    title=title,
+                    subtitle=subtitle,
+                    style=style,
+                    plate=plate,
+                    frame=frame,
+                    frame_at=frame_at,
+                    layout=layout,  # type: ignore[arg-type]
+                    figure=figure if layout == "number" else None,
+                )
+            )
+            for layout in chosen
+        ]
+        sheet = _guard(lambda: compare_covers(designs, ws.qa / "cover-sheet.png"))
+        if as_json:
+            console.print_json(
+                json.dumps(
+                    {
+                        "covers": [d.model_dump(mode="json", exclude_none=True) for d in designs],
+                        "sheet": str(sheet),
+                    }
+                )
+            )
+            return
+        for d in designs:
+            safe = "" if d.grid_safe is not False else "  [yellow]outside the grid crop[/yellow]"
+            console.print(f"[green]{d.layout:7}[/green] {d.path}{safe}", soft_wrap=True)
+        console.print(f"[green]sheet[/green]   {sheet}", soft_wrap=True)
+        console.print("Pick one and run `cover` again with that single --layout.")
+        return
     target = output or ws.cover
     design = _guard(
         lambda: compose_cover(
@@ -78,13 +125,22 @@ def cover(
             plate=plate,
             frame=frame,
             frame_at=frame_at,
+            layout=chosen[0],  # type: ignore[arg-type]
+            figure=figure,
         )
     )
     _guard(lambda: save_artifact(design, ws.cover_design))
     if as_json:
         console.print_json(design.to_json())
         return
-    console.print(f"[green]cover[/green] {design.path} ({design.background})", soft_wrap=True)
+    console.print(
+        f"[green]cover[/green] {design.path} ({design.layout}, {design.background})",
+        soft_wrap=True,
+    )
+    if design.grid_safe is False:
+        console.print(
+            "  [yellow]warning[/yellow] the title leaves the 3:4 crop a profile grid shows"
+        )
 
 
 @app.command()

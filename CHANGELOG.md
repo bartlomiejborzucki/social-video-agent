@@ -11,6 +11,16 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   seconds only). `render` estimates the next one from comparable earlier
   renders on the same machine and reports the time it took.
   `SOCIAL_VIDEO_RENDER_LOG` moves or disables the log.
+- Cover layouts: `cover --layout bottom|top|boxed|number` (`--figure` for the
+  big number), each with guidance on when to use it. Repeating `--layout`
+  draws the candidates side by side in `qa/cover-sheet.png` without choosing
+  one. `cover.json` records the layout, the drawn text box and `grid_safe`.
+
+### Fixed
+
+- The default cover could put its last line below the 3:4 centre a profile
+  grid shows, where it is cut off. Cover type is now measured as drawn and
+  kept inside that crop and the safe margins.
 
 ## [1.4.0] - 2026-09-29
 

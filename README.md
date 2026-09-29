@@ -74,6 +74,8 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
 **Delivery and handoff**
 - Immutable delivery variants with a verified manifest, SRT/VTT or burned-in
   captions, covers and validated publishing metadata.
+- Four cover layouts (bottom, top, boxed, big number), compared side by side
+  and kept inside the crop a profile grid shows.
 - The cut exported to Premiere, Final Cut, DaVinci Resolve (FCPXML),
   OpenTimelineIO and CMX 3600, frame for frame with the render.
 

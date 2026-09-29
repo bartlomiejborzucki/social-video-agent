@@ -174,6 +174,12 @@ class CoverDesign(Artifact):
     height: int = Field(gt=0)
     title: str = Field(min_length=1, max_length=120)
     subtitle: str | None = Field(default=None, max_length=160)
+    layout: Literal["bottom", "top", "boxed", "number"] = "bottom"
+    figure: str | None = Field(default=None, max_length=8)
+    #: Left, top, right, bottom of everything drawn, in pixels.
+    text_box: list[int] | None = Field(default=None, min_length=4, max_length=4)
+    #: Whether the type stays inside the 3:4 crop a profile grid shows.
+    grid_safe: bool | None = None
     background: Literal["frame", "plate", "solid"]
     #: Timestamp of the output frame used, when the background is a real frame.
     frame_at: float | None = Field(default=None, ge=0.0)
