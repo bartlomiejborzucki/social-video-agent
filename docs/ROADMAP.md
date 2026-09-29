@@ -85,6 +85,13 @@ length and a hook deadline, with a contact sheet for choosing the style pack.
 Stage 1 reports a transcript unfit to cut on — music under the voice, decoding
 loops, an English-only model on other speech — with the model to retry with.
 
+## 1.5 — covers, timings and session start (done)
+
+Four cover layouts (bottom, top, boxed, big number) compared side by side and
+kept inside the 3:4 crop a profile grid shows; render timings logged locally so
+`render` can estimate the next one; `workflow brief` and a Claude Code
+`SessionStart` hook that tell a new session which edits are in progress.
+
 ## 2.0 / 3.0 — long term
 
 Not resourced today.

@@ -83,12 +83,17 @@ upstreams:
     components:
       - src/social_video/analysis/reference.py
       - src/social_video/transcribe/quality.py
+      - src/social_video/cover.py
+      - src/social_video/render_log.py
+      - src/social_video/workflow/brief.py
     notes: >
-      Generation-first, so most of it does not apply. Two ideas were taken and
-      reimplemented from scratch: turning a reference video into a reusable
-      style (here, measured rhythm mapped onto motion_energy rather than a
-      generation prompt) and choosing a larger Whisper model when music or
-      junk tokens dominate a transcript. No code copied.
+      Generation-first, so most of it does not apply. Ideas taken and
+      reimplemented from scratch: a reference video turned into a reusable
+      style (here, measured rhythm mapped onto motion_energy), a larger Whisper
+      model when music or junk tokens dominate, named cover formulas compared
+      side by side, a local per-call log that turns history into estimates, and
+      a SessionStart banner (here silent outside a video project). No code
+      copied.
 
   - repository: SYSTRAN/faster-whisper
     url: https://github.com/SYSTRAN/faster-whisper
