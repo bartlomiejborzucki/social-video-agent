@@ -482,6 +482,11 @@ Media processing is local. Models are downloaded once on first use and never
 committed. Nothing leaves the machine unless the user asks for it — an image
 prompt to a cloud tool, a URL download — and says so.
 
+Finished renders append their timings to a local `render-log.jsonl` in the app
+home (sizes, durations and seconds only; no paths or text), which is how
+`render` estimates the next one. `SOCIAL_VIDEO_RENDER_LOG` moves the file and
+`SOCIAL_VIDEO_RENDER_LOG=off` turns it off.
+
 The project is Apache-2.0 and includes attributed MIT-licensed work from
 [browser-use/video-use](https://github.com/browser-use/video-use). See
 [UPSTREAM.md](UPSTREAM.md), [NOTICE](NOTICE) and

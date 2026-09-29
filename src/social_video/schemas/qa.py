@@ -97,6 +97,8 @@ class RenderManifest(Artifact):
     frame_rate: str
     #: Set when the output rate differs from the source rate, and why.
     frame_rate_converted_from: str | None = None
+    #: Wall-clock seconds the render took on this machine.
+    render_seconds: float | None = Field(default=None, ge=0.0)
     video_codec: str = "h264"
     audio_codec: str = "aac"
     crf: int | None = None

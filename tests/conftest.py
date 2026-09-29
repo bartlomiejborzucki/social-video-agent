@@ -14,6 +14,16 @@ from pathlib import Path
 import pytest
 
 HAS_FFMPEG = shutil.which("ffmpeg") is not None
+
+
+@pytest.fixture(autouse=True)
+def _private_render_log(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
+    """Tests render, and must not add to the render timings of the machine running them."""
+    log = tmp_path_factory.mktemp("render-log") / "render-log.jsonl"
+    monkeypatch.setenv("SOCIAL_VIDEO_RENDER_LOG", str(log))
+    return log
+
+
 requires_ffmpeg = pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg not installed")
 
 

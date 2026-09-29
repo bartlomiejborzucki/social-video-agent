@@ -111,6 +111,10 @@ Remotion composites the approved motion layer; then FFmpeg/ffprobe QA the final
 `preview.mp4`. Write `qa/qa-technical.json`, stop, and hand off for editorial
 review.
 
+Before a render, tell the user how long it will take when `render` prints an
+estimate (`--json`: `estimate.seconds`). It comes from earlier renders on this
+machine; with no history there is none, so do not invent one.
+
 When the contract asks for an active-word highlight, the caption track must
 carry word timings: the renderer records the features it actually drew and brand
 QA fails if a contracted one was dropped.

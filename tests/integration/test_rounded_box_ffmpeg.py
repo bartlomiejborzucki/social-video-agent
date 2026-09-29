@@ -19,6 +19,7 @@ from social_video.ffmpeg.run import has_libass
 from social_video.pipeline import stage_render
 from social_video.project_config import apply_contract_to_edl, compile_brand_contract
 from social_video.qa.brand import check_brand
+from social_video.render_log import read_renders
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.captions import CaptionCue, CaptionTrack
 from social_video.schemas.edl import EDL, EDLRange
@@ -111,6 +112,9 @@ caption_style:
     assert left <= text_cols.min() and text_cols.max() <= right
 
     render = load_artifact(RenderManifest, workspace.renders / "final.manifest.json")
+    assert render.render_seconds is not None and render.render_seconds > 0
+    [timing] = read_renders()
+    assert (timing["renderer"], timing["quality"], timing["captions"]) == ("ffmpeg", "final", True)
     assert "caption_layout_measured" in render.caption_features
     assert render.caption_layout["truncated_cues"] == []
     report = check_brand(output, contract, render)

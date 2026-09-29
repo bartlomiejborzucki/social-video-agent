@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import typer
@@ -199,6 +200,18 @@ def render(
         if selected_renderer is Renderer.REMOTION and attestation is not None
         else None
     )
+    from social_video.render_log import estimate_render
+
+    estimate = estimate_render(
+        renderer=selected_renderer.value,
+        quality=quality,
+        width=edl.output_width,
+        height=edl.output_height,
+        output_seconds=edl.total_duration,
+    )
+    if estimate is not None and not as_json:
+        err_console.print(f"rendering {quality}: {estimate.describe()}")
+    started = time.monotonic()
     rendered = _guard(
         lambda: stage_render(
             edl,
@@ -213,6 +226,7 @@ def render(
             audio_cleanup=audio_cleanup,
         )
     )
+    elapsed = time.monotonic() - started
     cleanup = _rendered_audio_cleanup(ws, rendered)
     if as_json:
         console.print_json(
@@ -221,13 +235,15 @@ def render(
                     "output": str(rendered),
                     "quality": quality,
                     "renderer": selected_renderer.value,
+                    "seconds": round(elapsed, 1),
+                    "estimate": estimate.to_dict() if estimate else None,
                     "audio_cleanup": cleanup,
                 },
                 ensure_ascii=False,
             )
         )
         return
-    console.print(f"[green]rendered[/green] {rendered}", soft_wrap=True)
+    console.print(f"[green]rendered[/green] {rendered} in {elapsed:.0f} s", soft_wrap=True)
     _print_audio_cleanup(cleanup)
 
 

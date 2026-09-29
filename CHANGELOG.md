@@ -4,6 +4,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Added
+
+- Render timings: every render records how long it took in its manifest
+  (`render_seconds`) and in a local `render-log.jsonl` (sizes, durations and
+  seconds only). `render` estimates the next one from comparable earlier
+  renders on the same machine and reports the time it took.
+  `SOCIAL_VIDEO_RENDER_LOG` moves or disables the log.
+
 ## [1.4.0] - 2026-09-29
 
 Reference rhythm and transcript trust: match the feel of a reference video,

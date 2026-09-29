@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from fractions import Fraction
 from pathlib import Path
 
@@ -35,6 +36,7 @@ from social_video.profiles import load_brand, load_profile
 from social_video.qa.checks import check_render
 from social_video.qa.contact_sheet import boundary_sheets, contact_sheet
 from social_video.reframe.plan import plan_reframe
+from social_video.render_log import record_render
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.brand import BrandProfile, OutputProfile
 from social_video.schemas.captions import CaptionTrack
@@ -280,6 +282,7 @@ def stage_render(
     remotion_license_attestation: RemotionLicenseAttestation | None = None,
     audio_cleanup: bool = True,
 ) -> Path:
+    started = time.monotonic()
     contract: BrandContract | None = None
     if workspace.brand_contract.is_file():
         contract = load_artifact(BrandContract, workspace.brand_contract)
@@ -439,11 +442,23 @@ def stage_render(
         and renderer is Renderer.REMOTION
     )
     manifest_obj.brand_safe_margins = contract.safe_margins if contract else {}
+    elapsed = time.monotonic() - started
+    manifest_obj.render_seconds = round(elapsed, 2)
     save_artifact(manifest_obj, workspace.renders / f"{output.stem}.manifest.json")
+    record_render(
+        renderer=renderer.value,
+        quality=quality,
+        width=manifest_obj.width,
+        height=manifest_obj.height,
+        output_seconds=manifest_obj.duration,
+        elapsed_seconds=elapsed,
+        motion_elements=len(motion_plan.elements) if motion_plan else 0,
+        captions=captions is not None,
+    )
     record_stage(
         workspace,
         f"render:{quality}",
-        {"output": str(output), "renderer": renderer.value},
+        {"output": str(output), "renderer": renderer.value, "seconds": round(elapsed, 1)},
     )
     return output
 
