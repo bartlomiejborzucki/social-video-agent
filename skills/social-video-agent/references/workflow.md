@@ -65,6 +65,13 @@ standalone story, false starts, repetitions, meaningful pauses, ordering,
 ending, B-roll/punch-in opportunities, and caption behavior. Project defaults
 apply only after discovery; the current request wins and overrides are recorded.
 
+Stage 1 writes `analysis/<source>.transcript-quality.json`. When it is not
+`ok` (music notes or sound annotations over 20% of tokens, many low-confidence
+words, a phrase looping, an English-only `.en` model on other speech, or an
+uncertain language), tell the user what it found before planning cuts on that
+transcript and offer the `suggested_model` re-run (`--model <m> --force`). It
+is their call: a larger model costs minutes on a CPU.
+
 Run `config validate` when project config is present. It creates executable
 `brand-contract.json`; missing required font/logo assets or mixed
 CLI/skill/plugin versions block the workflow before editorial work.

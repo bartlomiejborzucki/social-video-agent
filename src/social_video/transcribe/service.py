@@ -20,6 +20,7 @@ from social_video.transcribe.base import (
     get_backend,
 )
 from social_video.transcribe.diarize import diarize, label_speakers, validate_diarization
+from social_video.transcribe.quality import assess_transcript
 from social_video.workspace.layout import Workspace
 
 log = logging.getLogger(__name__)
@@ -108,6 +109,8 @@ def transcribe_source(
             "cuts placed from this transcript may not land on real word boundaries",
             backend.name,
         )
+    for warning in assess_transcript(transcript, requested_language=opts.language).warnings:
+        log.warning("%s: %s", src.name, warning)
 
     save_artifact(transcript, cache_path)
     _publish(transcript, out_path)

@@ -73,6 +73,12 @@ and transcription falls back to CPU automatically when they are missing.
 `SOCIAL_VIDEO_FORCE_CPU=1` skips the attempt. Smaller models are much faster;
 `base` is often enough for cutting.
 
+**Captions drift or say things nobody said.** `transcribe` warns when the
+transcript is unfit to cut on and names a model to retry with. Speech over
+music needs `medium` rather than `small`; a looping phrase is a decoding
+hallucination; an `.en` model translates other languages into English instead
+of transcribing them. When even `large-v3` struggles, try a cleaner track.
+
 **The wrong audio is transcribed.** Multi-track recordings are common — OBS puts
 desktop audio on track 0 and the microphone on track 1. `inspect` lists the
 tracks; use `--audio-track 1`. A silent track is refused with an explanation

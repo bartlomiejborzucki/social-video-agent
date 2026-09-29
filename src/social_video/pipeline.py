@@ -48,6 +48,7 @@ from social_video.schemas.transcript import Transcript
 from social_video.schemas.workflow import RemotionLicenseAttestation, Renderer
 from social_video.sources import build_manifest
 from social_video.transcribe.base import TranscriptionOptions
+from social_video.transcribe.quality import assess_transcript
 from social_video.transcribe.service import transcribe_source
 from social_video.transcript.pack import pack_transcripts
 from social_video.workspace.layout import Workspace
@@ -95,10 +96,20 @@ def stage_transcribe(
     # several sources would otherwise lose the others from the agent's view
     # each time a new source was transcribed.
     _repack(workspace)
+    quality = assess_transcript(transcript, requested_language=options.language)
+    workspace.analysis.mkdir(parents=True, exist_ok=True)
+    (workspace.analysis / f"{transcript.source_id}.transcript-quality.json").write_text(
+        json.dumps(quality.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     record_stage(
         workspace,
         "transcribe",
-        {"provider": transcript.provider, "words": len(transcript.words)},
+        {
+            "provider": transcript.provider,
+            "words": len(transcript.words),
+            "quality_ok": quality.ok,
+            "suggested_model": quality.suggested_model,
+        },
     )
     return transcript
 

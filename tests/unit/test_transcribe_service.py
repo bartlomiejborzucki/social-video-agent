@@ -168,3 +168,21 @@ def test_diarization_labels_words_and_is_checked_before_decoding(
     )
 
     assert [w.speaker for w in transcript.words] == ["S1", "S2"]
+
+
+@requires_ffmpeg
+def test_stage_one_records_transcript_quality(tmp_path: Path, fake: FakeBackend) -> None:
+    import json
+
+    from social_video.pipeline import stage_transcribe
+
+    source = make_video(tmp_path / "clip.mp4", duration=1.5)
+    ws = Workspace.at(tmp_path / "edit")
+
+    stage_transcribe(source, ws, options=TranscriptionOptions(model="small"), backend="fake")
+
+    quality = json.loads((ws.analysis / "clip.transcript-quality.json").read_text("utf-8"))
+    assert quality["ok"] is True
+    state = json.loads(ws.state.read_text("utf-8"))
+    assert state["transcribe"]["quality_ok"] is True
+    assert state["transcribe"]["suggested_model"] is None

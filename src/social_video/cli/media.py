@@ -105,6 +105,7 @@ def transcribe(
 ) -> None:
     """Transcribe a source locally. Cached on source content plus options."""
     from social_video.transcribe.base import TranscriptionOptions
+    from social_video.transcribe.quality import assess_transcript
     from social_video.transcribe.service import transcribe_source
     from social_video.workspace.layout import Workspace
 
@@ -121,6 +122,7 @@ def transcribe(
         lambda: transcribe_source(source, ws, options=options, backend_name=backend, force=force)
     )
     path = ws.transcript_for(transcript.source_id, audio_track)
+    quality = assess_transcript(transcript, requested_language=language)
 
     if as_json:
         console.print_json(
@@ -134,6 +136,7 @@ def transcribe(
                     "duration": transcript.duration,
                     "word_timestamps_reliable": transcript.has_word_timestamps,
                     "speakers": transcript.speakers,
+                    "quality": quality.to_dict(),
                 }
             )
         )
@@ -149,6 +152,10 @@ def transcribe(
             "  [yellow]warning[/yellow]    word timings look evenly distributed rather than "
             "aligned; cuts may not land on word boundaries"
         )
+    for warning in quality.warnings:
+        console.print(f"  [yellow]warning[/yellow]    {escape(warning)}")
+    if quality.suggested_model:
+        console.print(f"  [yellow]retry[/yellow]      --model {quality.suggested_model} --force")
 
 
 @app.command()

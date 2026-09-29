@@ -4,6 +4,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Added
+
+- Transcript quality check at Stage 1: music notes and sound annotations,
+  low-confidence words, decoding loops, an English-only model on other speech
+  and an uncertain language are reported with the model to retry with.
+  `transcribe` prints it, `--json` carries it, and Stage 1 writes
+  `analysis/<source>.transcript-quality.json`. It warns and never blocks.
+
 ## [1.3.1] - 2026-09-25
 
 ### Fixed
