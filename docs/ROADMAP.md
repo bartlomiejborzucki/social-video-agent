@@ -77,6 +77,14 @@ level and snapped to the beats of a licensed music bed, for the agent to accept
 by id. Sound effects from the user's own library, b-roll matched to the
 transcript by file name and tags, hook A/B variants and a motion review sheet.
 
+## 1.4 — reference rhythm and transcript trust (done)
+
+`style analyze` measures a reference video's shot lengths, cut rate, pauses,
+speaking pace and hook timing and maps them onto `motion_energy`, a target shot
+length and a hook deadline, with a contact sheet for choosing the style pack.
+Stage 1 reports a transcript unfit to cut on — music under the voice, decoding
+loops, an English-only model on other speech — with the model to retry with.
+
 ## 2.0 / 3.0 — long term
 
 Not resourced today.

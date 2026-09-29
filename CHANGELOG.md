@@ -11,6 +11,17 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   and an uncertain language are reported with the model to retry with.
   `transcribe` prints it, `--json` carries it, and Stage 1 writes
   `analysis/<source>.transcript-quality.json`. It warns and never blocks.
+- `style analyze REFERENCE -w WORKSPACE`: measures a reference video's shot
+  lengths, cut rate, pauses, speaking pace (`--transcribe`) and hook timing,
+  and maps them onto `motion_energy`, a target shot length and a hook
+  deadline. Writes `context/style-reference.json` and a contact sheet of one
+  frame per shot for choosing the style pack. Only numbers are kept; project
+  config is not changed.
+
+### Changed
+
+- The motion review sheet and the reference contact sheet share one frame-grid
+  helper in `imaging.py`.
 
 ## [1.3.1] - 2026-09-25
 

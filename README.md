@@ -25,7 +25,9 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
 **Edit from the transcript**
 - Local transcription with faster-whisper (Polish, English and every other
   Whisper language) with word timings and content-addressed caching; optional
-  WhisperX word alignment and pyannote speaker diarization.
+  WhisperX word alignment and pyannote speaker diarization. A transcript
+  unfit to cut on — music under the voice, decoding loops, an English-only
+  model on Polish — is reported with the model to retry with.
 - An editorial plan the agent writes and you review, compiled into a
   word-aligned EDL. Nothing is cut that the plan does not say.
 - Cut candidates found from timing — hesitations (`yyy`, `eee`, `um`), doubled
@@ -44,6 +46,9 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
   thirds to charts, before/after comparisons and logo reveals.
 - Sound under the motion from your own library, b-roll from your own clips,
   hook A/B variants and a review sheet of every animated moment.
+- "Make it feel like this one": a reference video's shot length, cut rate,
+  pauses and hook timing measured and mapped onto the energy level. Only the
+  rhythm is borrowed.
 
 **Captions that match the brand**
 - Laid out against the real font's metrics and never truncated.
@@ -417,6 +422,17 @@ social-video-agent motion variants -w edit --text "Hook A" --text "Hook B"
 social-video-agent motion sheet -w edit                     # qa/motion-sheet.png
 ```
 
+**Matching a reference.** `style analyze` measures a video the user wants the
+edit to feel like — shot lengths, cut rate, pauses, speaking pace and when the
+first sentence lands — and maps them onto `motion_energy`, a target shot
+length and a hook deadline. A contact sheet of one frame per shot lets the
+agent pick the closest style pack. Only numbers are kept, and project config
+is not changed:
+
+```bash
+social-video-agent style analyze reference.mp4 -w edit --transcribe
+```
+
 B-roll is matched by file name and tags, tolerant of Polish inflection
 (“samochodu” finds `samochod.mp4`). Sound and music are always the user's own
 licensed files; the tool never sources or clears audio. The render refuses any
@@ -433,7 +449,7 @@ that reports information supports `--json`.
 | Workflow | `workflow init/status/resume/complete/renderer` |
 | Source | `inspect`, `fetch URL --rights "..."`, `transcribe [--diarize]`, `pack` |
 | Editing | `plan`, `cuts find/accept`, `compile`, `shorts list/create`, `apply-editorial-qa` |
-| Motion | `motion suggest/accept/sfx/variants/sheet`, `broll suggest/accept` |
+| Motion | `motion suggest/accept/sfx/variants/sheet`, `broll suggest/accept`, `style analyze` |
 | Render and check | `render`, `edit`, `qa`, `platforms` |
 | Images | `image status/prompt/register/capabilities/plate`, `cover` |
 | Output | `deliver`, `export` |

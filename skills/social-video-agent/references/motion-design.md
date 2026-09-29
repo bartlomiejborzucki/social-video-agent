@@ -19,6 +19,29 @@ accent, a transition. Nothing changes for its own sake.
 material. `bold` suits fast social formats. The render refuses movement above
 the level's limits.
 
+## Matching a reference ("make it feel like this")
+
+When the user points at a video they want the edit to feel like, and it is a
+file they already have, run
+`social-video-agent style analyze REFERENCE -w WORKSPACE` (add `--transcribe`
+for speaking pace and when the first sentence ends). It measures shot length,
+cut rate, pauses and hook timing, writes `context/style-reference.json` and a
+contact sheet `context/style-reference.png`, and maps the numbers onto
+`motion_energy`, a target shot length and a hook deadline. Never fetch someone
+else's video to use as a reference.
+
+- Look at the contact sheet and choose the `style_pack` closest to its look;
+  the code does not judge looks.
+- Propose the energy and pack to the user as a config change; it is theirs to
+  accept. The reference never overrides a project rule or the brand.
+- Keep only the rhythm: aim for shots around `target_shot_seconds` and land
+  the hook within `hook_within_seconds`. Copy no wording, frame, graphic or
+  sound from the reference.
+- When no cut was detected, check the contact sheet: jump cuts within one
+  framing are invisible to scene detection.
+- Name the reference and what you took from it in `motion-plan.json`'s
+  `rationale`.
+
 ## Workflow (Stage 2)
 
 1. Compile the EDL, then `social-video-agent motion suggest SOURCE -w WORKSPACE`.

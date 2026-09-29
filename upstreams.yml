@@ -73,6 +73,23 @@ upstreams:
       - src/social_video/schemas/edl.py
       - src/social_video/reframe/smooth.py
 
+  - repository: krusemediallc/arcads-claude-code
+    url: https://github.com/krusemediallc/arcads-claude-code
+    purpose: Claude Code skills for generated ads; reference-video analysis and Whisper model choice.
+    license: MIT
+    reviewed_sha: 126350103e1357ce4a56c298ebf80787e3e23859
+    reviewed_on: 2026-09-29
+    integration: design
+    components:
+      - src/social_video/analysis/reference.py
+      - src/social_video/transcribe/quality.py
+    notes: >
+      Generation-first, so most of it does not apply. Two ideas were taken and
+      reimplemented from scratch: turning a reference video into a reusable
+      style (here, measured rhythm mapped onto motion_energy rather than a
+      generation prompt) and choosing a larger Whisper model when music or
+      junk tokens dominate a transcript. No code copied.
+
   - repository: SYSTRAN/faster-whisper
     url: https://github.com/SYSTRAN/faster-whisper
     purpose: Default local transcription backend.

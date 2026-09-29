@@ -51,6 +51,7 @@ from social_video.cli import shorts  # noqa: E402
 from social_video.cli import cuts  # noqa: E402
 from social_video.cli import motion  # noqa: E402
 from social_video.cli import broll  # noqa: E402
+from social_video.cli import style  # noqa: E402
 from social_video.cli import licensing  # noqa: E402
 
 # isort: on
@@ -68,5 +69,6 @@ __all__ = [
     "motion",
     "render",
     "shorts",
+    "style",
     "workflow",
 ]

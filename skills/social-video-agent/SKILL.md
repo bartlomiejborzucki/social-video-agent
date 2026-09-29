@@ -104,6 +104,8 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 - For every Remotion workflow, Stage 2 writes `motion-plan.json`, built from
   `motion suggest` candidates the agent accepts plus graphics it adds, sized to
   the project's `motion_energy`. Read [motion-design.md](references/motion-design.md).
+  When the user shows a reference video, measure it with `style analyze` and
+  borrow only its rhythm.
   Remotion enriches an approved edit; it does not decide the story or repair
   insufficient footage.
 - Stage 2 compiles project config into `brand-contract.json`; render only a

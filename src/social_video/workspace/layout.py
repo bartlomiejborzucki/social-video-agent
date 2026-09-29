@@ -160,6 +160,14 @@ class Workspace:
         return self.context / "context-sources.json"
 
     @property
+    def style_reference(self) -> Path:
+        return self.context / "style-reference.json"
+
+    @property
+    def style_reference_sheet(self) -> Path:
+        return self.context / "style-reference.png"
+
+    @property
     def technical_qa(self) -> Path:
         return self.qa / "qa-technical.json"
 

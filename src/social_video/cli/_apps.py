@@ -33,4 +33,8 @@ motion_app = typer.Typer(
 app.add_typer(motion_app, name="motion")
 broll_app = typer.Typer(help="Match clips from your own library to what is said, and cut them in.")
 app.add_typer(broll_app, name="broll")
+style_app = typer.Typer(
+    help="Measure a reference video's rhythm and map it onto this project's settings."
+)
+app.add_typer(style_app, name="style")
 app.add_typer(license_app, name="remotion-license")
