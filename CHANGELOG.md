@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-29
+
+Reference rhythm and transcript trust: match the feel of a reference video,
+and know when a transcript is not fit to cut on.
+
 ### Added
 
 - Transcript quality check at Stage 1: music notes and sound annotations,
