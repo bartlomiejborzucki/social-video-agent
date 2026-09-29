@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-09-29
+
+Covers that survive the profile grid, render time estimates, and a session
+that knows which edits are in progress.
+
 ### Added
 
 - Render timings: every render records how long it took in its manifest
@@ -15,7 +20,6 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   big number), each with guidance on when to use it. Repeating `--layout`
   draws the candidates side by side in `qa/cover-sheet.png` without choosing
   one. `cover.json` records the layout, the drawn text box and `grid_safe`.
-
 - `workflow brief` and a Claude Code `SessionStart` hook: a session opened in
   a video project is told which edits are in progress, at which stage and what
   they are missing, including workspaces kept in the app home for
@@ -27,6 +31,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 - The default cover could put its last line below the 3:4 centre a profile
   grid shows, where it is cut off. Cover type is now measured as drawn and
   kept inside that crop and the safe margins.
+- Every Remotion render left its ~30 MB webpack bundle in the system temp
+  directory, often RAM-backed tmpfs, until it filled. The render script now
+  removes the bundle when it finishes or fails.
 
 ## [1.4.0] - 2026-09-29
 
