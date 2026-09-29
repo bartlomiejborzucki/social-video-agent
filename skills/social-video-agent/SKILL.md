@@ -69,7 +69,8 @@ mistake this installed skill's directory for the user's project.
    language. The skill cannot switch models.
 
 Use `social-video-agent workflow status WORKSPACE --json` for “Where are we?”
-and resume requests.
+and resume requests; `workflow brief` (also the Claude session-start hook)
+lists the edits in progress under the project.
 
 ## Modes and invariants
 

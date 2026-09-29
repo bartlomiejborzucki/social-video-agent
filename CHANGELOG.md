@@ -16,6 +16,12 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   draws the candidates side by side in `qa/cover-sheet.png` without choosing
   one. `cover.json` records the layout, the drawn text box and `grid_safe`.
 
+- `workflow brief` and a Claude Code `SessionStart` hook: a session opened in
+  a video project is told which edits are in progress, at which stage and what
+  they are missing, including workspaces kept in the app home for
+  Windows-drive sources. Silent outside a video project and bounded by a
+  timeout. `doctor` and `validate_distribution.py` validate `hooks/hooks.json`.
+
 ### Fixed
 
 - The default cover could put its last line below the 3:4 centre a profile

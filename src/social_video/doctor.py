@@ -27,7 +27,12 @@ from social_video.ffmpeg.run import (
     has_libzimg,
 )
 from social_video.paths import app_home, is_wsl
-from social_video.project_validation import validate_marketplace, validate_plugin, validate_skill
+from social_video.project_validation import (
+    validate_claude_hooks,
+    validate_marketplace,
+    validate_plugin,
+    validate_skill,
+)
 
 
 @dataclass
@@ -591,6 +596,7 @@ def _check_distribution(report: DoctorReport) -> None:
         validate_plugin(root / "plugins" / "social-video-agent"),
         validate_skill(root / "skills" / "social-video-agent"),
         validate_marketplace(root / ".agents" / "plugins" / "marketplace.json"),
+        validate_claude_hooks(root / "hooks" / "hooks.json"),
     )
     for index, result in enumerate(validations):
         label = result.name if index == 0 else f"{result.name} ({index + 1})"

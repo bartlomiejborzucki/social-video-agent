@@ -75,6 +75,45 @@ def validate_plugin(path: Path) -> ValidationResult:
     return ValidationResult("plugin manifest", tuple(errors))
 
 
+#: Session events a Claude Code plugin hook may name.
+CLAUDE_HOOK_EVENTS = {
+    "SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse",
+    "Notification", "Stop", "SubagentStop", "PreCompact",
+}  # fmt: skip
+_PLUGIN_ROOT_PATH = re.compile(r"\$\{CLAUDE_PLUGIN_ROOT\}/([^\"'\s]+)")
+
+
+def validate_claude_hooks(path: Path) -> ValidationResult:
+    """The Claude plugin's ``hooks/hooks.json``: known events, scripts that exist."""
+    data, errors = _load_json(path)
+    if data is None:
+        return ValidationResult("claude hooks", tuple(errors))
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict) or not hooks:
+        return ValidationResult("claude hooks", (f"{path}: hooks must be a non-empty object",))
+    plugin_root = path.parent.parent
+    for event, groups in hooks.items():
+        if event not in CLAUDE_HOOK_EVENTS:
+            errors.append(f"{path}: unknown hook event {event!r}")
+        if not isinstance(groups, list):
+            errors.append(f"{path}: {event} must be a list")
+            continue
+        for group in groups:
+            entries = group.get("hooks") if isinstance(group, dict) else None
+            if not isinstance(entries, list) or not entries:
+                errors.append(f"{path}: every {event} group needs a hooks list")
+                continue
+            for entry in entries:
+                command = entry.get("command") if isinstance(entry, dict) else None
+                if not isinstance(command, str) or entry.get("type") != "command":
+                    errors.append(f"{path}: {event} hooks must be commands")
+                    continue
+                for relative in _PLUGIN_ROOT_PATH.findall(command):
+                    if not (plugin_root / relative).is_file():
+                        errors.append(f"{path}: {event} runs a missing file: {relative}")
+    return ValidationResult("claude hooks", tuple(errors))
+
+
 def validate_marketplace(path: Path) -> ValidationResult:
     data, errors = _load_json(path)
     if data is None:

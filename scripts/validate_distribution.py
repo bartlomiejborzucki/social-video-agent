@@ -9,7 +9,12 @@ import sys
 from pathlib import Path
 
 from social_video import __version__
-from social_video.project_validation import validate_marketplace, validate_plugin, validate_skill
+from social_video.project_validation import (
+    validate_claude_hooks,
+    validate_marketplace,
+    validate_plugin,
+    validate_skill,
+)
 
 
 def main() -> int:
@@ -22,6 +27,7 @@ def main() -> int:
         validate_plugin(root / "plugins" / "social-video-agent"),
         validate_marketplace(root / ".agents" / "plugins" / "marketplace.json"),
         validate_skill(root / "skills" / "social-video-agent"),
+        validate_claude_hooks(root / "hooks" / "hooks.json"),
     ]
     errors = [error for result in results for error in result.errors]
     for manifest in (

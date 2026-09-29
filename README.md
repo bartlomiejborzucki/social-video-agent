@@ -218,6 +218,12 @@ workflow knowledge only — no FFmpeg, virtual environment, `node_modules` or
 model weights. `./scripts/build-skill.sh` builds a lightweight
 `dist/social-video-agent-skill.zip`.
 
+In Claude Code the plugin also adds a `SessionStart` hook
+([`hooks/hooks.json`](hooks/hooks.json)). When a session opens in a video
+project it tells the agent which edits are in progress and at which stage
+(`social-video-agent workflow brief`); anywhere else it prints nothing. The
+hook runs bash, so it applies on Linux, macOS and inside WSL2.
+
 ### Checking the setup
 
 `social-video-agent doctor` checks the runtime mode, FFmpeg and libass, Python
@@ -448,7 +454,7 @@ that reports information supports `--json`.
 | Area | Commands |
 |---|---|
 | Setup | `doctor`, `version`, `profiles`, `config init/validate/migrate`, `remotion-license`, `context inspect/refresh` |
-| Workflow | `workflow init/status/resume/complete/renderer` |
+| Workflow | `workflow init/status/resume/complete/renderer/brief` |
 | Source | `inspect`, `fetch URL --rights "..."`, `transcribe [--diarize]`, `pack` |
 | Editing | `plan`, `cuts find/accept`, `compile`, `shorts list/create`, `apply-editorial-qa` |
 | Motion | `motion suggest/accept/sfx/variants/sheet`, `broll suggest/accept`, `style analyze` |

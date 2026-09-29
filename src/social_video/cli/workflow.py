@@ -129,6 +129,34 @@ def workflow_resume(
     workflow_show_status(workspace_dir, language, as_json)
 
 
+@workflow_app.command("brief")
+def workflow_brief(
+    root: Path = typer.Argument(Path(), help="Directory the session opened."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """A few lines on edits in progress here, for a session start. Silent elsewhere."""
+    from social_video.workflow.brief import edits_in_progress, session_brief
+
+    if as_json:
+        console.print_json(
+            json.dumps(
+                [
+                    {
+                        "workspace": str(edit.workspace),
+                        "stage": edit.stage,
+                        "updated_at": edit.updated_at,
+                        "missing_artifacts": list(edit.missing),
+                        "problem": edit.problem,
+                    }
+                    for edit in edits_in_progress(root)
+                ]
+            )
+        )
+        return
+    for line in session_brief(root):
+        typer.echo(line)
+
+
 @workflow_app.command("complete")
 def workflow_complete(
     stage: int = typer.Argument(..., min=1, max=5),
