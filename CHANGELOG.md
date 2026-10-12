@@ -4,6 +4,30 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-13
+
+The workflow stages as MCP tools. The CLI, the artifacts and the workflow
+state are unchanged; the major version marks the new interface.
+
+### Added
+
+- `social-video-agent mcp serve` (the `mcp` extra) serves the workflow as MCP
+  tools over stdio: status, init and batch, stage completion, transcription,
+  planning, cuts, motion, b-roll, Claude Motion films, rendering, technical,
+  brand and motion QA, caption translation, editorial fixes, delivery and
+  export. Each tool runs the matching CLI command with `--json` in a child
+  process and returns its result or its error, so every gate is the CLI's.
+- The Remotion licence declaration, `fetch --rights`, cloud image calls and
+  brand-file upload consent are deliberately not tools.
+- `social-video-agent mcp tools` lists the tools and the commands they run;
+  `python -m social_video` runs the CLI.
+- `references/mcp.md` tells an agent how to use the tools.
+
+### Changed
+
+- Skill files that describe judgement only moved from 2.0 to "Under
+  consideration": hosts without the MCP tools still need the commands.
+
 ## [1.8.0] - 2026-10-13
 
 Several recordings, several languages.
