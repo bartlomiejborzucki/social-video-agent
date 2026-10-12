@@ -55,6 +55,7 @@ from social_video.cli import broll  # noqa: E402
 from social_video.cli import style  # noqa: E402
 from social_video.cli import captions  # noqa: E402
 from social_video.cli import licensing  # noqa: E402
+from social_video.cli import mcp  # noqa: E402
 
 # isort: on
 
@@ -69,6 +70,7 @@ __all__ = [
     "film",
     "image",
     "licensing",
+    "mcp",
     "media",
     "motion",
     "render",

@@ -46,3 +46,5 @@ captions_app = typer.Typer(
 )
 app.add_typer(captions_app, name="captions")
 app.add_typer(license_app, name="remotion-license")
+mcp_app = typer.Typer(help="Serve the workflow stages as MCP tools, behind the same gates.")
+app.add_typer(mcp_app, name="mcp")
