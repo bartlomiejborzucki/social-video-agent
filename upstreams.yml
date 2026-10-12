@@ -171,9 +171,10 @@ upstreams:
     license: BSD-2-Clause
     reviewed_sha: 2cfd7b7c5c7bba144954364db747319b50e8232b
     reviewed_on: 2026-09-15
-    integration: watch
-    components: []
-    notes: Optional [align] extra. Not yet implemented.
+    integration: dependency
+    components:
+      - src/social_video/transcribe/whisperx_backend.py
+    notes: Optional [align] extra, selected with --backend whisperx.
 
   - repository: Junhua-Liao/LR-ASD
     url: https://github.com/Junhua-Liao/LR-ASD
