@@ -4,6 +4,35 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-13
+
+Hygiene after 1.3, and the roadmap to 2.0.
+
+### Fixed
+
+- Beat detection compared each frame with a neighbourhood that counted frames
+  beyond either end of the music bed as silence, so the noise floor of the
+  first and last quarter second read as beats and could pull a punch-in onto
+  them. The neighbourhood now averages only the frames that exist.
+
+### Changed
+
+- Model routing recommends the current Claude family: Claude Opus 5.5,
+  Claude Sonnet 5.5 and Claude Haiku 5.5 where it named Opus 5, Sonnet 5 and
+  Haiku 4.5. Claude Fable 5.1 stays the escalation tier.
+- `upstreams.yml` and `.env.example` describe WhisperX as the implemented
+  optional backend it has been since 1.0; `SKILL.md` numbers its routing
+  steps without a gap.
+
+### Tests
+
+- The `motion` and `broll` commands end to end: b-roll found by file name and
+  sidecar tags, accepted once, unknown ids named; accents filtered by kind and
+  confidence; hook variants refused off Remotion; the motion sheet.
+- Property tests: accents never exceed the energy level's budget or spacing,
+  beats move only punch-ins and only within the snap tolerance, and onsets of
+  a steady click tempo over a noise floor are found with nothing else.
+
 ### Documentation
 
 - The roadmap is reviewed against 1.5.0 and runs from a 1.5.1 hygiene release
