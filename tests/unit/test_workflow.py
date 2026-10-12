@@ -71,6 +71,7 @@ def _write_stage_2(workspace: Workspace) -> None:
 
 
 def _write_stage_3(workspace: Workspace) -> None:
+    save_artifact(QAReport(output="preview.mp4"), workspace.motion_qa)
     save_artifact(EditorialQA(status=EditorialQAStatus.APPROVED, fixes=[]), workspace.editorial_qa)
 
 
@@ -324,3 +325,19 @@ def test_a_legacy_ffmpeg_workflow_switches_to_remotion_through_the_licence_gate(
     assert state.current_stage is WorkflowStage.EXECUTION
     assert state.completed_stages == [WorkflowStage.EDITORIAL_PLAN]
     assert load_workflow(workspace).renderer is Renderer.REMOTION
+
+
+def test_a_remotion_review_needs_measured_motion_qa(tmp_path: Path) -> None:
+    _, _, workspace, state = _setup(tmp_path)
+    _write_stage_1(workspace)
+    advance_workflow(workspace, WorkflowStage.EDITORIAL_PLAN)
+    _write_stage_2(workspace)
+    state = advance_workflow(workspace, WorkflowStage.EXECUTION)
+    save_artifact(EditorialQA(status=EditorialQAStatus.APPROVED, fixes=[]), workspace.editorial_qa)
+
+    assert state.renderer is Renderer.REMOTION
+    with pytest.raises(ValidationError, match=r"qa-motion\.json"):
+        advance_workflow(workspace, WorkflowStage.EDITORIAL_REVIEW)
+    save_artifact(QAReport(output="preview.mp4"), workspace.motion_qa)
+    after = advance_workflow(workspace, WorkflowStage.EDITORIAL_REVIEW)
+    assert after.current_stage is WorkflowStage.FINALIZATION
