@@ -3,7 +3,7 @@ name: social-video-agent
 description: Create project-aware Reels and Shorts from recordings with local transcription, an explicit plan and EDL, persistent stages, rendering, and QA. Use when asked to edit, trim, caption, reframe, review or resume a preview, or create delivery variants. Do not use for generated video or simple conversion.
 license: Apache-2.0
 metadata:
-  version: "1.5.0"
+  version: "1.6.0"
   last_updated: "2026-10-13"
 ---
 
@@ -153,6 +153,8 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 | Cover, end card, generated plates | [generated-visuals.md](references/generated-visuals.md) |
 | Platform safe zones and publish copy | [publishing.md](references/publishing.md) |
 | Several clips from long video | [shorts.md](references/shorts.md) |
+| Several recordings in one batch | [workflow.md](references/workflow.md) |
+| Captions in another language | [style.md](references/style.md) |
 | Setup/render failures | [troubleshooting.md](references/troubleshooting.md) |
 | Agent on Windows, engine in WSL2 | [hybrid-runtime.md](references/hybrid-runtime.md) |
 | Hook card, graphics, punch-ins, transitions, b-roll | [motion-design.md](references/motion-design.md) |
