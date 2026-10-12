@@ -17,6 +17,10 @@ from social_video.workflow.brief import edits_in_progress, find_state_files, ses
 from social_video.workspace.layout import Workspace
 
 REPO = Path(__file__).resolve().parents[2]
+# The hook is a bash script for the Linux or WSL engine. On native Windows,
+# `bash` is usually the WSL launcher, which fails without a distribution.
+HOOK_BASH = shutil.which("bash") is not None and os.name != "nt"
+NO_HOOK_BASH = "needs a POSIX bash; on Windows bash.exe is the WSL launcher"
 
 
 def _edit(project: Path, name: str = "edit") -> Workspace:
@@ -58,7 +62,8 @@ def test_edits_in_progress_are_listed_with_their_stage(tmp_path: Path, home: Pat
     _edit(project, "second")
     lines = session_brief(project)
     assert "2 edits in progress" in lines[1]
-    assert any("videos/first/edit: at stage_1_editorial_plan" in line for line in lines)
+    expected = f"{Path('videos/first/edit')}: at stage_1_editorial_plan"  # native separators
+    assert any(expected in line for line in lines)
     assert "workflow status" in lines[-1]
 
 
@@ -117,7 +122,7 @@ def test_a_hook_naming_a_missing_script_is_invalid(tmp_path: Path):
     assert any("unknown hook event 'OnBoot'" in e for e in errors)
 
 
-@pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
+@pytest.mark.skipif(not HOOK_BASH, reason=NO_HOOK_BASH)
 def test_the_hook_script_is_quiet_without_the_cli(tmp_path: Path):
     env = {"PATH": "/usr/bin:/bin", "CLAUDE_PROJECT_DIR": str(tmp_path), "HOME": str(tmp_path)}
     script = REPO / "scripts" / "claude" / "session-start.sh"
@@ -129,7 +134,7 @@ def test_the_hook_script_is_quiet_without_the_cli(tmp_path: Path):
     assert "not on PATH" in hint.stdout
 
 
-@pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
+@pytest.mark.skipif(not HOOK_BASH, reason=NO_HOOK_BASH)
 def test_the_hook_script_prints_the_brief(tmp_path: Path, home: Path):
     cli = shutil.which("social-video-agent")
     if cli is None:
