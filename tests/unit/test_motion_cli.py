@@ -140,7 +140,8 @@ def test_motion_accept_needs_suggestions_first(workspace: Workspace) -> None:
     result = _invoke("motion", "accept", "acc-001", "-w", str(workspace.root))
 
     assert result.exit_code == 1
-    assert "run `motion suggest`" in result.output
+    # Rich wraps a long temporary path, so compare without the line breaks.
+    assert "run`motionsuggest`" in "".join(result.output.split())
     assert not workspace.motion_plan.exists()
 
 
