@@ -93,11 +93,11 @@ data records when it was reviewed and against which sources, the motion sheet
 colours each frame by its verdict, and with the Remotion renderer Stage 3
 needs `qa-motion.json` before it accepts the editorial review.
 
-## 1.8 — several recordings, several languages
+## 1.8 — several recordings, several languages (done, one item moved)
 
 - **Batch:** a folder of recordings becomes one parent workspace with a child
-  per recording and one brand contract; `workflow status` reports them
-  together, and shorts reuse the parent's motion suggestions and b-roll index.
+  per recording; `workflow status` reports them together and warns when they
+  no longer compile the same brand contract.
 - **Caption translation, no dubbing:** the host agent writes the translated
   cues; the CLI validates them against a per-language `max_chars_per_cue`,
   burns them, and delivers SRT, VTT and a variant per language. The CLI makes
@@ -111,6 +111,11 @@ files describe judgement rather than commands. Bumps `workflow_version`.
 
 ## Under consideration
 
+- **Shorts reusing the parent's motion suggestions** (moved from 1.8): accent
+  candidates are positions on the parent's cut, so on a child's own cut they
+  would land at the wrong times. A child already reuses the parent's
+  transcript, so `motion suggest` on the child costs no recognition; reuse
+  needs candidates mapped through the source rather than the output.
 - **Motion as the whole composite:** uploading the base render to a Motion film
   and exporting the finished short. It needs a media-upload policy with
   recorded consent, an audio re-mux (Motion exports mute picture), captions

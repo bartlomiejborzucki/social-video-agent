@@ -33,7 +33,10 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
 - Cut candidates found from timing — hesitations (`yyy`, `eee`, `um`), doubled
   words, restarted phrases, long pauses — applied only when the agent accepts
   them.
-- One long recording into several standalone shorts.
+- One long recording into several standalone shorts, or a folder of recordings
+  as one batch under a shared brand.
+- Captions translated by the agent into other languages, checked against the
+  caption limits and delivered as their own variants. No dubbing.
 
 **Motion that holds a viewer**
 - One `motion_energy` setting — `calm`, `lively`, `bold` — sets punch-ins,

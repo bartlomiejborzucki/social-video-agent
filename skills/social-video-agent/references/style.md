@@ -88,6 +88,24 @@ Unicode works: Polish, German, French, Cyrillic are checked against the font
 before rendering. If the chosen font lacks glyphs, `doctor` says so rather than
 letting it render as empty boxes.
 
+### Captions in another language
+
+Translation is yours; the CLI never calls a translation service, and nothing is
+dubbed. After the captions are final:
+
+```bash
+social-video-agent captions translate -w WORKSPACE --to en
+# fill in every "translation" in captions/<edl>.translate-en.json
+social-video-agent captions apply -w WORKSPACE --to en [--max-chars 42]
+social-video-agent deliver WORKSPACE --output DEST --language en --srt
+```
+
+Translate meaning, not word for word, within `max_chars_per_cue` (or a
+per-language `--max-chars`). `apply` refuses a file that adds, drops or retimes
+a cue, leaves one empty, or runs over the limit. The translated track keeps the
+original timings; its word timings are estimated across each cue, so the
+active-word highlight follows them only approximately. Say so to the user.
+
 ## Vertical framing
 
 `--reframe` or the profile's default:
