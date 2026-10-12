@@ -39,6 +39,7 @@ def deliver_workspace(
     publish: bool = False,
     platforms: list[str] | None = None,
     resolutions: list[str] | None = None,
+    languages: list[str] | None = None,
     allow_temporary: bool = False,
 ) -> DeliveryManifest:
     manifest, edl = load_workspace_artifacts(workspace)
@@ -57,7 +58,9 @@ def deliver_workspace(
     if not allow_temporary and (destination == Path("/tmp") or Path("/tmp") in destination.parents):
         raise ValidationError("Stage 5 destination must be durable and cannot be under /tmp")
     destination.mkdir(parents=True, exist_ok=True)
-    if not any((with_captions, no_captions, srt, vtt, poster, cover, publish, bool(resolutions))):
+    if not any(
+        (with_captions, no_captions, srt, vtt, poster, cover, publish, resolutions, languages)
+    ):
         raise ValidationError("select at least one delivery variant")
     # An unnamed platform falls back to whatever the project config targets, so
     # a configured project gets its safe-zone checks without repeating itself.
@@ -117,6 +120,35 @@ def deliver_workspace(
             remotion_license_attestation=attestation,
         )
         items.append(_video_item(target, variant_edl, caption_track, destination, specs, contract))
+    for language in languages or []:
+        from social_video.captions.translate import check_language, translated_paths
+
+        paths = translated_paths(workspace.captions, edl.name, check_language(language))
+        if not (paths["json"].is_file() and paths["ass"].is_file()):
+            raise ValidationError(
+                f"no {language} captions at {paths['json']}; translate them with "
+                f"`captions translate` and `captions apply` first"
+            )
+        translated = load_artifact(CaptionTrack, paths["json"])
+        target = destination / f"final-{language}.mp4"
+        stage_render(
+            edl,
+            manifest,
+            workspace,
+            quality="final",
+            captions=paths["ass"],
+            output=target,
+            renderer=renderer,
+            motion_plan=motion_plan,
+            remotion_license_attestation=attestation,
+        )
+        items.append(_video_item(target, edl, translated, destination, specs, contract))
+        if srt:
+            written = write_srt(translated, destination / f"captions.{language}.srt")
+            items.append(_file_item("captions", written, "srt"))
+        if vtt:
+            written = write_vtt(translated, destination / f"captions.{language}.vtt")
+            items.append(_file_item("captions", written, "vtt"))
     if srt:
         if caption_track is None:
             raise ValidationError("cannot deliver SRT: structured caption JSON is missing")
