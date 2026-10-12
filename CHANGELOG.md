@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-13
+
+Hygiene after 1.3, and the roadmap to 2.0.
+
 ### Fixed
 
 - Beat detection compared each frame with a neighbourhood that counted frames

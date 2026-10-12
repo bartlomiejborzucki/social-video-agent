@@ -32,9 +32,9 @@ animation, style packs, fifteen graphics); motion from the transcript
 (`motion suggest/accept`, beat snapping, sound effects, b-roll, hook variants,
 the motion sheet). See the [changelog](../CHANGELOG.md) for detail.
 
-## 1.3.2 — hygiene after 1.3 (done, unreleased)
+## 1.3.2 — hygiene after 1.3 (done)
 
-A patch release, listed under "Unreleased" in the changelog.
+A patch release.
 
 - Documents that fell behind 1.3 are current: `SKILL.md` numbers its routing
   steps without a gap, and `upstreams.yml` and `.env.example` describe
