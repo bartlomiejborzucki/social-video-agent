@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from social_video.errors import ValidationError
@@ -53,11 +54,18 @@ def motion_sheet(
     *,
     tile_width: int = 270,
     extra: list[tuple[float, str]] | None = None,
+    verdicts: Callable[[list[tuple[float, str]]], list[str]] | None = None,
 ) -> Path:
-    """One labelled frame per graphic, punch-in and transition, in a grid."""
+    """One labelled frame per graphic, punch-in and transition, in a grid.
+
+    With ``verdicts``, each tile's label bar is coloured by what motion QA
+    found at that moment: green clear, amber a warning, red an error.
+    """
     from social_video.imaging import contact_sheet
 
     moments = review_moments(plan, extra)
     if not moments:
         raise ValidationError("the motion plan has nothing to review")
-    return contact_sheet(video, moments, output, tile_width=tile_width)
+    palette = {"ok": (24, 120, 60), "warning": (190, 120, 0), "error": (170, 30, 30)}
+    colours = [palette.get(v) for v in verdicts(moments)] if verdicts is not None else None
+    return contact_sheet(video, moments, output, tile_width=tile_width, colours=colours)

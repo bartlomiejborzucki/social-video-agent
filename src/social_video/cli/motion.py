@@ -254,12 +254,82 @@ def motion_review_sheet(
         (s.start_in_output + min(0.6, s.duration * 0.5), f"motion film {s.scene_id}")
         for s in load_registry(ws).segments
     ]
+    verdicts = None
+    if ws.motion_qa.is_file():
+        from social_video.qa.motion import moment_verdicts
+        from social_video.schemas.qa import QAReport
+
+        report = load_artifact(QAReport, ws.motion_qa)
+        verdicts = lambda moments: moment_verdicts(moments, report)  # noqa: E731
     path = _guard(
         lambda: motion_sheet(
             target,
             load_artifact(MotionPlan, ws.motion_plan),
             ws.qa / "motion-sheet.png",
             extra=films,
+            verdicts=verdicts,
         )
     )
     console.print(f"[green]written[/green] {path}", soft_wrap=True)
+
+
+@motion_app.command("qa")
+def motion_qa(
+    workspace_dir: Path = typer.Option(..., "--workspace", "-w"),
+    video: Path | None = typer.Option(
+        None, "--video", help="Render to measure faces on (default: the base render or preview)."
+    ),
+    faces: bool = typer.Option(True, "--faces/--no-faces", help="Measure faces under graphics."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Measure every graphic: time to read it, captions and faces it covers, rhythm."""
+    from social_video.errors import ValidationError
+    from social_video.motion.film import load_registry
+    from social_video.qa.motion import check_motion, faces_from_video
+    from social_video.schemas.base import load_artifact, save_artifact
+    from social_video.schemas.captions import CaptionTrack
+    from social_video.schemas.config import BrandContract
+    from social_video.schemas.edl import EDL
+    from social_video.schemas.motion import MotionPlan
+    from social_video.workspace.layout import Workspace
+
+    ws = Workspace.at(workspace_dir)
+
+    def run():
+        if not ws.edl.is_file():
+            raise ValidationError(f"no EDL at {ws.edl}")
+        edl = load_artifact(EDL, ws.edl)
+        plan = load_artifact(MotionPlan, ws.motion_plan) if ws.motion_plan.is_file() else None
+        contract = (
+            load_artifact(BrandContract, ws.brand_contract) if ws.brand_contract.is_file() else None
+        )
+        track = None
+        if edl.captions and Path(edl.captions).with_suffix(".json").is_file():
+            track = load_artifact(CaptionTrack, Path(edl.captions).with_suffix(".json"))
+        # The Remotion base render has no graphics over the faces.
+        base = ws.cache / "remotion" / "base-preview.mp4"
+        frames = video or (base if base.is_file() else ws.previews / "preview.mp4")
+        provider, note = None, "--no-faces"
+        if faces:
+            if frames.is_file():
+                try:
+                    provider = faces_from_video(frames)
+                except Exception as exc:  # no model offline, an unreadable file
+                    note = f"face detection unavailable ({exc})"
+            else:
+                note = f"no render at {frames}"
+        report = check_motion(
+            edl, plan, contract, output=str(frames), captions=track,
+            film_segments=load_registry(ws).segments, faces=provider, faces_note=note,
+        )  # fmt: skip
+        save_artifact(report, ws.motion_qa)
+        return report
+
+    report = _guard(run)
+    if as_json:
+        console.print_json(report.to_json())
+        return
+    for check in report.checks:
+        mark = "[green]ok[/green]  " if check.passed else "[yellow]warn[/yellow]"
+        console.print(f"  {mark} {escape(check.name)}: {escape(check.message)}", soft_wrap=True)
+    console.print(f"[green]written[/green] {ws.motion_qa}", soft_wrap=True)
