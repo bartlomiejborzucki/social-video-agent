@@ -82,7 +82,7 @@ def test_guided_handoffs_persist_and_stage_1_does_not_render(tmp_path: Path) -> 
     assert state.recommended_next_model_name == "Astra"
     assert state.recommended_next_models == {
         "openai": "Astra",
-        "claude": "Claude Opus 5",
+        "claude": "Claude Opus 5.5",
     }
     assert state.renderer is Renderer.REMOTION
     assert state.remotion_license_attestation is RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE
@@ -92,14 +92,14 @@ def test_guided_handoffs_persist_and_stage_1_does_not_render(tmp_path: Path) -> 
     stage_2 = advance_workflow(workspace, WorkflowStage.EDITORIAL_PLAN)
     assert stage_2.current_stage is WorkflowStage.EXECUTION
     assert stage_2.recommended_next_model_name == "Sol"
-    assert stage_2.recommended_next_models["claude"] == "Claude Sonnet 5"
+    assert stage_2.recommended_next_models["claude"] == "Claude Sonnet 5.5"
     assert load_workflow(workspace) == stage_2
 
     _write_stage_2(workspace)
     stage_3 = advance_workflow(workspace, WorkflowStage.EXECUTION)
     assert stage_3.current_stage is WorkflowStage.EDITORIAL_REVIEW
     assert stage_3.recommended_next_model_name == "Astra"
-    assert stage_3.recommended_next_models["claude"] == "Claude Opus 5"
+    assert stage_3.recommended_next_models["claude"] == "Claude Opus 5.5"
 
     _write_stage_3(workspace)
     stage_4 = advance_workflow(workspace, WorkflowStage.EDITORIAL_REVIEW)
@@ -107,11 +107,11 @@ def test_guided_handoffs_persist_and_stage_1_does_not_render(tmp_path: Path) -> 
     assert stage_4.recommended_next_model_name == "Sol"
     assert stage_4.recommended_next_models == {
         "openai": "Sol",
-        "claude": "Claude Sonnet 5",
+        "claude": "Claude Sonnet 5.5",
     }
     assert workflow_status(stage_4, language="pl")["next_models"] == {
         "openai": "Sol",
-        "claude": "Claude Sonnet 5",
+        "claude": "Claude Sonnet 5.5",
     }
 
 
@@ -148,11 +148,11 @@ def test_stage_5_never_changes_edl(tmp_path: Path) -> None:
     assert stage_5.current_stage is WorkflowStage.DELIVERY
     assert stage_5.recommended_next_models == {
         "openai": "Luna",
-        "claude": "Claude Haiku 4.5",
+        "claude": "Claude Haiku 5.5",
     }
     assert workflow_status(stage_5, language="pl")["next_models"] == {
         "openai": "Luna",
-        "claude": "Claude Haiku 4.5",
+        "claude": "Claude Haiku 5.5",
     }
     before = hashlib.sha256(workspace.edl.read_bytes()).hexdigest()
     workspace.delivery_manifest.write_text(
@@ -175,7 +175,7 @@ def test_continuous_mode_keeps_artifacts_but_requires_no_model_switch(tmp_path: 
     assert status["next_model"] == "current model"
     assert status["next_models"] == {
         "openai": "Astra",
-        "claude": "Claude Opus 5",
+        "claude": "Claude Opus 5.5",
     }
     assert status["next_prompt"] == "Kontynuuj social-video-agent z Etapem 1."
     assert status["reason"].startswith("Zrozumienie projektu")
@@ -267,7 +267,7 @@ def test_version_1_state_gets_provider_recommendations_on_resume(tmp_path: Path)
 
     assert status["next_models"] == {
         "openai": "Astra",
-        "claude": "Claude Opus 5",
+        "claude": "Claude Opus 5.5",
     }
 
 
