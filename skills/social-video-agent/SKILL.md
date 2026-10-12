@@ -4,7 +4,7 @@ description: Create project-aware Reels and Shorts from recordings with local tr
 license: Apache-2.0
 metadata:
   version: "1.3.1"
-  last_updated: "2026-09-22"
+  last_updated: "2026-10-12"
 ---
 
 # Project-aware social video editing
@@ -61,10 +61,10 @@ mistake this installed skill's directory for the user's project.
    `audio_cleanup_policy: none` renders the audio as recorded. Never describe
    it as enhancement, and never claim clipping can be repaired.
 
-6. Read [workflow.md](references/workflow.md) plus only the active stage's
+5. Read [workflow.md](references/workflow.md) plus only the active stage's
    relevant reference below. Use [model-routing.md](references/model-routing.md)
    for handoffs.
-7. In guided mode validate and save artifacts, stop at the boundary, recommend
+6. In guided mode validate and save artifacts, stop at the boundary, recommend
    the next model, and give the exact continuation prompt in the user's
    language. The skill cannot switch models.
 
