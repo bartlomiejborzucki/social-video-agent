@@ -109,6 +109,11 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
   borrow only its rhythm.
   Remotion enriches an approved edit; it does not decide the story or repair
   insufficient footage.
+- A full-frame graphic may instead be authored as a Claude Motion film, only
+  when your own tool list has the Motion artifact type. The CLI writes the
+  spec, you write the film, the user exports it, the CLI imports it. Never
+  upload the recording; brand files go up only under `brand_asset_upload` or
+  `--allow-brand-upload`. Read [motion-film.md](references/motion-film.md).
 - Stage 2 compiles project config into `brand-contract.json`; render only a
   matching EDL/contract. Stage 4 requires technical QA and `qa/qa-brand.json`.
 - Music and effects are licence-gated and policy-gated: `audio_bed` and every
@@ -154,6 +159,7 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 | Setup/render failures | [troubleshooting.md](references/troubleshooting.md) |
 | Agent on Windows, engine in WSL2 | [hybrid-runtime.md](references/hybrid-runtime.md) |
 | Hook card, graphics, punch-ins, transitions, b-roll | [motion-design.md](references/motion-design.md) |
+| Hook, chapter or end card designed in Claude Motion | [motion-film.md](references/motion-film.md) |
 
 After project rules and user overrides, work in this order: meaning, clarity,
 clean cuts, audio, framing, captions, then motion. Then give the cut rhythm:

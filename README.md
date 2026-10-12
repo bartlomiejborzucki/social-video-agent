@@ -49,6 +49,8 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
 - "Make it feel like this one": a reference video's shot length, cut rate,
   pauses and hook timing measured and mapped onto the energy level. Only the
   rhythm is borrowed.
+- On a Claude host with Motion, hook, chapter and end cards designed as a
+  Claude Motion film you export, imported and checked against the brand.
 
 **Captions that match the brand**
 - Laid out against the real font's metrics and never truncated.
@@ -441,6 +443,16 @@ is not changed:
 social-video-agent style analyze reference.mp4 -w edit --transcribe
 ```
 
+**Claude Motion segments.** On a Claude host with the Motion artifact type,
+a full-frame graphic can be designed as a Motion film. The CLI writes the
+spec, the agent writes the film, you export it, and the CLI imports it in place
+of the graphic. The recording never leaves the machine:
+
+```bash
+social-video-agent motion film spec -w edit --claude-motion available
+social-video-agent motion film import film.mp4 -w edit --film-id main-film --font-used "Lato"
+```
+
 B-roll is matched by file name and tags, tolerant of Polish inflection
 (“samochodu” finds `samochod.mp4`). Sound and music are always the user's own
 licensed files; the tool never sources or clears audio. The render refuses any
@@ -513,8 +525,9 @@ The project is Apache-2.0 and includes attributed MIT-licensed work from
   installs PyTorch; diarization needs your own Hugging Face token.
 - The graphics vocabulary is fixed; the tool does not invent bespoke
   illustration or 3D work.
-- Designed segments authored in Claude Motion are proposed for 1.6, not
-  shipped ([ADR-005](docs/architecture/ADR-005-claude-motion-segments.md)).
+- Claude Motion segments need a Claude Team or Enterprise session with the
+  Motion type, a manual export from the film's page, and are full frame only
+  ([ADR-005](docs/architecture/ADR-005-claude-motion-segments.md)).
 - Word animation (`pop`, `box`) is drawn by Remotion; the FFmpeg route draws a
   colour highlight instead and brand QA says so.
 - Windows 11 `/mnt/c` acceptance is recorded by hand for each release.

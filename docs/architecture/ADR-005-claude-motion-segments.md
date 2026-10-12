@@ -1,8 +1,8 @@
 # ADR-005: Claude Motion as a source of designed segments
 
-**Status:** proposed
+**Status:** accepted, implemented in 1.6
 
-**Date:** 2026-10-12
+**Date:** 2026-10-12, revised 2026-10-13
 
 ## Context
 
@@ -57,7 +57,7 @@ The CLI never calls Motion.
      duration in seconds.
 
    Only full-frame types are accepted (`hook_card`, `chapter`, `cta`,
-   `end_card`, a named intro or outro). A `lower_third` or `callout` is refused:
+   `quote`, `end_card`). A `lower_third` or `callout` is refused:
    an opaque export cannot be partial. A scene under one second is refused,
    because Motion refuses it. The film's frame rate is the EDL's when that is
    24, 30 or 60, otherwise 60, and the import conforms it.
@@ -95,25 +95,27 @@ The CLI never calls Motion.
      facts, start time, `exported_by: user`, font evidence and the replaced
      motion-plan element;
    - follows `accept_broll`: an `Overlay` with `kind: motion_film` at full
-     frame, de-duplicated and validated with the EDL; an `end_card` scene is
-     registered as a source and fills the last range through the existing
-     `END_CARD` strategy;
+     frame, de-duplicated and validated with the EDL. Every scene, the end card
+     included, is an overlay at its graphic's own time. The EDL's `END_CARD`
+     fill strategy covers picture missing under speech, not a designed card,
+     so it is not used;
    - removes the matching element from `motion-plan.json` so nothing is drawn
      twice. `motion film remove SCENE` restores it.
 
 4. **Evidence and QA.** The render manifest records the film segments it
    actually composited. Brand QA fails on a hash, size or frame-rate mismatch,
-   or when the recorded font is not the contract's; it warns when the spec hash
-   no longer matches the current plan and contract, and when the segment's
-   sampled dominant colours fall outside the brand palette, naming measured
-   and expected values. The motion sheet includes film segments.
+   or when the recorded font is not the contract's; it warns when the brand
+   contract changed after the spec was written, and when less than 60% of the
+   segment's sampled pixels lie near a brand colour, naming the measured
+   share. The motion sheet includes film segments.
    `workflow status` lists specs not yet imported, so a resumed session knows
    what it waits for. A render whose registered film file is missing fails with
    the film id, never drops the overlay.
 
-5. **Host awareness.** `SessionCapabilities.claude_motion` starts as unknown to
-   the CLI and is recorded by the agent from its own tool list, like the native
-   image tool; it is never inferred from a subscription. Model routing is
+5. **Host awareness.** The spec records `claude_motion` as the agent saw it in
+   its own tool list (`--claude-motion`), session-scoped like the native image
+   tool and never inferred from a subscription; `unavailable` refuses the
+   spec. Model routing is
    unchanged: the film is authored in the Stage 2 session, and a handoff to an
    OpenAI model must not depend on it. The Remotion licence gate is unchanged.
 

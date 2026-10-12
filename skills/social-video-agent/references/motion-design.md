@@ -61,6 +61,9 @@ else's video to use as a reference.
    user's own licensed effects.
 5. Optionally `broll suggest SOURCE --library DIR -w WORKSPACE`, then
    `broll accept`: the user's own clips cut in where their subject is said.
+6. Optionally, on a Claude host with the Motion type, author full-frame
+   graphics (hook card, chapter, CTA, quote, end card) as a Claude Motion film:
+   [motion-film.md](motion-film.md).
 
 Always accept or write a hook card unless the first frame already carries the
 hook. It is where a scrolling viewer decides.
