@@ -38,3 +38,7 @@ class PlatformSpec(Artifact):
 
     #: How the numbers above were arrived at, so nobody mistakes them for law.
     accuracy_note: str = ""
+    #: When these estimates were last compared with their sources, and what
+    #: the sources were. Reserved zones drift as platforms change their UI.
+    reviewed_at: str = ""
+    sources: list[str] = Field(default_factory=list)
