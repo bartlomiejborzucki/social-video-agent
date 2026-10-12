@@ -129,9 +129,22 @@ Remotion keeps its caption contract.
 
 Recommended tier: `editorial_strong`.
 
-For a Remotion render, `social-video-agent motion sheet -w WORKSPACE` writes
-`qa/motion-sheet.png`: one labelled frame per graphic, punch-in and transition.
-Check each lands on its words, stays readable, and covers no face or caption.
+For a Remotion render, measure the motion layer first, then look at it:
+
+```bash
+social-video-agent motion qa -w WORKSPACE
+social-video-agent motion sheet -w WORKSPACE
+```
+
+`motion qa` writes `qa/qa-motion.json`, which Stage 3 requires on the Remotion
+route: per graphic, its time on screen against the time to read it, its
+overlap with the caption band while words are spoken, and the share of a face
+it covers on the base render; then accents per minute against the energy
+level, and the longest stretch with no cut, graphic, punch-in or transition.
+Every finding is a warning with measured and expected values. `motion sheet`
+then colours each tile green, amber or red by those findings. Fix what you
+agree with, or accept a deviation by name in `accepted_qa_warnings` and say
+why in the review.
 
 Read context, plan, EDL, and technical QA. Inspect the preview efficiently:
 first 1–3 seconds, relevant cut boundaries, key transitions, final ten seconds,

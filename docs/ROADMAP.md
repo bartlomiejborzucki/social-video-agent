@@ -77,7 +77,7 @@ checks it against recorded evidence.
 
 Design and rejected alternatives: [ADR-005](architecture/ADR-005-claude-motion-segments.md).
 
-## 1.7 — measured motion QA
+## 1.7 — measured motion QA (done)
 
 Stage 3 judges the motion sheet by eye. 1.7 turns the questions it asks into
 measurements in `qa/qa-motion.json`, reported as measured against expected like
@@ -89,9 +89,9 @@ platform QA:
 - movement per minute against the energy level's limits.
 
 Motion film segments from 1.6 are included through their registry. Safe-zone
-data records when each estimate was measured, the motion sheet colours each
-frame by its verdict, and with the Remotion renderer Stage 3 needs
-`qa-motion.json` before it accepts the editorial review.
+data records when it was reviewed and against which sources, the motion sheet
+colours each frame by its verdict, and with the Remotion renderer Stage 3
+needs `qa-motion.json` before it accepts the editorial review.
 
 ## 1.8 — several recordings, several languages
 
