@@ -4,6 +4,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Documentation
+
+- The roadmap is reviewed against 1.5.0 and runs from a 1.5.1 hygiene release
+  through Claude Motion segments (1.6), measured motion QA (1.7), batch and
+  caption translation (1.8) to stages as MCP tools (2.0).
+- ADR-005 (proposed) records Claude Motion as a source of full-frame
+  segments the user exports and the CLI imports, not as a renderer.
+
 ## [1.5.0] - 2026-09-29
 
 Covers that survive the profile grid, render time estimates, and a session
