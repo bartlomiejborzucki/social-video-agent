@@ -28,9 +28,15 @@ def with_hook(plan: MotionPlan, text: str, *, end: float = 1.8) -> MotionPlan:
     return MotionPlan.model_validate(plan.model_copy(update={"elements": elements}).model_dump())
 
 
-def review_moments(plan: MotionPlan) -> list[tuple[float, str]]:
-    """Where each piece of motion is at its fullest, with a label."""
-    moments: list[tuple[float, str]] = []
+def review_moments(
+    plan: MotionPlan, extra: list[tuple[float, str]] | None = None
+) -> list[tuple[float, str]]:
+    """Where each piece of motion is at its fullest, with a label.
+
+    ``extra`` adds moments the plan no longer holds, such as Claude Motion
+    segments that replaced a graphic.
+    """
+    moments: list[tuple[float, str]] = list(extra or [])
     for element in plan.elements:
         moments.append(
             (element.start + min(0.6, (element.end - element.start) * 0.5), element.type.value)
@@ -42,11 +48,18 @@ def review_moments(plan: MotionPlan) -> list[tuple[float, str]]:
     return sorted(moments)
 
 
-def motion_sheet(video: Path, plan: MotionPlan, output: Path, *, tile_width: int = 270) -> Path:
+def motion_sheet(
+    video: Path,
+    plan: MotionPlan,
+    output: Path,
+    *,
+    tile_width: int = 270,
+    extra: list[tuple[float, str]] | None = None,
+) -> Path:
     """One labelled frame per graphic, punch-in and transition, in a grid."""
     from PIL import Image, ImageDraw
 
-    moments = review_moments(plan)
+    moments = review_moments(plan, extra)
     if not moments:
         raise ValidationError("the motion plan has nothing to review")
     frames: list[Image.Image] = []

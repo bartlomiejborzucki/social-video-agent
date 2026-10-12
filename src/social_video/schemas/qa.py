@@ -128,3 +128,8 @@ class RenderManifest(Artifact):
     audio_cleanup_policy: str = "none"
     audio_cleanup_applied: dict = Field(default_factory=dict)
     brand_safe_margins: dict[str, float] = Field(default_factory=dict)
+    #: Claude Motion segments composited into this render, as found on disk
+    #: at render time: film, scene, file hash, and the brand facts recorded
+    #: when the film was specified and imported. Brand QA checks these, not
+    #: the registry's own claims.
+    motion_film_segments: list[dict] = Field(default_factory=list)

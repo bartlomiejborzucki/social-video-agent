@@ -332,6 +332,11 @@ def stage_render(
     cleanup_policy = (
         contract.audio_cleanup_policy if contract is not None and audio_cleanup else "none"
     )
+    # A Motion segment cannot be re-exported from the workspace, so a missing
+    # or altered one stops the render rather than being dropped or trusted.
+    from social_video.motion.film import segment_evidence
+
+    film_segments = segment_evidence(workspace, edl)
     manifest_obj = render_edl(
         edl,
         manifest,
@@ -428,6 +433,7 @@ def stage_render(
         and renderer is Renderer.REMOTION
     )
     manifest_obj.brand_safe_margins = contract.safe_margins if contract else {}
+    manifest_obj.motion_film_segments = film_segments
     save_artifact(manifest_obj, workspace.renders / f"{output.stem}.manifest.json")
     record_stage(
         workspace,

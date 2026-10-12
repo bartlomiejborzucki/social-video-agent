@@ -197,7 +197,71 @@ def check_brand(
         not logo_required or render.logo_applied,
         "logo applied" if render.logo_applied else "no logo evidence in render manifest",
     )
+    _check_film_segments(add, contract, render)
     return report
+
+
+def _check_film_segments(add: _Add, contract: BrandContract, render: RenderManifest) -> None:
+    """Claude Motion segments: unchanged since import, in the brand's font and colours.
+
+    The render recorded each segment's hash as found on disk; these compare
+    that, and the facts recorded at import, against the contract.
+    """
+    from social_video.motion.film import palette_share
+
+    expected_font = (
+        contract.brand.title_font_family or contract.brand.captions.font_family or ""
+    ).strip()
+    palette = [
+        contract.brand.background_colour,
+        contract.brand.accent_colour,
+        contract.brand.captions.primary_colour,
+        contract.brand.captions.emphasis_colour,
+        contract.brand.captions.highlight_colour,
+        contract.brand.captions.outline_colour,
+    ]
+    for segment in render.motion_film_segments:
+        where = f"motion film {segment.get('film_id')}/{segment.get('scene_id')}"
+        add(
+            f"{where} unchanged since import",
+            segment.get("sha256") == segment.get("recorded_sha256"),
+            f"render sha256={str(segment.get('sha256'))[:12]}, "
+            f"imported={str(segment.get('recorded_sha256'))[:12]}",
+        )
+        add(
+            f"{where} size",
+            (segment.get("width"), segment.get("height"))
+            == (contract.output_width, contract.output_height),
+            f"segment={segment.get('width')}x{segment.get('height')}, "
+            f"expected={contract.output_width}x{contract.output_height}",
+        )
+        used = str(segment.get("font_used", "")).strip()
+        matches = not expected_font or used.casefold() == expected_font.casefold()
+        add(
+            f"{where} font",
+            matches,
+            f"set in {used or 'an unrecorded font'}, expected {expected_font or 'any'}"
+            + (
+                "; a brand font that is not a Google family needs brand_asset_upload"
+                if not matches and segment.get("brand_upload") == "none"
+                else ""
+            ),
+        )
+        add(
+            f"{where} made under the current brand",
+            segment.get("brand_contract_sha256") in (None, contract.project_config_sha256),
+            "the brand contract changed after this film was specified; check its colours "
+            "and type, or specify and export it again",
+            warning=True,
+        )
+        path = Path(str(segment.get("path", "")))
+        share = palette_share(path, palette) if path.is_file() else 0.0
+        add(
+            f"{where} in the brand's colours",
+            share >= 0.6,
+            f"{share:.0%} of sampled pixels lie near a brand colour; expected at least 60%",
+            warning=True,
+        )
 
 
 def _check_audio_cleanup(add: _Add, contract: BrandContract, render: RenderManifest) -> None:
