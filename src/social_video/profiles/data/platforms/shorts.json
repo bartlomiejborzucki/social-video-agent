@@ -1,8 +1,10 @@
 {
   "name": "shorts",
   "description": "YouTube Shorts, vertical player.",
-  "aspect_ratios": ["9:16"],
-  "reserved_bottom_pct": 15.0,
+  "aspect_ratios": [
+    "9:16"
+  ],
+  "reserved_bottom_pct": 34.9,
   "reserved_top_pct": 8.0,
   "reserved_right_pct": 12.0,
   "reserved_left_pct": 4.0,
@@ -13,5 +15,11 @@
   "description_max_chars": 5000,
   "hashtag_max": 15,
   "accuracy_note": "Conservative estimate of the title, channel row and action-button overlays. Verify against a real device before a campaign.",
+  "reviewed_at": "2026-10-13",
+  "sources": [
+    "Project estimate from device screenshots, 2026-09-18 (ADR-004).",
+    "Claude Motion type guidance, read 2026-10-13: Reels and TikTok cover about the top 250, bottom 420 and right 120 px of 1080x1920; Shorts about the bottom 670 px.",
+    "Each edge keeps the larger of the two."
+  ],
   "schema_version": 1
 }
