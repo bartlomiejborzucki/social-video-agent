@@ -429,7 +429,8 @@ social-video-agent motion sfx ./sfx -w edit --licensed      # whoosh, pop, hit f
 social-video-agent broll suggest interview.mp4 --library ./b-roll -w edit
 social-video-agent broll accept -w edit br-001
 social-video-agent motion variants -w edit --text "Hook A" --text "Hook B"
-social-video-agent motion sheet -w edit                     # qa/motion-sheet.png
+social-video-agent motion qa -w edit                        # qa/qa-motion.json, measured
+social-video-agent motion sheet -w edit                     # qa/motion-sheet.png, coloured by it
 ```
 
 **Matching a reference.** `style analyze` measures a video the user wants the
@@ -518,6 +519,8 @@ The project is Apache-2.0 and includes attributed MIT-licensed work from
   b-roll clip stay editorial decisions: the code proposes, the agent decides.
 - Platform safe zones are conservative estimates of the feed UI, not published
   specifications; check on a real device before a campaign.
+- Motion QA places graphics from a table that mirrors the Remotion layout and
+  measures faces only where the YuNet model is already available.
 - Music and effects are never sourced or licence-cleared by this tool.
 - Speaker framing uses audio-correlated mouth motion and diarized turns, not
   neural active-speaker detection (`LR-ASD` is the recorded next step).

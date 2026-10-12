@@ -96,8 +96,11 @@ brand's colours and font. Do not mix packs within one video.
 
 ## Review (Stage 3)
 
-`social-video-agent motion sheet -w WORKSPACE` writes `qa/motion-sheet.png`,
-one labelled frame per graphic, punch-in and transition. Judge each: does it
+`social-video-agent motion qa -w WORKSPACE` measures every graphic first:
+time to read it, the caption band and faces it covers, accents per minute and
+the longest still stretch. `social-video-agent motion sheet -w WORKSPACE`
+then writes `qa/motion-sheet.png`, one labelled frame per graphic, punch-in
+and transition, coloured by what `motion qa` found. Judge each: does it
 land on the words it serves, is it readable in its time on screen, does it
 cover a face or the captions? `motion variants -w WORKSPACE --text "..."
 --text "..."` renders one preview per hook line, for the user to test.

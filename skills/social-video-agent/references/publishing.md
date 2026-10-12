@@ -15,7 +15,9 @@ social-video-agent deliver WORKSPACE --output DEST --with-captions --platform re
 Specs are JSON in the platform registry and their reserved percentages are
 **conservative estimates, not published specifications** — platforms move their
 overlays without notice. Report them as measurements with both numbers, and
-correct the JSON rather than arguing with the check.
+correct the JSON rather than arguing with the check. Each spec records
+`reviewed_at` and its `sources`; where two sources differ, each edge keeps the
+larger reserved share.
 
 Set `target_platforms: [reels]` in the project config and every QA run and
 delivery checks those destinations without being asked.

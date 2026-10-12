@@ -37,6 +37,7 @@ edit/
   final/final.mp4         stable delivery artifact
   qa/qa-report.json       canonical technical QA report
   qa/qa-brand.json        blocking brand-contract QA
+  qa/qa-motion.json       measured motion QA, required at Stage 3 on Remotion
   qa/opening-contact-sheet.png
   qa/ending-contact-sheet.png
   cache/                  content-addressed; safe to delete
