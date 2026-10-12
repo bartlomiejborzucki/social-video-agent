@@ -37,4 +37,8 @@ film_app = typer.Typer(
 motion_app.add_typer(film_app, name="film")
 broll_app = typer.Typer(help="Match clips from your own library to what is said, and cut them in.")
 app.add_typer(broll_app, name="broll")
+captions_app = typer.Typer(
+    help="Translate captions: the agent writes the translation, the CLI checks and burns it."
+)
+app.add_typer(captions_app, name="captions")
 app.add_typer(license_app, name="remotion-license")

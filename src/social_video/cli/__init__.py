@@ -52,6 +52,7 @@ from social_video.cli import cuts  # noqa: E402
 from social_video.cli import motion  # noqa: E402
 from social_video.cli import film  # noqa: E402
 from social_video.cli import broll  # noqa: E402
+from social_video.cli import captions  # noqa: E402
 from social_video.cli import licensing  # noqa: E402
 
 # isort: on
@@ -59,6 +60,7 @@ from social_video.cli import licensing  # noqa: E402
 __all__ = [
     "app",
     "broll",
+    "captions",
     "config",
     "cuts",
     "delivery",
