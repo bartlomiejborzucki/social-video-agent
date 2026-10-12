@@ -105,18 +105,96 @@ def workflow_init(
     _print_workflow(payload, as_json=as_json)
 
 
+@workflow_app.command("batch")
+def workflow_batch(
+    directory: Path = typer.Argument(..., help="Folder of recordings; each stays immutable."),
+    workspace_dir: Path = typer.Option(..., "--workspace", "-w", help="Parent workspace."),
+    project_root: Path | None = typer.Option(None, "--project-root"),
+    model_budget: str = typer.Option("balanced", "--model-budget"),
+    workflow_mode: str = typer.Option("guided", "--workflow-mode"),
+    renderer: str = typer.Option("remotion", "--renderer"),
+    remotion_license: str | None = typer.Option(None, "--remotion-license"),
+    language: str = typer.Option("en", "--language"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Create one edit workspace per recording under a parent. Never renders video."""
+    from social_video.paths import normalize_user_path
+    from social_video.pipeline import stage_ingest
+    from social_video.schemas.workflow import (
+        ModelBudget,
+        RemotionLicenseAttestation,
+        Renderer,
+        WorkflowMode,
+    )
+    from social_video.workflow.batch import batch_status, create_batch
+    from social_video.workspace.layout import Workspace
+
+    folder = _guard(lambda: normalize_user_path(directory, must_exist=True))
+    parent = Workspace.at(workspace_dir)
+    attestation = (
+        _guard(lambda: RemotionLicenseAttestation(remotion_license)) if remotion_license else None
+    )
+    budget = _guard(lambda: ModelBudget(model_budget))
+    mode = _guard(lambda: WorkflowMode(workflow_mode))
+    selected = _guard(lambda: Renderer(renderer))
+    batch = _guard(
+        lambda: create_batch(
+            folder,
+            parent,
+            project_root=project_root,
+            model_budget=budget,
+            workflow_mode=mode,
+            renderer=selected,
+            remotion_license_attestation=attestation,
+        )
+    )
+    for item in batch.items:
+        _guard(lambda item=item: stage_ingest(Path(item.source), Workspace.at(item.workspace)))
+    _print_batch(batch_status(parent, language=language), as_json=as_json)
+
+
 @workflow_app.command("status")
 def workflow_show_status(
-    workspace_dir: Path = typer.Argument(Path(), help="Edit workspace."),
+    workspace_dir: Path = typer.Argument(Path(), help="Edit workspace, or a batch's parent."),
     language: str = typer.Option("en", "--language"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Report persisted state, missing artifacts, and the recommended handoff."""
     from social_video.workflow import load_workflow, workflow_status
+    from social_video.workflow.batch import batch_status, is_batch
     from social_video.workspace.layout import Workspace
 
-    state = _guard(lambda: load_workflow(Workspace.at(workspace_dir)))
+    workspace = Workspace.at(workspace_dir)
+    if is_batch(workspace) and not workspace.workflow_state.is_file():
+        _print_batch(_guard(lambda: batch_status(workspace, language=language)), as_json=as_json)
+        return
+    state = _guard(lambda: load_workflow(workspace))
     _print_workflow(workflow_status(state, language=language), as_json=as_json)
+
+
+def _print_batch(payload: dict, *, as_json: bool) -> None:
+    import json as _json
+
+    if as_json:
+        console.print_json(_json.dumps(payload))
+        return
+    console.print(
+        f"batch {escape(payload['batch'])}: {payload['complete']}/{payload['recordings']} "
+        "recording(s) complete",
+        soft_wrap=True,
+    )
+    for child in payload["children"]:
+        console.print(
+            f"  {escape(Path(child['workspace']).name):30} {child['current_stage']}"
+            + (f"  missing {len(child['missing_artifacts'])}" if child["missing_artifacts"] else "")
+        )
+    if not payload["shared_brand_contract"]:
+        console.print(
+            "[yellow]the recordings were compiled from different project configs[/yellow]; "
+            "run `config validate` in each workspace before rendering"
+        )
+    if payload["next"]:
+        console.print(f"next: {escape(payload['next'])}", soft_wrap=True)
 
 
 @workflow_app.command("resume")
