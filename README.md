@@ -229,11 +229,11 @@ needs:
 
 | Stage | Work | OpenAI | Claude |
 |---|---|---|---|
-| 0/1 | discovery, licence declaration, editorial plan | Astra (high) | Claude Opus 5 |
-| 2 | EDL, captions, motion plan, preview, technical QA | Sol (medium) | Claude Sonnet 5 |
-| 3 | supervising-editor review | Astra (high) | Claude Opus 5 |
-| 4 | approved fixes, final render, brand QA | Sol (medium) | Claude Sonnet 5 |
-| 5 | delivery variants | Luna (low) | Claude Haiku 4.5 |
+| 0/1 | discovery, licence declaration, editorial plan | Astra (high) | Claude Opus 5.5 |
+| 2 | EDL, captions, motion plan, preview, technical QA | Sol (medium) | Claude Sonnet 5.5 |
+| 3 | supervising-editor review | Astra (high) | Claude Opus 5.5 |
+| 4 | approved fixes, final render, brand QA | Sol (medium) | Claude Sonnet 5.5 |
+| 5 | delivery variants | Luna (low) | Claude Haiku 5.5 |
 
 At each boundary the agent saves state, stops, names the recommended model and
 gives a short continuation prompt; it never claims to switch models itself. Ask
@@ -484,6 +484,8 @@ The project is Apache-2.0 and includes attributed MIT-licensed work from
   installs PyTorch; diarization needs your own Hugging Face token.
 - The graphics vocabulary is fixed; the tool does not invent bespoke
   illustration or 3D work.
+- Designed segments authored in Claude Motion are proposed for 1.4, not
+  shipped ([ADR-005](docs/architecture/ADR-005-claude-motion-segments.md)).
 - Word animation (`pop`, `box`) is drawn by Remotion; the FFmpeg route draws a
   colour highlight instead and brand QA says so.
 - Windows 11 `/mnt/c` acceptance is recorded by hand for each release.
