@@ -4,6 +4,32 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-13
+
+Measured motion QA: the Stage 3 questions about every graphic, as numbers.
+
+### Added
+
+- `motion qa` writes `qa/qa-motion.json`: for every graphic and Claude Motion
+  segment, its time on screen against the time to read it, its overlap with
+  the caption band while words are spoken, and the share of a face it covers
+  on the base render; then accents per minute against the energy level and
+  the longest stretch with no cut, graphic, punch-in or transition. Every
+  finding is a warning with measured and expected values.
+- `motion sheet` colours each tile green, amber or red by what `motion qa`
+  found at that moment.
+- Platform specs record `reviewed_at` and their `sources`.
+
+### Changed
+
+- On the Remotion route Stage 3 requires `qa/qa-motion.json` before it
+  accepts the editorial review.
+- Reserved zones keep the larger of the project's estimate and the Claude
+  Motion type's guidance: Reels and TikTok reserve 13.1% at the top, TikTok
+  21.9% at the bottom, and Shorts 34.9% at the bottom, where it reserved 15%.
+  Projects posting to Shorts with a smaller bottom margin now get a platform
+  warning.
+
 ## [1.6.0] - 2026-10-13
 
 Claude Motion segments: full-frame graphics designed in Claude Motion,
