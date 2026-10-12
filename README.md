@@ -513,6 +513,8 @@ The project is Apache-2.0 and includes attributed MIT-licensed work from
   installs PyTorch; diarization needs your own Hugging Face token.
 - The graphics vocabulary is fixed; the tool does not invent bespoke
   illustration or 3D work.
+- Designed segments authored in Claude Motion are proposed for 1.6, not
+  shipped ([ADR-005](docs/architecture/ADR-005-claude-motion-segments.md)).
 - Word animation (`pop`, `box`) is drawn by Remotion; the FFmpeg route draws a
   colour highlight instead and brand QA says so.
 - Windows 11 `/mnt/c` acceptance is recorded by hand for each release.
