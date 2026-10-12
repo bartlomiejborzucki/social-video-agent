@@ -156,6 +156,9 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 | Cover, end card, generated plates | [generated-visuals.md](references/generated-visuals.md) |
 | Platform safe zones and publish copy | [publishing.md](references/publishing.md) |
 | Several clips from long video | [shorts.md](references/shorts.md) |
+| Several recordings in one batch | [workflow.md](references/workflow.md) |
+| Captions in another language | [style.md](references/style.md) |
+| The workflow as MCP tools | [mcp.md](references/mcp.md) |
 | Setup/render failures | [troubleshooting.md](references/troubleshooting.md) |
 | Agent on Windows, engine in WSL2 | [hybrid-runtime.md](references/hybrid-runtime.md) |
 | Hook card, graphics, punch-ins, transitions, b-roll | [motion-design.md](references/motion-design.md) |

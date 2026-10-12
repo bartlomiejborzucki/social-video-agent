@@ -103,14 +103,24 @@ needs `qa-motion.json` before it accepts the editorial review.
   burns them, and delivers SRT, VTT and a variant per language. The CLI makes
   no translation call of its own.
 
-## 2.0 — stages as tools
+## 2.0 — stages as tools (done, one item moved)
 
-An MCP server exposing the workflow stages as tools behind the same artifact
-gates, so Codex, Claude and other agents share one implementation and the skill
-files describe judgement rather than commands. Bumps `workflow_version`.
+`social-video-agent mcp serve` exposes the workflow stages as MCP tools behind
+the same artifact gates: each tool runs the matching CLI command in a child
+process, so Codex, Claude and other agents share one implementation. The
+user's own acts -- the licence declaration, rights and consents -- are not
+tools. The workflow state did not change, so `workflow_version` stays 4.
+
+Moved to "Under consideration": skill files that describe judgement only. A
+host without the MCP tools still needs the commands, so the references keep
+them.
 
 ## Under consideration
 
+- **Skill files that describe judgement only** (moved from 2.0), once every
+  supported host reaches the workflow through the MCP tools.
+- **An MCP transport over HTTP**, for an agent on another machine than the
+  engine. It needs authentication the stdio server does not.
 - **Shorts reusing the parent's motion suggestions** (moved from 1.8): accent
   candidates are positions on the parent's cut, so on a child's own cut they
   would land at the wrong times. A child already reuses the parent's
