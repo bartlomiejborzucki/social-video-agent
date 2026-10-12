@@ -49,7 +49,7 @@ A patch release.
   level, and beat detection against steady click tempos over a noise floor.
   Those tests found a false beat at either end of a music bed, now fixed.
 
-## 1.4 — Claude Motion segments
+## 1.4 — Claude Motion segments (done)
 
 On a Claude host with the Motion artifact type, designed full-frame segments —
 hook card, intro or chapter card, call to action, end card — can be authored as
@@ -68,8 +68,8 @@ checks it against recorded evidence.
   element, and the skill says the bridge is unavailable rather than offering
   it.
 - The type's reference confirms a 1080×1920 stage, time in seconds and 24, 30
-  or 60 fps. One real export is still needed to fix the import's tolerances
-  for codec, pixel format and length.
+  or 60 fps. The import's length tolerance defaults to one frame and is an
+  option, until a real export confirms the exported length.
 
 Design and rejected alternatives: [ADR-005](architecture/ADR-005-claude-motion-segments.md).
 

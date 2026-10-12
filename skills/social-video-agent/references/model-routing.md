@@ -37,6 +37,11 @@ one sentence, and give the exact next prompt in the user's language. This also
 applies when entering Stages 4 and 5. Never say the model or provider was
 switched automatically.
 
+A Claude Motion film is authored in the Stage 2 session that has the Motion
+type. A handoff to an OpenAI model must never depend on one: the imported
+segments are files in the workspace, and pending scenes show in
+`workflow status`.
+
 Example:
 
 ```text
