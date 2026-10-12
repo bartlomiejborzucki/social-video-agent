@@ -81,6 +81,9 @@ audio_cleanup_policy: measured
 # the agent's own native ImageGen as well as an API: the prompt leaves the
 # machine either way. `none` blocks every route; media is never uploaded.
 image_generation_policy: none
+# Whether the logo and brand font file may be uploaded to a Claude Motion film.
+# `none` keeps them on this machine. The recording itself is never uploaded.
+brand_asset_upload: none
 target_platforms: []
 default_aspect_ratio: "9:16"
 default_resolution: "1080x1920"
@@ -205,6 +208,7 @@ def compile_brand_contract(
         resolved_font_file=str(font_file) if font_file else None,
         resolved_logo_file=str(logo_file) if logo_file else None,
         image_generation_enabled=config.image_generation_policy != "none",
+        brand_asset_upload=config.brand_asset_upload,
         music_policy=config.music_policy,
         sfx_policy=config.sfx_policy,
         audio_cleanup_policy=config.audio_cleanup_policy,

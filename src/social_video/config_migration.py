@@ -56,6 +56,10 @@ FIELD_GUIDANCE: dict[str, str] = {
         "this is a consent decision: none refuses cloud image calls, optional "
         "allows them, required expects generated plates"
     ),
+    "brand_asset_upload": (
+        "this is a consent decision: none keeps the logo and brand font file on "
+        "this machine, allowed lets them be uploaded to a Claude Motion film"
+    ),
     "default_fps_policy": (
         "the contract must name one output rate; read the source rate with "
         "`social-video-agent inspect SOURCE` and choose deliberately rather "
