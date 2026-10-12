@@ -351,6 +351,8 @@ def _validate_stage_artifacts(state: WorkflowState, stage: WorkflowStage) -> Non
         if not report.passed:
             raise ValidationError("cannot complete Stage 2; technical QA failed")
     elif stage is WorkflowStage.EDITORIAL_REVIEW:
+        if state.renderer is Renderer.REMOTION:
+            load_artifact(QAReport, Workspace.at(state.workspace).motion_qa)
         load_artifact(EditorialQA, state.editorial_qa_path)
     elif stage is WorkflowStage.FINALIZATION:
         report = load_artifact(QAReport, state.technical_qa_path)
@@ -381,6 +383,9 @@ def _required_paths(state: WorkflowState, stage: WorkflowStage) -> list[str]:
             required.insert(1, state.motion_plan_path)
         return required
     if stage is WorkflowStage.EDITORIAL_REVIEW:
+        # The motion layer is reviewed against measurements, not by eye alone.
+        if state.renderer is Renderer.REMOTION:
+            return [str(Workspace.at(state.workspace).motion_qa), state.editorial_qa_path]
         return [state.editorial_qa_path]
     if stage is WorkflowStage.FINALIZATION:
         required = [state.final_output_path, state.technical_qa_path]
