@@ -46,8 +46,14 @@ def onsets(signal: np.ndarray, rate: int = RATE) -> list[float]:
         return []
     # Compare each frame with its own neighbourhood, so a quiet intro and a
     # loud chorus both yield their beats.
+    # Average over the frames that exist: near either end of the window the
+    # neighbourhood is cut short, and counting the missing frames as silence
+    # let the noise floor of the first and last quarter second read as beats.
     width = max(3, int(0.5 * rate / HOP))
-    local = np.convolve(flux, np.ones(width) / width, mode="same")
+    kernel = np.ones(width)
+    local = np.convolve(flux, kernel, mode="same") / np.convolve(
+        np.ones_like(flux), kernel, mode="same"
+    )
     spread = flux.std()
     gap = int(MIN_GAP * rate / HOP)
     beats: list[float] = []
