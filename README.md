@@ -446,15 +446,36 @@ that reports information supports `--json`.
 | Area | Commands |
 |---|---|
 | Setup | `doctor`, `version`, `profiles`, `config init/validate/migrate`, `remotion-license`, `context inspect/refresh` |
-| Workflow | `workflow init/status/resume/complete/renderer` |
+| Workflow | `workflow init/batch/status/resume/complete/renderer` |
 | Source | `inspect`, `fetch URL --rights "..."`, `transcribe [--diarize]`, `pack` |
 | Editing | `plan`, `cuts find/accept`, `compile`, `shorts list/create`, `apply-editorial-qa` |
-| Motion | `motion suggest/accept/sfx/variants/sheet`, `broll suggest/accept` |
+| Motion | `motion suggest/accept/sfx/variants/sheet/qa`, `motion film spec/import/remove/status`, `broll suggest/accept` |
 | Render and check | `render`, `edit`, `qa`, `platforms` |
 | Images | `image status/prompt/register/capabilities/plate`, `cover` |
-| Output | `deliver`, `export` |
+| Output | `deliver`, `export`, `captions translate/apply` |
+| Agents | `mcp serve`, `mcp tools` |
 
 Run `social-video-agent COMMAND --help` for options.
+
+### MCP server
+
+`social-video-agent mcp serve` offers the workflow stages as MCP tools over
+stdio, for any agent that speaks MCP. Each tool runs the matching command with
+`--json`, so the gates and QA are the CLI's own. Declaring the Remotion licence
+and every consent stay commands the user runs.
+
+```bash
+pip install 'social-video-agent[mcp]'
+claude mcp add social-video-agent -- social-video-agent mcp serve
+```
+
+For Codex, add it to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.social-video-agent]
+command = "social-video-agent"
+args = ["mcp", "serve"]
+```
 
 ## Development and releases
 
@@ -508,6 +529,8 @@ The project is Apache-2.0 and includes attributed MIT-licensed work from
 - Word animation (`pop`, `box`) is drawn by Remotion; the FFmpeg route draws a
   colour highlight instead and brand QA says so.
 - Windows 11 `/mnt/c` acceptance is recorded by hand for each release.
+- The MCP server speaks stdio only, and has not been tested through the
+  Windows adapter.
 
 **Project documents:** [roadmap](docs/ROADMAP.md) ·
 [changelog](CHANGELOG.md) · [contributing](CONTRIBUTING.md) ·
