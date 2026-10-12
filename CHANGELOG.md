@@ -4,6 +4,38 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-13
+
+Claude Motion segments: full-frame graphics designed in Claude Motion,
+imported and checked against the brand.
+
+### Added
+
+- `motion film spec` writes a film spec, Motion's own `scenes.json` and
+  `base.css` from the motion plan and the brand contract: the edit's size and
+  a frame rate Motion exports (24, 30 or 60), the brand's colours in Motion's
+  four roles, the font family, safe margins and platform reserved zones in
+  pixels, and the letters the player's built-in faces lack. Only hook cards,
+  chapters, calls to action, quotes and end cards qualify; a scene under one
+  second is refused.
+- `motion film import` cuts the user's export into one segment per scene,
+  refusing another size or a length that does not match, and places each as a
+  full-frame overlay in place of the graphic it stands for, with hashes and
+  brand facts in `motion-films.json`. `motion film remove` puts the graphic
+  back; `motion film status` and `workflow status` list scenes still waiting
+  for an export.
+- Renders record the Motion segments they composite and fail when one is
+  missing or changed since import. Brand QA fails a segment of the wrong size,
+  changed, or set in another font, and warns when the brand changed after the
+  spec or the segment's colours are not the brand's. The motion sheet shows
+  every segment.
+- `brand_asset_upload` in the project config (`none` by default) decides
+  whether the logo and brand font file may be uploaded to a film;
+  `--allow-brand-upload` records the user's agreement for one film. The
+  recording is never uploaded.
+- `references/motion-film.md` tells a Claude session how to write the film,
+  and when the bridge is unavailable.
+
 ## [1.5.1] - 2026-10-13
 
 Hygiene after 1.3, and the roadmap to 2.0.
