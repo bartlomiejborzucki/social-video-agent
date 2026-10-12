@@ -221,6 +221,12 @@ def deliver(
     resolution: list[str] | None = typer.Option(
         None, "--resolution", help="Additional WIDTHxHEIGHT variant; repeatable."
     ),
+    language: list[str] | None = typer.Option(
+        None,
+        "--language",
+        help="Also deliver a variant with captions in this language (repeat); "
+        "needs `captions apply` first. With --srt/--vtt, its sidecars too.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Create immutable Stage 5 variants and a verified delivery manifest."""
@@ -242,6 +248,7 @@ def deliver(
             publish=publish,
             platforms=platform or None,
             resolutions=resolution,
+            languages=language or None,
         )
     )
     if as_json:
