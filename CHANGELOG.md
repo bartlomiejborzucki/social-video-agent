@@ -4,6 +4,31 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-13
+
+Several recordings, several languages.
+
+### Added
+
+- `workflow batch DIR -w PARENT` gives every recording in a folder its own
+  workspace through the ordinary Stage 0. `workflow status PARENT` reports
+  where each one stands, which to work on next, and whether they still share
+  one brand contract.
+- `captions translate --to LANG` writes the cues for the agent to translate,
+  with the line limit; `captions apply --to LANG` refuses a translation that
+  adds, drops or retimes a cue, leaves one empty or runs over the limit, and
+  writes the track, ASS, SRT and VTT on the original timings. The CLI makes no
+  translation call, and nothing is dubbed.
+- `deliver --language LANG` renders a variant with those captions burned in,
+  and with `--srt`/`--vtt` its sidecars.
+- Caption tracks record whether their word timings were measured or, for a
+  translation, estimated across each cue.
+
+### Changed
+
+- Shorts reusing the parent's motion suggestions moved from 1.8 to "Under
+  consideration": the candidates are positions on the parent's cut.
+
 ## [1.7.0] - 2026-10-13
 
 Measured motion QA: the Stage 3 questions about every graphic, as numbers.
