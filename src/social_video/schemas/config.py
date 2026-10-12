@@ -121,6 +121,10 @@ class ProjectVideoConfig(BaseModel):
     #: Whether this project permits sending a text prompt to a cloud image model
     #: for cover and end-card plates. Media is never uploaded either way.
     image_generation_policy: Literal["none", "optional", "required"] = "none"
+    #: Whether the logo and the brand font file may be uploaded to a Claude
+    #: Motion film. They are brand files; `none` keeps them on this machine,
+    #: and a film then carries neither. The recording is never uploaded.
+    brand_asset_upload: Literal["none", "allowed"] = "none"
     #: Where the finished clip is posted. Drives platform safe-zone checks.
     target_platforms: list[str] = Field(default_factory=list)
     default_aspect_ratio: Literal["9:16", "1:1", "16:9"] = "9:16"
@@ -227,6 +231,9 @@ class BrandContract(Artifact):
     resolved_logo_file: str | None = None
     safe_margins: dict[str, float] = Field(default_factory=dict)
     image_generation_enabled: bool = False
+    #: Compiled from the project config: whether the logo and brand font file
+    #: may be uploaded to a Claude Motion film.
+    brand_asset_upload: Literal["none", "allowed"] = "none"
     target_platforms: list[str] = Field(default_factory=list)
     #: Compiled from the project config. `required` means an edit without one is
     #: incomplete; `none` means the renderer refuses to mix one at all.
