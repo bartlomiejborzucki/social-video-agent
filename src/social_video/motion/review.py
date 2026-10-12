@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from social_video.errors import ValidationError
@@ -55,13 +56,20 @@ def motion_sheet(
     *,
     tile_width: int = 270,
     extra: list[tuple[float, str]] | None = None,
+    verdicts: Callable[[list[tuple[float, str]]], list[str]] | None = None,
 ) -> Path:
-    """One labelled frame per graphic, punch-in and transition, in a grid."""
+    """One labelled frame per graphic, punch-in and transition, in a grid.
+
+    With ``verdicts``, each tile's label bar is coloured by what motion QA
+    found at that moment: green clear, amber a warning, red an error.
+    """
     from PIL import Image, ImageDraw
 
     moments = review_moments(plan, extra)
     if not moments:
         raise ValidationError("the motion plan has nothing to review")
+    colours = {"ok": (24, 120, 60), "warning": (190, 120, 0), "error": (170, 30, 30)}
+    found = verdicts(moments) if verdicts is not None else ["none"] * len(moments)
     frames: list[Image.Image] = []
     work = output.with_suffix(".frames")
     work.mkdir(parents=True, exist_ok=True)
@@ -76,8 +84,11 @@ def motion_sheet(
             with Image.open(still) as image:
                 tile = image.convert("RGB")
             draw = ImageDraw.Draw(tile)
-            draw.rectangle((0, 0, tile.width, 26), fill=(0, 0, 0))
+            bar = colours.get(found[index], (0, 0, 0))
+            draw.rectangle((0, 0, tile.width, 26), fill=bar)
             draw.text((6, 6), f"{at:5.2f}s  {label}", fill=(255, 255, 255))
+            if found[index] in colours:
+                draw.rectangle((0, 0, tile.width - 1, tile.height - 1), outline=bar, width=3)
             frames.append(tile)
     finally:
         for leftover in work.glob("*.png"):

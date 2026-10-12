@@ -164,6 +164,11 @@ class Workspace:
         return self.qa / "qa-technical.json"
 
     @property
+    def motion_qa(self) -> Path:
+        """Measured motion QA: readability, captions, faces, rhythm."""
+        return self.qa / "qa-motion.json"
+
+    @property
     def brand_qa(self) -> Path:
         return self.qa / "qa-brand.json"
 
