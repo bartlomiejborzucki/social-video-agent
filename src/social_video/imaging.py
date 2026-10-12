@@ -66,9 +66,18 @@ def sha256_file(path: Path) -> str:
 
 
 def contact_sheet(
-    video: Path, moments: list[tuple[float, str]], output: Path, *, tile_width: int = 270
+    video: Path,
+    moments: list[tuple[float, str]],
+    output: Path,
+    *,
+    tile_width: int = 270,
+    colours: list[tuple[int, int, int] | None] | None = None,
 ) -> Path:
-    """One labelled frame per ``(time, label)`` moment, four to a row."""
+    """One labelled frame per ``(time, label)`` moment, four to a row.
+
+    ``colours`` gives a tile its label bar and border colour, one per moment;
+    None keeps the plain black bar.
+    """
     from PIL import ImageDraw
 
     if not moments:
@@ -87,8 +96,11 @@ def contact_sheet(
             with Image.open(still) as image:
                 tile = image.convert("RGB")
             draw = ImageDraw.Draw(tile)
-            draw.rectangle((0, 0, tile.width, 26), fill=(0, 0, 0))
+            colour = colours[index] if colours else None
+            draw.rectangle((0, 0, tile.width, 26), fill=colour or (0, 0, 0))
             draw.text((6, 6), f"{at:5.2f}s  {label}", fill=(255, 255, 255))
+            if colour is not None:
+                draw.rectangle((0, 0, tile.width - 1, tile.height - 1), outline=colour, width=3)
             frames.append(tile)
     finally:
         for leftover in work.glob("*.png"):
