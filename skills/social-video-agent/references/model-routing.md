@@ -4,9 +4,9 @@ Conceptual tiers, not model names, are the durable contract:
 
 | Tier | OpenAI | Claude alternative | Effort | Work |
 |---|---|---|---|---|
-| `editorial_strong` | Astra | Claude Opus 5 | high | context, hook, story, editorial review |
-| `execution_balanced` | Sol | Claude Sonnet 5 | medium | EDL, captions, render, corrections |
-| `mechanical_fast` | Luna | Claude Haiku 4.5 | low | delivery variants only |
+| `editorial_strong` | Astra | Claude Opus 5.5 | high | context, hook, story, editorial review |
+| `execution_balanced` | Sol | Claude Sonnet 5.5 | medium | EDL, captions, render, corrections |
+| `mechanical_fast` | Luna | Claude Haiku 5.5 | low | delivery variants only |
 | `escalation` | Astra | Claude Fable 5.1 | high | exceptional editorial or debugging impasse |
 
 The executable mapping and authoritative current names live only in
@@ -42,7 +42,7 @@ Example:
 ```text
 Etap 1 zakończony.
 Utworzono: edit-plan.json, context/project-context.json.
-Zalecane modele: OpenAI Sol lub Claude Sonnet 5 (medium).
+Zalecane modele: OpenAI Sol lub Claude Sonnet 5.5 (medium).
 Dlaczego: decyzje redakcyjne są zapisane; kolejny etap to wykonanie.
 Po zmianie wyślij: „Kontynuuj social-video-agent z Etapem 2.”
 ```

@@ -139,7 +139,7 @@ or concrete `changes_requested` fixes. Do not render final video.
 ## Stage 4 — corrections and finalization
 
 Recommended tier: `execution_balanced`.
-Current recommendations: OpenAI Sol or Claude Sonnet 5, medium effort.
+Current recommendations: OpenAI Sol or Claude Sonnet 5.5, medium effort.
 
 Apply only `qa-editorial.json` fixes. Approval is a no-op; do not perform a new
 full editorial analysis. Fixes explicitly target `edl`, `captions`, or `style`;
@@ -151,7 +151,7 @@ passing `qa/qa-brand.json` before Stage 4 completes. Persist state.
 ## Stage 5 — optional delivery
 
 Recommended tier: `mechanical_fast`.
-Current recommendations: OpenAI Luna or Claude Haiku 4.5, low effort.
+Current recommendations: OpenAI Luna or Claude Haiku 5.5, low effort.
 
 Use `social-video-agent deliver WORKSPACE --output DESTINATION` with desired
 variant flags. Create only approved mechanical variants: no-captions, SRT/VTT,
