@@ -41,4 +41,8 @@ style_app = typer.Typer(
     help="Measure a reference video's rhythm and map it onto this project's settings."
 )
 app.add_typer(style_app, name="style")
+captions_app = typer.Typer(
+    help="Translate captions: the agent writes the translation, the CLI checks and burns it."
+)
+app.add_typer(captions_app, name="captions")
 app.add_typer(license_app, name="remotion-license")

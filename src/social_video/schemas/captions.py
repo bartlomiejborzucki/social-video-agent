@@ -8,6 +8,7 @@ re-cutting the video.
 from __future__ import annotations
 
 from itertools import pairwise
+from typing import Literal
 
 from pydantic import Field, model_validator
 
@@ -47,6 +48,9 @@ class CaptionTrack(Artifact):
     #: Set when a human or the agent has corrected ASR output, so a later
     #: re-transcription does not silently discard the corrections.
     corrected: bool = False
+    #: Whether word timings come from the recognised speech or were spread
+    #: over each cue, as they are for a translated track.
+    word_timing: Literal["measured", "estimated"] = "measured"
 
     @property
     def duration(self) -> float:
