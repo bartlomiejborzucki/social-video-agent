@@ -26,10 +26,13 @@ edit/
   qa-editorial.json       mandatory supervising-editor decision
   captions/               caption data, .srt, and .ass
   visuals.json            provenance for every generated plate
+  motion-films.json       Claude Motion films specified and segments imported
   cover.json              how the composed cover was built
   publish.json            title, description, hashtags, alt text
   assets/cover.jpg        composed cover still
   assets/generated/       plates drawn by a cloud image model
+  assets/motion/          one imported Claude Motion segment per scene
+  exports/motion-film/    film specs for a Claude session to author
   previews/preview.mp4    stable preview artifact
   final/final.mp4         stable delivery artifact
   qa/qa-report.json       canonical technical QA report
