@@ -180,6 +180,21 @@ class Workspace:
         return self.root / "delivery-manifest.json"
 
     @property
+    def motion_films(self) -> Path:
+        """Claude Motion films specified and segments imported for this edit."""
+        return self.root / "motion-films.json"
+
+    @property
+    def motion_assets(self) -> Path:
+        """Imported Claude Motion segments, one file per scene."""
+        return self.assets / "motion"
+
+    @property
+    def motion_film_exports(self) -> Path:
+        """Film specs written for a Claude session to author."""
+        return self.exports / "motion-film"
+
+    @property
     def broll_candidates(self) -> Path:
         """B-roll clips from the user's library matched to the transcript."""
         return self.analysis / "broll-candidates.json"

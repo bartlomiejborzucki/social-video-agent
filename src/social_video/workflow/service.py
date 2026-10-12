@@ -272,6 +272,7 @@ def workflow_status(state: WorkflowState, *, language: str = "en") -> dict[str, 
         "workspace": state.workspace,
         "target_project_root": state.target_project_root,
         "renderer": state.renderer.value,
+        "pending_motion_films": _pending_films(state),
         "remotion_license_attestation": (
             state.remotion_license_attestation.value
             if state.remotion_license_attestation is not None
@@ -283,6 +284,21 @@ def workflow_status(state: WorkflowState, *, language: str = "en") -> dict[str, 
             else None
         ),
     }
+
+
+def _pending_films(state: WorkflowState) -> list[str]:
+    """Claude Motion scenes specified and not yet imported, as film/scene.
+
+    Resume comes from files: a session that wrote a spec and stopped while the
+    user exported the film learns here what it is waiting for.
+    """
+    from social_video.motion.film import load_registry
+
+    try:
+        registry = load_registry(Workspace.at(state.workspace))
+    except Exception:  # an unreadable registry is reported by the commands that use it
+        return []
+    return [f"{film}/{scene}" for film, scene in registry.pending()]
 
 
 def _routing() -> dict[str, Any]:
