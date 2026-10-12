@@ -51,6 +51,8 @@ diarize = ["pyannote.audio>=4.0"]
 # Download a recording from a URL (`fetch`). The Unlicense; only for material the
 # user has the right to edit, which the command makes them state.
 fetch = ["yt-dlp>=2025.1"]
+# Expose the workflow stages as MCP tools (`social-video-agent mcp serve`).
+mcp = ["mcp>=2.0"]
 dev = [
     "pytest>=8.2",
     "pytest-cov>=5.0",
@@ -62,6 +64,8 @@ dev = [
     "otio-fcp-adapter>=1.0",
     # Exercised against a local HTTP server in the fetch tests.
     "yt-dlp>=2025.1",
+    # The MCP server's protocol tests.
+    "mcp>=2.0",
     "ruff>=0.5",
     "mypy>=1.10",
 ]
