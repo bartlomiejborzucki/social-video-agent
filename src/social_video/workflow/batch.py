@@ -52,7 +52,12 @@ def recordings(directory: Path) -> list[Path]:
     """The video files directly in ``directory``, in name order."""
     if not directory.is_dir():
         raise ValidationError(f"no folder of recordings at {directory}")
-    found = sorted(p for p in directory.iterdir() if p.is_file() and p.suffix.casefold() in VIDEO)
+    # Sorted by the name as written: Windows compares paths without case, and
+    # the order of a batch must not depend on the machine.
+    found = sorted(
+        (p for p in directory.iterdir() if p.is_file() and p.suffix.casefold() in VIDEO),
+        key=lambda p: p.name,
+    )
     if not found:
         raise ValidationError(f"no recordings ({', '.join(sorted(VIDEO))}) in {directory}")
     return found
