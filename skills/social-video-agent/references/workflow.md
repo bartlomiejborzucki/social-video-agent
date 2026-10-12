@@ -168,13 +168,28 @@ Current recommendations: OpenAI Luna or Claude Haiku 5.5, low effort.
 
 Use `social-video-agent deliver WORKSPACE --output DESTINATION` with desired
 variant flags. Create only approved mechanical variants: no-captions, SRT/VTT,
-poster, composed `--cover`, validated `--publish` metadata, names, and
+poster, composed `--cover`, validated `--publish` metadata, a variant per
+translated caption language (`--language`), names, and
 `delivery-manifest.json`. `--platform` adds safe-zone and length checks for the
 destination; see [publishing.md](publishing.md). Composing a cover and writing
 publishing copy are editorial acts: do them in Stage 4 or earlier if the wording
 matters, not as a mechanical afterthought. Every video gets QA and
 every item gets size, format, SHA-256 and status. Verify the EDL hash before and
 after; Stage 5 must not change cuts or story, and `/tmp` is not a delivery target.
+
+## Several recordings at once
+
+```bash
+social-video-agent workflow batch RECORDINGS_DIR -w PARENT --project-root PROJECT
+social-video-agent workflow status PARENT
+```
+
+Each video directly in the folder gets its own workspace under the parent,
+through the ordinary Stage 0, and is edited through every stage on its own.
+`workflow status PARENT` lists where each one stands and which to work on
+next, and warns when the recordings no longer compile the same brand contract:
+validate the config in each workspace before rendering if it does. Clip
+selection stays editorial per recording.
 
 ## Resume and failure behavior
 
