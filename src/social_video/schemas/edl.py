@@ -109,10 +109,21 @@ class ReframePlan(Artifact):
         return self
 
 
+class OverlayKind(str, Enum):
+    """Where an overlay's picture came from, so evidence can be checked by kind."""
+
+    #: The user's own clip or still: b-roll, a screenshot, picture-in-picture.
+    MEDIA = "media"
+    #: A designed segment authored in Claude Motion, exported by the user and
+    #: imported with `motion film import`. Full frame and opaque.
+    MOTION_FILM = "motion_film"
+
+
 class Overlay(Artifact):
     """A visual laid over the timeline (graphic, B-roll, picture-in-picture)."""
 
     file: str
+    kind: OverlayKind = OverlayKind.MEDIA
     start_in_output: float = Field(ge=0.0)
     duration: float = Field(gt=0.0)
     x: str = "0"

@@ -242,6 +242,7 @@ def motion_review_sheet(
     video: Path | None = typer.Option(None, "--video", help="Render to review (default: preview)."),
 ) -> None:
     """One labelled frame per graphic, punch-in and transition, for Stage 3 review."""
+    from social_video.motion.film import load_registry
     from social_video.motion.review import motion_sheet
     from social_video.schemas.base import load_artifact
     from social_video.schemas.motion import MotionPlan
@@ -249,9 +250,16 @@ def motion_review_sheet(
 
     ws = Workspace.at(workspace_dir)
     target = video or ws.previews / "preview.mp4"
+    films = [
+        (s.start_in_output + min(0.6, s.duration * 0.5), f"motion film {s.scene_id}")
+        for s in load_registry(ws).segments
+    ]
     path = _guard(
         lambda: motion_sheet(
-            target, load_artifact(MotionPlan, ws.motion_plan), ws.qa / "motion-sheet.png"
+            target,
+            load_artifact(MotionPlan, ws.motion_plan),
+            ws.qa / "motion-sheet.png",
+            extra=films,
         )
     )
     console.print(f"[green]written[/green] {path}", soft_wrap=True)

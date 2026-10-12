@@ -31,6 +31,10 @@ motion_app = typer.Typer(
     help="Propose accents (hook card, figures, steps, punch-ins, transitions) and sound under them."
 )
 app.add_typer(motion_app, name="motion")
+film_app = typer.Typer(
+    help="Full-frame segments authored in Claude Motion: write the spec, import the export."
+)
+motion_app.add_typer(film_app, name="film")
 broll_app = typer.Typer(help="Match clips from your own library to what is said, and cut them in.")
 app.add_typer(broll_app, name="broll")
 style_app = typer.Typer(
