@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -76,8 +77,22 @@ class FrameFaces:
         return max(self.faces, key=lambda f: (f.area, f.confidence))
 
 
+#: A local copy of the model, for machines that cannot reach GitHub (a proxy
+#: answering 403, an air-gapped studio). Used as is; nothing is downloaded.
+MODEL_ENV = "SOCIAL_VIDEO_YUNET_MODEL"
+
+
 def ensure_model() -> Path:
-    """Download the YuNet model on first use."""
+    """The YuNet model: ``SOCIAL_VIDEO_YUNET_MODEL`` if set, else downloaded once."""
+    configured = os.environ.get(MODEL_ENV, "").strip()
+    if configured:
+        local = Path(configured).expanduser()
+        if not local.is_file() or local.stat().st_size <= 1000:
+            raise SocialVideoError(
+                f"{MODEL_ENV} points at {local}, which is not the YuNet model "
+                f"({_MODEL_NAME}, about 233 KB)"
+            )
+        return local
     path = ensure_dir(models_dir() / "yunet") / _MODEL_NAME
     if path.is_file() and path.stat().st_size > 1000:
         return path
@@ -88,7 +103,8 @@ def ensure_model() -> Path:
     except OSError as exc:
         raise SocialVideoError(
             f"could not download the face detection model from {_MODEL_URL}: {exc}\n"
-            f"Reframing can still run with --reframe center, which needs no model."
+            f"Download {_MODEL_NAME} another way and set {MODEL_ENV} to its path, or put it "
+            f"at {path}. Reframing can still run with --reframe center, which needs no model."
         ) from exc
     path.write_bytes(data)
     return path
