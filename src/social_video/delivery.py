@@ -200,6 +200,7 @@ def deliver_workspace(
         workspace, destination, items, edl, manifest, caption_track, motion_plan, contract,
         first_frame_note,
     )  # fmt: skip
+    opening |= _reel_check(workspace, destination, items, edl, caption_track, motion_plan, specs)
     after = _sha256(workspace.edl)
     if before != after:
         raise ValidationError("Stage 5 changed edl.json; delivery was aborted")
@@ -224,6 +225,33 @@ def deliver_workspace(
             + f". Report: {workspace.analysis / 'opening-qa.md'}"
         )
     return result
+
+
+def _reel_check(
+    workspace: Workspace,
+    destination: Path,
+    items: list[DeliveryItem],
+    edl,
+    captions: CaptionTrack | None,
+    plan: MotionPlan | None,
+    specs: list[PlatformSpec],
+) -> dict:
+    """Advisory short-form findings for the delivered video; never blocking."""
+    from social_video.qa.reel import check_reel
+
+    video = destination / "final.mp4"
+    if not any(Path(i.path) == video for i in items):
+        return {}
+    result = check_reel(
+        video, edl, captions=captions, plan=plan, platforms=specs,
+        publish=(
+            load_artifact(PublishMetadata, workspace.publish_metadata)
+            if workspace.publish_metadata.is_file()
+            else None
+        ),
+        analysis_dir=workspace.analysis,
+    )  # fmt: skip
+    return {"reel_check": f"{result.passed}/{result.total}", "reel_check_warnings": result.warnings}
 
 
 def _opening(

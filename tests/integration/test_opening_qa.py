@@ -156,6 +156,8 @@ def test_an_october_edit_renders_content_first_and_delivers_ready(tmp_path: Path
     assert delivered.cover_in_timeline is False and delivered.end_card_only_at_end is True
     assert delivered.cover_path and Path(delivered.cover_path).name == "cover.jpg"
     assert delivered.leading_silence_s == 0.0
+    assert delivered.reel_check and "/" in delivered.reel_check, "advisory, recorded"
+    assert (ws.analysis / "reel-check.md").is_file()
     on_disk = load_artifact(DeliveryManifest, tmp_path / "delivery" / "delivery-manifest.json")
     validate_delivery_manifest(on_disk)
     assert ws.opening_qa.is_file()

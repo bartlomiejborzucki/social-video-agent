@@ -143,3 +143,60 @@ def opening_qa(
         console.print(f"[green]written[/green] {ws.opening_qa}", soft_wrap=True)
     if not report.ready:
         raise typer.Exit(1)
+
+
+@app.command("reel-check")
+def reel_check(
+    workspace_dir: Path = typer.Argument(..., help="Edit workspace."),
+    video: Path | None = typer.Option(None, "--video", help="Default: final, else the preview."),
+    platform: list[str] = typer.Option([], "--platform", help="Destination (repeat)."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Short-form practices that measure: hook speed, length, dead air, holds, captions."""
+    from social_video.errors import ValidationError
+    from social_video.pipeline import load_workspace_artifacts, resolve_caption_track
+    from social_video.profiles import load_platform
+    from social_video.qa.reel import check_reel
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.config import BrandContract
+    from social_video.schemas.motion import MotionPlan
+    from social_video.schemas.publish import PublishMetadata
+    from social_video.workspace.layout import Workspace
+
+    ws = Workspace.at(workspace_dir)
+
+    def run():
+        _sources, edl = load_workspace_artifacts(ws)
+        target = video or next(
+            (p for p in (ws.final / "final.mp4", ws.previews / "preview.mp4") if p.is_file()), None
+        )
+        if target is None:
+            raise ValidationError("no render to check; render first or pass --video")
+        names = platform or (
+            load_artifact(BrandContract, ws.brand_contract).target_platforms
+            if ws.brand_contract.is_file()
+            else []
+        )
+        return check_reel(
+            target,
+            edl,
+            captions=resolve_caption_track(Path(edl.captions))[0] if edl.captions else None,
+            plan=load_artifact(MotionPlan, ws.motion_plan) if ws.motion_plan.is_file() else None,
+            platforms=[load_platform(name) for name in names],
+            publish=(
+                load_artifact(PublishMetadata, ws.publish_metadata)
+                if ws.publish_metadata.is_file()
+                else None
+            ),
+            analysis_dir=ws.analysis,
+        )
+
+    result = _guard(run)
+    if as_json:
+        console.print_json(result.to_json())
+        return
+    console.print(f"reel check {result.passed}/{result.total} (advisory)")
+    for check in result.report.checks:
+        mark = "[green]ok[/green]  " if check.passed else "[yellow]warn[/yellow]"
+        console.print(f"  {mark} {escape(check.name)}: {escape(check.message)}", soft_wrap=True)
+    console.print(f"[green]written[/green] {ws.analysis / 'reel-check.md'}", soft_wrap=True)

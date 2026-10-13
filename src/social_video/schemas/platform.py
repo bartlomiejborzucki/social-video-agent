@@ -31,6 +31,11 @@ class PlatformSpec(Artifact):
     max_duration: float = Field(default=180.0, gt=0.0)
     #: Editorial ceiling, not a technical one.
     recommended_max_duration: float = Field(default=90.0, gt=0.0)
+    #: Where creator research puts the best completion for this destination,
+    #: in seconds. Directional only: the sources disagree, and the account's
+    #: own analytics outrank them.
+    sweet_spot_min: float = Field(default=7.0, gt=0.0)
+    sweet_spot_max: float = Field(default=60.0, gt=0.0)
 
     title_max_chars: int = Field(default=100, ge=10, le=500)
     description_max_chars: int = Field(default=2200, ge=50, le=10000)
