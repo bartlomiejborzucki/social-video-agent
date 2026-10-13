@@ -3,7 +3,7 @@ name: social-video-agent
 description: Create project-aware Reels and Shorts from recordings with local transcription, an explicit plan and EDL, persistent stages, rendering, and QA. Use when asked to edit, trim, caption, reframe, review or resume a preview, or create delivery variants. Do not use for generated video or simple conversion.
 license: Apache-2.0
 metadata:
-  version: "2.1.0"
+  version: "2.2.0"
   last_updated: "2026-10-14"
 ---
 
@@ -109,6 +109,17 @@ content_first`, `cover_in_timeline: false`, `first_cue_full_sentence: true`,
 `first_cue_max_words: 8`, `max_leading_silence_s: 0.3`. The full rules, a brief
 example and every manifest field are in [opening.md](references/opening.md).
 
+## What helps a reel travel
+
+No edit guarantees reach. What it can do is avoid the known ways of losing a
+viewer: the situation heard within a second, a picture that changes every three
+to five seconds, no dead air, every word captioned, an end right after the
+payoff, a length in the platform's completion window, and copy that honestly
+asks for a save or a send. `social-video-agent reel-check WORKSPACE` measures
+these as advisory warnings; `deliver` records them as `reel_check` and
+`reel_check_warnings`. Read [short-form.md](references/short-form.md) before
+Stage 3, and judge each finding against the story rather than chasing a score.
+
 ## Modes and invariants
 
 Default `guided` route uses the OpenAI or Claude recommendation returned by
@@ -199,6 +210,7 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 | Setup/render failures | [troubleshooting.md](references/troubleshooting.md) |
 | Agent on Windows, engine in WSL2 | [hybrid-runtime.md](references/hybrid-runtime.md) |
 | The opening, the cover and the montage brief | [opening.md](references/opening.md) |
+| Short-form practices, length, reach | [short-form.md](references/short-form.md) |
 | Hook card, graphics, punch-ins, transitions, b-roll | [motion-design.md](references/motion-design.md) |
 | Hook, chapter or end card designed in Claude Motion | [motion-film.md](references/motion-film.md) |
 
