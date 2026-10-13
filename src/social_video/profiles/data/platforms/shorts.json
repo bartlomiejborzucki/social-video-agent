@@ -11,6 +11,8 @@
   "min_duration": 3.0,
   "max_duration": 180.0,
   "recommended_max_duration": 60.0,
+  "sweet_spot_min": 15.0,
+  "sweet_spot_max": 50.0,
   "title_max_chars": 100,
   "description_max_chars": 5000,
   "hashtag_max": 15,
@@ -19,7 +21,8 @@
   "sources": [
     "Project estimate from device screenshots, 2026-09-18 (ADR-004).",
     "Claude Motion type guidance, read 2026-10-13: Reels and TikTok cover about the top 250, bottom 420 and right 120 px of 1080x1920; Shorts about the bottom 670 px.",
-    "Each edge keeps the larger of the two."
+    "Each edge keeps the larger of the two.",
+    "Length window: creator research, 2026 (vidIQ, InfluenceFlow, Social Insider via go-viral, Opus Clip); directional, the sources disagree. Account analytics outrank it."
   ],
   "schema_version": 1
 }
