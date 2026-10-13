@@ -240,7 +240,11 @@ def stage_captions(
 ) -> tuple[CaptionTrack, Path]:
     """Build caption data and render it to ASS, ready for the final burn-in."""
     timeline = Timeline(edl)
-    track = build_caption_track(transcript, timeline, style=brand.captions)
+    from social_video.editorial.brief import opening_line
+
+    track = build_caption_track(
+        transcript, timeline, style=brand.captions, opening_text=opening_line(workspace, transcript)
+    )
     save_artifact(track, workspace.captions / f"{edl.name}.json")
     write_srt(track, workspace.captions / f"{edl.name}.srt")
 
@@ -298,6 +302,16 @@ def stage_render(
     if contract is not None:
         _check_audio_policy(edl, contract)
         _check_movement(edl, motion_plan if renderer is Renderer.REMOTION else None, contract)
+        from social_video.motion.film import load_registry
+        from social_video.qa.opening import refuse_card_openings
+
+        refuse_card_openings(
+            edl,
+            motion_plan if renderer is Renderer.REMOTION else None,
+            contract.opening,
+            sources=manifest,
+            film_segments=load_registry(workspace).segments,
+        )
     # A rounded caption box on the FFmpeg route is drawn by libass from the
     # same measured layout the Remotion compositor uses.
     rounded_on_ffmpeg = (

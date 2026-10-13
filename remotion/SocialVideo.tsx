@@ -285,7 +285,7 @@ const MotionGraphic: React.FC<{
   );
 };
 
-const EXTENDED = new Set(['quote', 'stat', 'list', 'chapter', 'cta', 'progress', 'logo_reveal']);
+const EXTENDED = new Set(['quote', 'stat', 'list', 'chapter', 'cta', 'progress', 'logo_reveal', 'label']);
 
 /** Split "73,5%" into prefix, number, suffix so the number can count up. */
 const splitFigure = (text: string): {prefix: string; value: number; decimals: number; comma: boolean; suffix: string} | null => {
@@ -457,6 +457,32 @@ const ExtendedGraphic: React.FC<{
           {element.secondary_text ? (
             <div style={{fontSize: 34, fontWeight: 500, marginTop: 22, color: accent}}>— {element.secondary_text}</div>
           ) : null}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (element.type === 'label') {
+    // A short text over the shot, in the top safe zone: the brand accent
+    // behind the caption colour. It labels the scene; it is never a card.
+    return (
+      <AbsoluteFill style={{paddingTop: pad.top, paddingLeft: pad.left, paddingRight: pad.right, alignItems: 'center', opacity}}>
+        <div
+          style={{
+            fontFamily: font,
+            fontSize: 44,
+            fontWeight: 700,
+            lineHeight: 1.15,
+            color: text,
+            background: accent,
+            padding: '14px 30px',
+            borderRadius: 18,
+            textAlign: 'center',
+            maxWidth: '100%',
+            transform: `translateY(${-rise}px)`,
+          }}
+        >
+          {element.text}
         </div>
       </AbsoluteFill>
     );

@@ -185,6 +185,16 @@ class Workspace:
         return self.root / "delivery-manifest.json"
 
     @property
+    def brief(self) -> Path:
+        """The montage brief this edit was given, parsed (`brief import`)."""
+        return self.context / "brief.json"
+
+    @property
+    def opening_qa(self) -> Path:
+        """Measured opening: first frame, first caption, silence, cards."""
+        return self.analysis / "opening-qa.json"
+
+    @property
     def motion_films(self) -> Path:
         """Claude Motion films specified and segments imported for this edit."""
         return self.root / "motion-films.json"

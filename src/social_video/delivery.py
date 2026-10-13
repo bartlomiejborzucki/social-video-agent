@@ -41,6 +41,7 @@ def deliver_workspace(
     resolutions: list[str] | None = None,
     languages: list[str] | None = None,
     allow_temporary: bool = False,
+    first_frame_note: str = "",
 ) -> DeliveryManifest:
     manifest, edl = load_workspace_artifacts(workspace)
     contract = (
@@ -171,6 +172,9 @@ def deliver_workspace(
             desc="extract delivery poster",
         )
         items.append(_file_item("poster", target, "jpeg"))
+    content_first = contract is not None and contract.opening.opening_policy == "content_first"
+    # Under content first the cover always travels as its own file.
+    cover = cover or (content_first and workspace.cover.is_file())
     if cover:
         if not workspace.cover.is_file():
             raise ValidationError(
@@ -192,9 +196,14 @@ def deliver_workspace(
         save_artifact(metadata, target)
         items.append(_file_item("publish_metadata", target, "json"))
 
+    opening = _opening(
+        workspace, destination, items, edl, manifest, caption_track, motion_plan, contract,
+        first_frame_note,
+    )  # fmt: skip
     after = _sha256(workspace.edl)
     if before != after:
         raise ValidationError("Stage 5 changed edl.json; delivery was aborted")
+    cover_item = next((item for item in items if item.kind == "cover"), None)
     result = DeliveryManifest(
         workspace=str(workspace.root),
         destination=str(destination),
@@ -202,14 +211,66 @@ def deliver_workspace(
         edl_sha256_before=before,
         edl_sha256_after=after,
         items=items,
+        cover_path=cover_item.path if cover_item else None,
+        **opening,
     )
     save_artifact(result, destination / "delivery-manifest.json")
     save_artifact(result, workspace.delivery_manifest)
-    validate_delivery_manifest(result)
+    validate_delivery_manifest(result, require_ready=False)
+    if result.opening_ready is False:
+        raise ValidationError(
+            "the delivery is not ready: the opening breaks the content-first rule. Fix: "
+            + "; ".join(result.opening_issues)
+            + f". Report: {workspace.analysis / 'opening-qa.md'}"
+        )
     return result
 
 
-def validate_delivery_manifest(manifest: DeliveryManifest) -> None:
+def _opening(
+    workspace: Workspace,
+    destination: Path,
+    items: list[DeliveryItem],
+    edl,
+    sources,
+    captions: CaptionTrack | None,
+    plan: MotionPlan | None,
+    contract: BrandContract | None,
+    first_frame_note: str,
+) -> dict:
+    """Opening QA of the delivered video, as manifest fields; empty without one."""
+    from social_video.motion.film import load_registry
+    from social_video.qa.opening import check_opening, manifest_fields
+    from social_video.schemas.brief import Brief
+    from social_video.schemas.config import OpeningPolicy
+
+    videos = [Path(i.path) for i in items if i.kind == "video"]
+    video = destination / "final.mp4" if (destination / "final.mp4") in videos else None
+    video = video or (videos[0] if videos else None)
+    if video is None:
+        return {}
+    # Without a compiled project contract the facts are recorded, not enforced.
+    policy = contract.opening if contract else OpeningPolicy(opening_policy="free")
+    brief = load_artifact(Brief, workspace.brief) if workspace.brief.is_file() else None
+    report = check_opening(
+        video,
+        edl,
+        plan,
+        captions if video.name != "final-no-captions.mp4" else None,
+        policy,
+        sources=sources,
+        film_segments=load_registry(workspace).segments,
+        brief_first_text=brief.first_cue_text if brief else "",
+        first_frame_note=first_frame_note,
+        analysis_dir=workspace.analysis,
+    )
+    return manifest_fields(report)
+
+
+def validate_delivery_manifest(manifest: DeliveryManifest, *, require_ready: bool = True) -> None:
+    if require_ready and manifest.opening_ready is False:
+        raise ValidationError(
+            "the delivery is not ready: " + "; ".join(manifest.opening_issues or ["opening QA"])
+        )
     if manifest.edl_sha256_before != manifest.edl_sha256_after:
         raise ValidationError("delivery manifest records a changed EDL")
     if _sha256(Path(manifest.edl_path)) != manifest.edl_sha256_after:

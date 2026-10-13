@@ -84,6 +84,14 @@ image_generation_policy: none
 # Whether the logo and brand font file may be uploaded to a Claude Motion film.
 # `none` keeps them on this machine. The recording itself is never uploaded.
 brand_asset_upload: none
+# The opening. content_first: the first frame is the scene, never a title card,
+# cover or logo; no silence beyond max_leading_silence_s; an end card only at
+# the end. The first caption starts at 0.0 s with the whole first sentence.
+opening_policy: content_first
+cover_in_timeline: false
+first_cue_full_sentence: true
+first_cue_max_words: 8
+max_leading_silence_s: 0.3
 target_platforms: []
 default_aspect_ratio: "9:16"
 default_resolution: "1080x1920"
@@ -174,6 +182,8 @@ def compile_brand_contract(
             emphasis_words=list(style.emphasis_words),
             emphasis_colour=style.emphasis_color,
             animation=style.animation or energy.caption_animation,
+            first_cue_full_sentence=config.first_cue_full_sentence,
+            first_cue_max_words=config.first_cue_max_words,
         ),
         accent_colour=(config.brand_colors or [style.background_color])[0],
         logo_path=str(logo_file) if logo_file else None,
@@ -209,6 +219,7 @@ def compile_brand_contract(
         resolved_logo_file=str(logo_file) if logo_file else None,
         image_generation_enabled=config.image_generation_policy != "none",
         brand_asset_upload=config.brand_asset_upload,
+        opening=config.opening,
         music_policy=config.music_policy,
         sfx_policy=config.sfx_policy,
         audio_cleanup_policy=config.audio_cleanup_policy,

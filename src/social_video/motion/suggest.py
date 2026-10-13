@@ -63,12 +63,20 @@ def find_accents(
     energy: EnergyPreset,
     *,
     beats: list[float] | None = None,
+    content_first: bool = False,
 ) -> AccentCandidateSet:
+    """Accents found in what is said.
+
+    Under a content-first opening no hook card is proposed: the first caption
+    already carries the situation from the first frame, and a card over the
+    opening is what a scrolling viewer leaves on.
+    """
     words = _output_words(transcript, edl)
     duration = edl.total_duration
     sentences = _sentences(words)
     found: list[AccentCandidate] = []
-    found += _hook(sentences)
+    if not content_first:
+        found += _hook(sentences)
     found += _stats(words, duration)
     found += _steps(words, duration)
     found += _questions(sentences, duration)

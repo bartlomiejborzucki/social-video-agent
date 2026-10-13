@@ -83,6 +83,11 @@ class CaptionStyle(Artifact):
     max_lines: int = Field(default=2, ge=1, le=4)
     max_chars_per_cue: int = Field(default=32, ge=8, le=120)
     min_cue_duration: float = Field(default=0.6, gt=0.0)
+    #: The first cue starts at 0.0 s and carries the whole first sentence, up
+    #: to ``first_cue_max_words``, past ``max_words_per_cue`` and
+    #: ``max_chars_per_cue``. It still has to fit ``max_lines``.
+    first_cue_full_sentence: bool = False
+    first_cue_max_words: int = Field(default=8, ge=1, le=20)
     highlight_active_word: bool = False
     highlight_colour: str = "#FFD400"
     #: Brand keywords drawn in ``emphasis_colour`` wherever they are spoken.
