@@ -166,7 +166,10 @@ def opening_line(workspace, transcript) -> str | None:
     if not (brief.first_line_is_child and brief.first_cue_text):
         return None
     wanted = _keys(brief.first_cue_text)
-    heard = _keys(" ".join(token.text for token in transcript.words[: len(wanted) + 4]))
+    # Any recording of the edit may carry it: the child's voice is often its own file.
+    heard: set[str] = set()
+    for source in transcript if isinstance(transcript, list) else [transcript]:
+        heard |= _keys(" ".join(token.text for token in source.words[: len(wanted) + 4]))
     if wanted and len(wanted & heard) / len(wanted) >= 0.6:
         return None
     return brief.first_cue_text

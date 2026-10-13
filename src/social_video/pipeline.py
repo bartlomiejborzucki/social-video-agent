@@ -23,7 +23,7 @@ from social_video.captions.features import (
     caption_features,
     highlight_possible,
 )
-from social_video.captions.srt import write_srt
+from social_video.captions.srt import write_srt, write_vtt
 from social_video.editorial.compile import compile_plan
 from social_video.editorial.draft import draft_edit_plan
 from social_video.edl.render import QUALITIES, Quality, render_edl
@@ -169,16 +169,60 @@ def stage_compile(
     profile: OutputProfile,
     *,
     reframe: ReframeMode | None = None,
+    transcripts: dict[str, Transcript] | None = None,
 ) -> EDL:
-    edl = compile_plan(plan, transcript, profile, reframe_mode=reframe)
+    """Compile the plan, then pin the motion plan's labels to the scenes it made.
+
+    ``transcripts`` are the other recordings a multi-source plan keeps words
+    from; `plan_transcripts` loads them from the workspace.
+    """
+    edl = compile_plan(plan, transcript, profile, reframe_mode=reframe, transcripts=transcripts)
     if workspace.brand_contract.is_file():
         from social_video.project_config import apply_contract_to_edl
 
         contract = load_artifact(BrandContract, workspace.brand_contract)
         edl = apply_contract_to_edl(edl, contract)
     save_artifact(edl, workspace.edl)
+    pin_workspace_labels(workspace, edl)
     record_stage(workspace, "compile", {"ranges": len(edl.ranges)})
     return edl
+
+
+def plan_transcripts(
+    plan: EditPlan, workspace: Workspace, *, primary: str
+) -> dict[str, Transcript]:
+    """The transcripts of every recording a plan keeps words from, but the primary."""
+    wanted = {item.sound_source for item in plan.kept} - {primary}
+    found: dict[str, Transcript] = {}
+    for source_id in sorted(wanted):
+        tracks = sorted(workspace.transcripts.glob(f"{source_id}.track*.json"))
+        candidates = [workspace.transcript_for(source_id), *tracks]
+        path = next((c for c in candidates if c.is_file()), None)
+        if path is None:
+            raise ValidationError(
+                f"the plan keeps words from {source_id!r}, which has no transcript in "
+                f"{workspace.transcripts}; run `transcribe` on that recording with this workspace"
+            )
+        found[source_id] = load_artifact(Transcript, path)
+    return found
+
+
+def pin_workspace_labels(workspace: Workspace, edl: EDL) -> list[str]:
+    """Pin the motion plan's labels to the compiled scenes; say what moved."""
+    from social_video.motion.layout import labels, pin_labels
+
+    if not workspace.motion_plan.is_file():
+        return []
+    plan = load_artifact(MotionPlan, workspace.motion_plan)
+    if not labels(plan.elements):
+        return []
+    elements, notes = pin_labels(plan.elements, edl)
+    if notes:
+        updated = plan.model_copy(update={"elements": sorted(elements, key=lambda e: e.start)})
+        save_artifact(MotionPlan.model_validate(updated.model_dump()), workspace.motion_plan)
+        for note in notes:
+            log.info("pinned %s", note)
+    return notes
 
 
 def stage_reframe(
@@ -233,12 +277,15 @@ def _speaker_turns(workspace: Workspace, rng) -> list[tuple[float, float, str]] 
 
 
 def stage_captions(
-    transcript: Transcript,
+    transcript: Transcript | list[Transcript],
     edl: EDL,
     workspace: Workspace,
     brand: BrandProfile,
 ) -> tuple[CaptionTrack, Path]:
-    """Build caption data and render it to ASS, ready for the final burn-in."""
+    """Build caption data and render it to ASS, ready for the final burn-in.
+
+    Pass every transcript an edit cuts between; their cues become one track.
+    """
     timeline = Timeline(edl)
     from social_video.editorial.brief import opening_line
 
@@ -247,6 +294,7 @@ def stage_captions(
     )
     save_artifact(track, workspace.captions / f"{edl.name}.json")
     write_srt(track, workspace.captions / f"{edl.name}.srt")
+    write_vtt(track, workspace.captions / f"{edl.name}.vtt")
 
     font = default_caption_font()
     if font is None:

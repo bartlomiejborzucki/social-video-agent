@@ -36,8 +36,12 @@ def apply_case(text: str, case: CaptionCase) -> str:
     return text
 
 
+#: The longest pause a held caption bridges; a longer one is a new beat.
+HOLD_MAX_GAP_S = 2.0
+
+
 def build_caption_track(
-    transcript: Transcript,
+    transcript: Transcript | list[Transcript],
     timeline: Timeline,
     *,
     style: CaptionStyle | None = None,
@@ -54,8 +58,17 @@ def build_caption_track(
     the situation from the first frame. ``opening_text`` is a line nobody says
     in the recording -- a child's line from the brief, which must never be
     voiced -- shown on its own from 0.0 s until the speech begins.
+
+    Several transcripts -- one per recording an edit cuts between -- make one
+    track: their words are placed on the output timeline, merged in output
+    order and numbered once, so a scene from the second recording follows the
+    first without a seam in the numbering. With ``hold_through_pauses`` a cue
+    stays up until the next one within the same range.
     """
     cfg = style or CaptionStyle()
+    transcripts = transcript if isinstance(transcript, list) else [transcript]
+    if not transcripts:
+        raise ValueError("captions need at least one transcript")
     full_first = cfg.first_cue_full_sentence and not opening_text
     cues: list[CaptionCue] = []
     index = 1
@@ -84,14 +97,18 @@ def build_caption_track(
             index += 1
         current = []
 
-    for token in transcript.tokens:
-        if token.type is not TokenType.WORD:
-            continue
-        pieces = timeline.map_interval(transcript.source_id, token.start, token.end)
-        if not pieces:
-            # Cut out of the edit entirely; there is nothing to caption.
-            continue
-        out_start, out_end = pieces[0]
+    placed = []
+    for source in transcripts:
+        for token in source.tokens:
+            if token.type is not TokenType.WORD:
+                continue
+            pieces = timeline.map_interval(source.source_id, token.start, token.end)
+            if pieces:
+                # A word cut out of the edit entirely has nothing to caption.
+                placed.append((pieces[0], token))
+    placed.sort(key=lambda p: p[0][0])
+
+    for (out_start, out_end), token in placed:
         # The opening cue carries the first sentence whole, past the cue limits.
         opening = full_first and not cues
 
@@ -139,7 +156,32 @@ def build_caption_track(
         cues[0].start = 0.0
     if opening_text and opening_text.strip():
         cues = _with_opening_line(cues, apply_case(" ".join(opening_text.split()), cfg.case), cfg)
-    return CaptionTrack(language=transcript.language, cues=_deoverlap(cues))
+    cues = _deoverlap(cues)
+    if cfg.hold_through_pauses:
+        cues = hold_through_pauses(cues, timeline)
+    return CaptionTrack(language=transcripts[0].language, cues=cues)
+
+
+def hold_through_pauses(cues: list[CaptionCue], timeline: Timeline) -> list[CaptionCue]:
+    """Keep each cue up until the next, inside one range and a short pause.
+
+    A scene frame with nothing in it reads as a mistake; a caption that stays
+    through a breath does not. A cut to another range, or a pause longer than
+    ``HOLD_MAX_GAP_S``, still clears the screen: that is a new beat.
+    """
+
+    def slice_of(moment: float) -> int | None:
+        for sl in timeline.slices:
+            if sl.output_start - 1e-6 <= moment < sl.output_end:
+                return sl.index
+        return None
+
+    held = [cue.model_copy() for cue in cues]
+    for earlier, later in pairwise(held):
+        gap = later.start - earlier.end
+        if 0 < gap <= HOLD_MAX_GAP_S and slice_of(earlier.start) == slice_of(later.start):
+            earlier.end = round(later.start - 0.01, 3)
+    return held
 
 
 def _with_opening_line(cues: list[CaptionCue], text: str, cfg: CaptionStyle) -> list[CaptionCue]:
