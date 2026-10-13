@@ -620,13 +620,13 @@ const framedStyle = (cue: CaptionCue, props: SocialVideoProps): CaptionStyle => 
   return {...style, position: 'bottom', margin_pct: (bottom / props.height) * 100};
 };
 
-const usePunchIn = (punchIns: PunchIn[]): {scale: number; origin: string} => {
+const usePunchIn = (punchIns: PunchIn[]): {scale: number; origin: string; focusX: number} => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const now = frame / fps;
   const active = punchIns.find((p) => now >= p.start && now < p.end);
   if (!active) {
-    return {scale: 1, origin: '50% 50%'};
+    return {scale: 1, origin: '50% 50%', focusX: 0.5};
   }
   const ease = Math.min(0.35, (active.end - active.start) / 4);
   const amount = interpolate(
@@ -638,6 +638,7 @@ const usePunchIn = (punchIns: PunchIn[]): {scale: number; origin: string} => {
   return {
     scale: 1 + (active.scale - 1) * amount,
     origin: `${active.focus_x * 100}% ${active.focus_y * 100}%`,
+    focusX: active.focus_x,
   };
 };
 
@@ -646,12 +647,16 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
   const punch = usePunchIn(props.punchIns ?? []);
   const cut = useTransition(props.transitions ?? []);
   const pack = stylePack(props.style);
+  // A slide moves the picture sideways; scaling it just enough that it still
+  // covers the frame keeps the edge it moves away from from showing black.
+  const anchor = Math.max(1, props.width * Math.min(punch.focusX, 1 - punch.focusX));
+  const scale = Math.max(punch.scale * cut.scale, 1 + Math.abs(cut.shiftX) / anchor);
   return (
     <AbsoluteFill style={{backgroundColor: '#000'}}>
       <AbsoluteFill
         style={{
           overflow: 'hidden',
-          transform: `translateX(${cut.shiftX}px) scale(${punch.scale * cut.scale})`,
+          transform: `translateX(${cut.shiftX}px) scale(${scale})`,
           transformOrigin: punch.origin,
           filter: cut.blur > 0.05 ? `blur(${cut.blur}px)` : undefined,
         }}
