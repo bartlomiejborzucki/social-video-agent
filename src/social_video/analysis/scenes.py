@@ -40,7 +40,7 @@ def detect_scenes(
 
     out: list[tuple[float, float]] = []
     for start, end in scenes:
-        a, b = start.get_seconds(), end.get_seconds()
+        a, b = start.seconds, end.seconds
         if b - a >= min_scene_len:
             out.append((a, b))
     return out
