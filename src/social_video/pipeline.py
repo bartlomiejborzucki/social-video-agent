@@ -402,6 +402,8 @@ def stage_render(
         )
         render_plan = motion_plan.model_copy(deep=True)
         if contract is not None:
+            for line in brand_overrides(motion_plan, contract):
+                log.info(line)
             render_plan.font_family = contract.brand.captions.font_family
             render_plan.font_path = contract.resolved_font_file
             render_plan.accent_color = contract.brand.accent_colour
@@ -500,6 +502,28 @@ def stage_render(
         {"output": str(output), "renderer": renderer.value, "seconds": round(elapsed, 1)},
     )
     return output
+
+
+def brand_overrides(plan: MotionPlan, contract: BrandContract) -> list[str]:
+    """What the brand contract replaces in a motion plan, one line per value.
+
+    The contract owns the motion layer's colours, font and style pack, so a
+    render never draws a plan's own values for them; brand QA could not
+    otherwise vouch for what was drawn. Saying so beats changing it silently.
+    """
+    brand = contract.brand
+    pairs = (
+        ("accent_color", plan.accent_color, brand.accent_colour),
+        ("text_color", plan.text_color, brand.captions.primary_colour),
+        ("background_color", plan.background_color, brand.background_colour),
+        ("font_family", plan.font_family, brand.captions.font_family),
+        ("style", plan.style, brand.style_pack),
+    )
+    return [
+        f"motion-plan {name} {mine!r} is replaced by the brand contract's {theirs!r}"
+        for name, mine, theirs in pairs
+        if str(mine).casefold() != str(theirs).casefold()
+    ]
 
 
 def _rounded_box_captions(captions: Path, contract: BrandContract, edl: EDL, workspace: Workspace):
