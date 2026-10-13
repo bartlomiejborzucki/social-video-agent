@@ -123,6 +123,11 @@ class ProjectConfig(BaseModel):
     audio_cleanup_policy: str | None = None
     image_generation_policy: str | None = None
     brand_asset_upload: str | None = None
+    opening_policy: str | None = None
+    cover_in_timeline: bool | None = None
+    first_cue_full_sentence: bool | None = None
+    first_cue_max_words: int | None = None
+    max_leading_silence_s: float | None = None
     target_platforms: list[str] | None = None
     default_aspect_ratio: str | None = None
     default_resolution: str | None = None

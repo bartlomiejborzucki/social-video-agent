@@ -39,6 +39,9 @@ class MotionElementType(str, Enum):
     COMPARE = "compare"
     #: Numbered steps of a process, two to five `items`, revealed in order.
     STEPS = "steps"
+    #: A short text over the shot in the top safe zone ("Spróbuj tak"): brand
+    #: accent behind white text, never a card of its own. At most 48 characters.
+    LABEL = "label"
 
 
 #: Types drawn without words of their own.
@@ -104,6 +107,8 @@ class MotionElement(Artifact):
             raise ValueError(
                 f"items are only used by lists, charts, comparisons and steps, not a {kind}"
             )
+        if self.type is MotionElementType.LABEL and len(self.text) > 48:
+            raise ValueError("a label is a short text over the shot: at most 48 characters")
         if self.type is MotionElementType.HOOK_CARD:
             if self.start > 0.5:
                 raise ValueError(

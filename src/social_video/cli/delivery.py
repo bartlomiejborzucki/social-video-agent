@@ -18,8 +18,11 @@ from social_video.cli._common import _guard, _print_qa, console, err_console
 @app.command()
 def cover(
     workspace_dir: Path = typer.Argument(..., help="Edit workspace."),
-    title: str = typer.Option(..., "--title", help="Headline drawn on the cover."),
+    title: str | None = typer.Option(None, "--title", help="Headline drawn on the cover."),
     subtitle: str | None = typer.Option(None, "--subtitle"),
+    from_brief: bool = typer.Option(
+        False, "--from-brief", help="Take the title and subtitle from the brief's Okładka."
+    ),
     plate: Path | None = typer.Option(
         None, "--plate", help="Generated background plate. Defaults to the recorded cover plate."
     ),
@@ -45,6 +48,18 @@ def cover(
     from social_video.workspace.layout import Workspace
 
     ws = Workspace.at(workspace_dir)
+    if from_brief:
+        from social_video.schemas.brief import Brief
+
+        if not ws.brief.is_file():
+            err_console.print("[red]error:[/red] no brief; run `brief import` first")
+            raise typer.Exit(1)
+        brief = _guard(lambda: load_artifact(Brief, ws.brief))
+        title = title or brief.cover_title or None
+        subtitle = subtitle or brief.cover_subtitle or None
+    if not title:
+        err_console.print("[red]error:[/red] the cover needs --title, or --from-brief")
+        raise typer.Exit(1)
     contract = (
         _guard(lambda: load_artifact(BrandContract, ws.brand_contract))
         if ws.brand_contract.is_file()
@@ -227,6 +242,11 @@ def deliver(
         help="Also deliver a variant with captions in this language (repeat); "
         "needs `captions apply` first. With --srt/--vtt, its sidecars too.",
     ),
+    first_frame_note: str = typer.Option(
+        "",
+        "--first-frame-note",
+        help="One sentence on what frame 0 shows, written after looking at it.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Create immutable Stage 5 variants and a verified delivery manifest."""
@@ -249,6 +269,7 @@ def deliver(
             platforms=platform or None,
             resolutions=resolution,
             languages=language or None,
+            first_frame_note=first_frame_note,
         )
     )
     if as_json:

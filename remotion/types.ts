@@ -14,7 +14,8 @@ export type MotionElement = {
     | 'hook_card'
     | 'chart'
     | 'compare'
-    | 'steps';
+    | 'steps'
+    | 'label';
   start: number;
   end: number;
   text: string;

@@ -94,7 +94,7 @@ default_fps_policy: \"30\"
     )
     track = CaptionTrack(
         language="pl",
-        cues=[CaptionCue(index=1, start=0.05, end=0.9, text="Zażółć gęślą jaźń")],
+        cues=[CaptionCue(index=1, start=0.0, end=0.9, text="Zażółć gęślą jaźń")],
     )
     caption_json = save_artifact(track, workspace.captions / "main.json")
     write_srt(track, workspace.captions / "main.srt")

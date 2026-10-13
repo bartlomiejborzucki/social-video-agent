@@ -87,6 +87,41 @@ class CaptionConfig(BaseModel):
         return value.upper()
 
 
+class OpeningPolicy(BaseModel):
+    """How a short may open: with content, never with a card.
+
+    `content_first` is the default because a title card, cover or logo at the
+    start of the timeline is what a scrolling viewer leaves on: the first
+    frame must already show the person or the action, and the first caption
+    must already carry the situation.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: `content_first`: no title card, cover, logo, black or white frame and no
+    #: silence beyond `max_leading_silence_s` at the start; an end card only at
+    #: the end. `free`: the opening is the editor's call, as before 2.1.
+    opening_policy: Literal["content_first", "free"] = "content_first"
+    #: Whether a cover image may appear in the timeline at all. The cover is a
+    #: separate file set at publication; true is only allowed with `free`.
+    cover_in_timeline: bool = False
+    #: The first caption starts at 0.0 s and carries the whole first sentence,
+    #: up to `first_cue_max_words`, as an explicit exception to the cue limits.
+    first_cue_full_sentence: bool = True
+    first_cue_max_words: int = Field(default=8, ge=1, le=20)
+    #: Longest silence the edit may open with, in seconds.
+    max_leading_silence_s: float = Field(default=0.3, ge=0.0, le=3.0)
+
+    @model_validator(mode="after")
+    def _cover_needs_free(self) -> OpeningPolicy:
+        if self.opening_policy == "content_first" and self.cover_in_timeline:
+            raise ValueError(
+                "cover_in_timeline: true contradicts opening_policy: content_first; the "
+                "cover is a separate file set at publication"
+            )
+        return self
+
+
 class ProjectVideoConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -125,6 +160,12 @@ class ProjectVideoConfig(BaseModel):
     #: Motion film. They are brand files; `none` keeps them on this machine,
     #: and a film then carries neither. The recording is never uploaded.
     brand_asset_upload: Literal["none", "allowed"] = "none"
+    #: The opening rules; see `OpeningPolicy`. Absent keys take its defaults.
+    opening_policy: Literal["content_first", "free"] = "content_first"
+    cover_in_timeline: bool = False
+    first_cue_full_sentence: bool = True
+    first_cue_max_words: int = Field(default=8, ge=1, le=20)
+    max_leading_silence_s: float = Field(default=0.3, ge=0.0, le=3.0)
     #: Where the finished clip is posted. Drives platform safe-zone checks.
     target_platforms: list[str] = Field(default_factory=list)
     default_aspect_ratio: Literal["9:16", "1:1", "16:9"] = "9:16"
@@ -176,8 +217,19 @@ class ProjectVideoConfig(BaseModel):
             raise ValueError("default_resolution does not match default_aspect_ratio")
         if self.logo_usage == "required" and not self.logo_file:
             raise ValueError("logo_usage=required requires logo_file")
+        self.opening  # noqa: B018 - validates the opening keys together
         self._reject_unfittable_captions(width, height)
         return self
+
+    @property
+    def opening(self) -> OpeningPolicy:
+        return OpeningPolicy(
+            opening_policy=self.opening_policy,
+            cover_in_timeline=self.cover_in_timeline,
+            first_cue_full_sentence=self.first_cue_full_sentence,
+            first_cue_max_words=self.first_cue_max_words,
+            max_leading_silence_s=self.max_leading_silence_s,
+        )
 
     def _reject_unfittable_captions(self, width: int, height: int) -> None:
         """Refuse a caption geometry whose own text cannot be drawn.
@@ -234,6 +286,8 @@ class BrandContract(Artifact):
     #: Compiled from the project config: whether the logo and brand font file
     #: may be uploaded to a Claude Motion film.
     brand_asset_upload: Literal["none", "allowed"] = "none"
+    #: Compiled from the project config's opening keys.
+    opening: OpeningPolicy = Field(default_factory=OpeningPolicy)
     target_platforms: list[str] = Field(default_factory=list)
     #: Compiled from the project config. `required` means an edit without one is
     #: incomplete; `none` means the renderer refuses to mix one at all.

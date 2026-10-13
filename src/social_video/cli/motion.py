@@ -11,6 +11,15 @@ from social_video.cli._apps import motion_app
 from social_video.cli._common import _guard, console
 
 
+def _content_first(ws) -> bool:
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.config import BrandContract
+
+    if not ws.brand_contract.is_file():
+        return False
+    return load_artifact(BrandContract, ws.brand_contract).opening.opening_policy == "content_first"
+
+
 def _energy(ws):
     from social_video.motion.energy import energy_preset
     from social_video.schemas.base import load_artifact
@@ -64,7 +73,7 @@ def motion_suggest(
                 start_at=edl.audio_bed.start_at,
                 duration=edl.total_duration,
             )
-        found = find_accents(transcript, edl, preset, beats=beats)
+        found = find_accents(transcript, edl, preset, beats=beats, content_first=_content_first(ws))
         save_artifact(found, ws.accent_candidates)
         return found
 

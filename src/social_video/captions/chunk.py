@@ -41,14 +41,22 @@ def build_caption_track(
     timeline: Timeline,
     *,
     style: CaptionStyle | None = None,
+    opening_text: str | None = None,
 ) -> CaptionTrack:
     """Build caption cues, timed against the output rather than the source.
 
     Words removed by the edit are dropped, and a word straddling a cut is kept
     only for the part that survives. This is what stops captions drifting out of
     sync as cuts accumulate.
+
+    With ``first_cue_full_sentence`` the first cue starts at 0.0 s and holds the
+    whole first sentence, up to ``first_cue_max_words``: muted autoplay shows
+    the situation from the first frame. ``opening_text`` is a line nobody says
+    in the recording -- a child's line from the brief, which must never be
+    voiced -- shown on its own from 0.0 s until the speech begins.
     """
     cfg = style or CaptionStyle()
+    full_first = cfg.first_cue_full_sentence and not opening_text
     cues: list[CaptionCue] = []
     index = 1
 
@@ -84,23 +92,32 @@ def build_caption_track(
             # Cut out of the edit entirely; there is nothing to caption.
             continue
         out_start, out_end = pieces[0]
+        # The opening cue carries the first sentence whole, past the cue limits.
+        opening = full_first and not cues
 
         # A cut between two words always breaks the cue: words either side of a
         # splice did not belong to the same breath.
         # A splice, or a pause long enough to be a new thought, ends the cue.
-        if current and (out_start < current[-1].end - 1e-6 or out_start - current[-1].end > 0.35):
+        gap = out_start - current[-1].end if current else 0.0
+        if current and (out_start < current[-1].end - 1e-6 or gap > (1.0 if opening else 0.35)):
             flush()
+            opening = full_first and not cues
         if token.speaker != current_speaker and current:
             flush()
+            opening = full_first and not cues
         if not current:
             current_speaker = token.speaker
 
         prospective = " ".join([*(w.text for w in current), token.text])
-        if current and (
-            len(current) >= cfg.max_words_per_cue or len(prospective) > cfg.max_chars_per_cue
-        ):
+        over_limit = (
+            len(current) >= cfg.first_cue_max_words
+            if opening
+            else len(current) >= cfg.max_words_per_cue or len(prospective) > cfg.max_chars_per_cue
+        )
+        if current and over_limit:
             flush()
             current_speaker = token.speaker
+            opening = full_first and not cues
 
         current.append(CaptionWord(text=token.text, start=out_start, end=out_end))
 
@@ -109,12 +126,40 @@ def build_caption_track(
         stripped = token.text.rstrip("\"')]}")
         last = stripped[-1] if stripped else ""
         ends_sentence = last in SENTENCE_END
-        ends_clause = last in CLAUSE_END and len(current) >= max(2, cfg.max_words_per_cue // 2)
+        ends_clause = (
+            not opening
+            and last in CLAUSE_END
+            and len(current) >= max(2, cfg.max_words_per_cue // 2)
+        )
         if ends_sentence or ends_clause:
             flush()
 
     flush()
+    if full_first and cues:
+        cues[0].start = 0.0
+    if opening_text and opening_text.strip():
+        cues = _with_opening_line(cues, apply_case(" ".join(opening_text.split()), cfg.case), cfg)
     return CaptionTrack(language=transcript.language, cues=_deoverlap(cues))
+
+
+def _with_opening_line(cues: list[CaptionCue], text: str, cfg: CaptionStyle) -> list[CaptionCue]:
+    """Show an unspoken opening line from 0.0 s until the speech begins.
+
+    When the speech starts too soon for the line to be read, the line is left
+    out and the spoken first cue starts at 0.0 s instead; opening QA reports
+    which text the viewer actually saw first.
+    """
+    from social_video.captions.translate import estimated_words
+
+    speech = cues[0].start if cues else cfg.min_cue_duration * 3
+    if speech < cfg.min_cue_duration:
+        if cues:
+            cues[0].start = 0.0
+        return cues
+    end = round(speech - 0.01, 3)
+    line = CaptionCue(index=1, start=0.0, end=end, text=text, words=estimated_words(text, 0.0, end))
+    shifted = [cue.model_copy(update={"index": cue.index + 1}) for cue in cues]
+    return [line, *shifted]
 
 
 def _deoverlap(cues: list[CaptionCue]) -> list[CaptionCue]:

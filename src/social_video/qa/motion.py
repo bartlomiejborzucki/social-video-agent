@@ -114,6 +114,8 @@ def graphic_band(kind: MotionElementType, margins: dict[str, float]) -> tuple[fl
     bottom = margins.get("bottom", 6.0) / 100.0
     if kind is MotionElementType.CHAPTER:
         return top + 0.02, top + 0.14
+    if kind is MotionElementType.LABEL:
+        return top, top + 0.06
     if kind is MotionElementType.CTA:
         low = 1.0 - bottom - 0.16
         return low - 0.06, low

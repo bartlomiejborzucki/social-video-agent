@@ -170,6 +170,9 @@ class CaptionLayout:
     #: The contract's cue-length limit, so the evidence can name cues that a
     #: split would have shortened.
     max_chars_allowed: int = 0
+    #: The first cue carries the whole opening sentence by contract, so it is
+    #: exempt from ``max_chars_allowed``; it still has to fit ``max_lines``.
+    first_cue_exempt: bool = False
     padding_x: int = BOX_PADDING_X
     padding_top: int = BOX_PADDING_TOP
     padding_bottom: int = BOX_PADDING_BOTTOM
@@ -203,7 +206,9 @@ class CaptionLayout:
         return tuple(
             cue.index
             for cue in self.cues
-            if len(cue.source_text) > self.max_chars_allowed and len(cue.source_text.split()) > 1
+            if len(cue.source_text) > self.max_chars_allowed
+            and len(cue.source_text.split()) > 1
+            and not (self.first_cue_exempt and cue.index == 1)
         )
 
     @property
@@ -233,6 +238,7 @@ class CaptionLayout:
             "ellipsis_cues": list(self.ellipsis_cues),
             "over_length_cues": list(self.over_length_cues),
             "max_chars_allowed": self.max_chars_allowed,
+            "first_cue_exempt": self.first_cue_exempt,
             "font_measured": self.measured,
         }
 
@@ -296,6 +302,7 @@ def layout_captions(
         requested_font_size_px=requested,
         measured=measurer.measured,
         max_chars_allowed=style.max_chars_per_cue,
+        first_cue_exempt=style.first_cue_full_sentence,
     )
 
 
