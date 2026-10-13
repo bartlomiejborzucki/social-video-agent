@@ -236,3 +236,21 @@ def test_the_render_says_which_plan_values_the_contract_replaces(tmp_path: Path)
         }
     )
     assert brand_overrides(same, contract) == []
+
+
+def test_ass_type_is_sized_like_the_browser_draws_it() -> None:
+    """libass sizes a font by its line height, a browser by its em."""
+    from social_video.captions.ass import _line_height_per_em
+
+    font = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
+    if not font.is_file():
+        pytest.skip("deterministic test font is unavailable")
+    ratio = _line_height_per_em(font)
+    assert 1.1 < ratio < 1.3
+    assert _line_height_per_em(None) == 1.2
+    styled = STYLE.model_copy(update={"font_file": str(font)})
+    track = CaptionTrack(cues=[_cue(1, 0.0, 2.0)])
+    layout = layout_captions(list(track.cues), styled, width=1080, height=1920, font_file=font)
+    document = render_boxed_ass(track, styled, layout, width=1080, height=1920)
+    drawn = layout.cues[0].font_size_px
+    assert f"\\fs{round(drawn * ratio)}" in document
