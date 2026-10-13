@@ -135,8 +135,13 @@ def load_project_config(path: Path) -> ProjectVideoConfig:
 
 
 def compile_brand_contract(
-    config_path: Path, workspace: Workspace, *, project_root: Path | None = None
+    config_path: Path, workspace: Workspace | None, *, project_root: Path | None = None
 ) -> BrandContract:
+    """Compile the config into a contract; save it into ``workspace`` when given.
+
+    Without a workspace nothing is written: validating a project must not
+    create an edit folder in it.
+    """
     config_path = config_path.resolve()
     config = load_project_config(config_path)
     root = (project_root or _config_project_root(config_path)).resolve()
@@ -235,8 +240,9 @@ def compile_brand_contract(
         },
     )
     contract.validate_assets()
-    workspace.ensure()
-    save_artifact(contract, workspace.brand_contract)
+    if workspace is not None:
+        workspace.ensure()
+        save_artifact(contract, workspace.brand_contract)
     return contract
 
 
