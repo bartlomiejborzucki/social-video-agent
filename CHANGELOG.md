@@ -4,6 +4,25 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-14
+
+Short-form practices that measure, from 2026 creator research.
+
+### Added
+
+- `reel-check` measures what loses short-form viewers: the first word heard
+  after more than a second, a length outside the platform's completion window,
+  dead air inside the speech, a tail after the last word, a picture unchanged
+  for more than five seconds, an end card longer than two seconds, speech
+  without captions, and publishing copy that never asks for a save or a send.
+  Findings are advisory, written to `analysis/reel-check.json` and `.md`, and
+  recorded at delivery as `reel_check` and `reel_check_warnings`.
+- Platform specs carry a directional completion window (`sweet_spot_min`,
+  `sweet_spot_max`) with its sources: Reels 7-45 s, TikTok 15-60 s, Shorts
+  15-50 s.
+- `references/short-form.md`: the practices, what each check means, and the
+  sources, flagged as creator research rather than platform documentation.
+
 ## [2.1.0] - 2026-10-14
 
 Content first: a short opens on the scene, never on a card.
