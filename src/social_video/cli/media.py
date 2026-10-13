@@ -302,15 +302,34 @@ def compile_edl(
     audio_track: int = typer.Option(0, "--audio-track"),
     backend: str | None = typer.Option(None, "--backend"),
     force: bool = typer.Option(False, "--force", help="Replace an existing edl.json."),
+    captions: bool | None = typer.Option(
+        None,
+        "--captions/--no-captions",
+        help="Build the caption track from every transcript the plan uses. "
+        "Default: when the workspace has a brand contract.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Compile edit-plan.json into edl.json, word-aligned, with accepted cuts removed.
+
+    A plan may cut between several recordings (each item names its `source`,
+    in `order`), put one recording's voice under another's picture
+    (`audio_source`, `audio_start`, `audio_end`) and fix an item's framing
+    (`reframe`). Every recording it keeps words from needs a transcript in this
+    workspace. Captions are built from all of them as one track, and the motion
+    plan's labels are pinned to the scenes the edit made.
 
     Refuses to replace an existing edl.json without --force: it may hold
     hand-made decisions the plan does not.
     """
     from social_video.errors import ValidationError
-    from social_video.pipeline import stage_compile, stage_transcribe
+    from social_video.pipeline import (
+        load_workspace_brand,
+        plan_transcripts,
+        stage_captions,
+        stage_compile,
+        stage_transcribe,
+    )
     from social_video.profiles import load_profile
     from social_video.schemas.base import load_artifact
     from social_video.schemas.edl import ReframeMode
@@ -339,7 +358,14 @@ def compile_edl(
         options = TranscriptionOptions(model=model, language=language, audio_track=audio_track)
         transcript = stage_transcribe(source, ws, options=options, backend=backend)
         plan = load_artifact(EditPlan, ws.edit_plan)
-        return stage_compile(plan, transcript, ws, prof, reframe=mode)
+        others = plan_transcripts(plan, ws, primary=transcript.source_id)
+        edl = stage_compile(plan, transcript, ws, prof, reframe=mode, transcripts=others)
+        wanted = captions if captions is not None else ws.brand_contract.is_file()
+        if wanted:
+            used = {r.effective_audio_source for r in edl.ranges}
+            heard = [t for t in [transcript, *others.values()] if t.source_id in used]
+            stage_captions(heard or [transcript], edl, ws, load_workspace_brand(ws))
+        return edl
 
     edl = _guard(run)
     if as_json:

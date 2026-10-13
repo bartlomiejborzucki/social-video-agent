@@ -13,6 +13,7 @@ from enum import Enum
 from pydantic import Field, model_validator
 
 from social_video.schemas.base import Artifact
+from social_video.schemas.edl import ReframePlan
 
 
 class PlanAction(str, Enum):
@@ -40,12 +41,38 @@ class PlanItem(Artifact):
         description="The accepted cut candidate this drop came from. Such a drop is removed "
         "from inside kept spans too, after their edges are snapped to words.",
     )
+    #: Sound from another recording under this item's picture: a voice off
+    #: camera, recorded separately. ``start``/``end`` are then the picture's
+    #: span in ``source``, and the words come from ``audio_source``.
+    audio_source: str | None = None
+    audio_start: float | None = Field(default=None, ge=0.0)
+    audio_end: float | None = Field(default=None, gt=0.0)
+    #: A fixed framing for this item, in source pixels as displayed (after any
+    #: rotation the file declares). Ranges with one are left alone by `reframe`.
+    reframe: ReframePlan | None = None
 
     @model_validator(mode="after")
     def _check_interval(self) -> PlanItem:
         if self.end <= self.start:
             raise ValueError(f"plan item ends at {self.end}, not after start {self.start}")
+        voice = (self.audio_source, self.audio_start, self.audio_end)
+        if any(v is not None for v in voice) and any(v is None for v in voice):
+            raise ValueError("audio_source, audio_start and audio_end are set together")
+        start, end = self.audio_start, self.audio_end
+        if start is not None and end is not None and end <= start:
+            raise ValueError(f"audio ends at {end}, not after its start {start}")
         return self
+
+    @property
+    def sound_source(self) -> str:
+        """The recording whose words this item keeps."""
+        return self.audio_source or self.source
+
+    @property
+    def sound_span(self) -> tuple[float, float]:
+        if self.audio_start is not None and self.audio_end is not None:
+            return self.audio_start, self.audio_end
+        return self.start, self.end
 
 
 class EditPlan(Artifact):

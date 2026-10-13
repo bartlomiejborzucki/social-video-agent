@@ -10,9 +10,11 @@ pixel of a 1920-pixel frame), so a 720x1280 preview is the final, scaled.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from itertools import pairwise
 
 from social_video.captions.fit import BOX_PADDING_BOTTOM, BOX_PADDING_TOP, LINE_HEIGHT
 from social_video.schemas.brand import CaptionPosition, CaptionStyle
+from social_video.schemas.edl import EDL
 from social_video.schemas.motion import ElementPosition, MotionElement, MotionElementType
 
 #: Two labels this close are one scene continuing: the frame stays and the
@@ -158,3 +160,64 @@ def element_band(
         return None
     return None
 
+
+#: How far a label edge may move to meet a cut. Further than this, the label
+#: was meant to change mid-range and keeps its own time.
+PIN_REACH_S = 1.5
+
+
+def pin_labels(elements: list[MotionElement], edl: EDL) -> tuple[list[MotionElement], list[str]]:
+    """Move each label onto the scene it names, in the compiled edit.
+
+    A brief times its labels against the script ("3-9 s"); the edit's scenes
+    land elsewhere. A label whose text is a range's ``beat`` spans exactly
+    those ranges. Any other label edge moves to the nearest cut within
+    ``PIN_REACH_S``. Labels that then meet, or nearly do, are joined, so the
+    frame stays and only its title flips. Returns the elements and one line per
+    label that moved.
+    """
+    from social_video.edl.timeline import Timeline
+
+    timeline = Timeline(edl)
+    total = timeline.duration
+    cuts = [0.0, *(s.output_start for s in timeline.slices[1:]), total]
+
+    def nearest(moment: float) -> float:
+        best = min(cuts, key=lambda c: abs(c - moment))
+        return best if abs(best - moment) <= PIN_REACH_S else moment
+
+    pinned: dict[int, tuple[float, float, str]] = {}
+    for label in labels(elements):
+        key = label.text.strip().casefold()
+        scene = [s for s in timeline.slices if s.range.beat.strip().casefold() == key]
+        if scene:
+            start, end = scene[0].output_start, scene[-1].output_end
+            why = f"the scene with beat {label.text!r}"
+        else:
+            start, end = nearest(label.start), nearest(min(label.end, total))
+            why = "the nearest cuts"
+        end = min(end, total)
+        if end - start < 0.5:
+            start, end = label.start, min(label.end, total)
+            why = "its own time; no scene fits"
+        pinned[id(label)] = (round(start, 3), round(end, 3), why)
+
+    ordered = sorted(pinned.items(), key=lambda p: p[1][0])
+    for (first, (s1, e1, w1)), (_second, (s2, _e2, _w2)) in pairwise(ordered):
+        if abs(s2 - e1) < 0.3 or e1 > s2:
+            pinned[first] = (s1, s2, w1)
+
+    result: list[MotionElement] = []
+    notes: list[str] = []
+    for element in elements:
+        if id(element) not in pinned:
+            result.append(element)
+            continue
+        start, end, why = pinned[id(element)]
+        if abs(start - element.start) > 1e-3 or abs(end - element.end) > 1e-3:
+            notes.append(
+                f"label {element.text!r} {element.start:.2f}-{element.end:.2f} s -> "
+                f"{start:.2f}-{end:.2f} s ({why})"
+            )
+        result.append(element.model_copy(update={"start": start, "end": end}))
+    return result, notes
