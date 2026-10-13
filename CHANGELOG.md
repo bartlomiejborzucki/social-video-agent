@@ -4,6 +4,46 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-14
+
+Content first: a short opens on the scene, never on a card.
+
+### Added
+
+- `opening_policy: content_first` (the default when the key is absent), with
+  `cover_in_timeline: false`, `first_cue_full_sentence: true`,
+  `first_cue_max_words: 8` and `max_leading_silence_s: 0.3`, compiled into
+  the brand contract. `opening_policy: free` keeps the old behaviour.
+- The first caption starts at 0.0 s and carries the whole first sentence, up
+  to `first_cue_max_words`, as the one exception to the cue limits; brand QA
+  exempts it from the length check, and it still has to fit two lines.
+- `brief import` reads a montage brief, as text or from the monthly package
+  JSON, into `context/brief.json` and `brief:` lines in `edit-plan.json`
+  `user_overrides`. Its first row becomes the first caption, a child's
+  off-screen line the recording lacks is shown as text and never voiced, its
+  short texts become `label` graphics over the shot (`--labels`), and its
+  cover text feeds `cover --from-brief`.
+- A `label` graphic: a short text in the top safe zone, white on the brand
+  accent, drawn by Remotion.
+- `opening-qa` and delivery measure the opening: frame 0 is a moving scene,
+  the first caption at 0.0 s, the leading silence, a cover or card at the
+  start, when the first sentence is heard, end cards only at the end. The
+  report goes to `analysis/opening-qa.json` and `.md` with `first-frame.png`.
+- `delivery-manifest.json` gains `cover_path`, `first_frame_is_content`,
+  `first_frame_note`, `first_cue_start_s`, `first_cue_text`,
+  `leading_silence_s`, `cover_in_timeline`, `time_to_first_situation_s`,
+  `end_card_only_at_end`, `opening_ready` and `opening_issues`; manifests
+  written before keep loading.
+
+### Changed
+
+- Under `content_first` the render refuses a timeline that opens on a title
+  card, a cover image or still clip, a logo or a Claude Motion card, or that
+  places an end card before the end; delivery is not ready, and Stage 5
+  cannot complete, while the measured opening breaks the rule; the composed
+  cover is always delivered as `cover.jpg`; `motion suggest` proposes no hook
+  card.
+
 ## [2.0.0] - 2026-10-13
 
 The workflow stages as MCP tools. The CLI, the artifacts and the workflow
