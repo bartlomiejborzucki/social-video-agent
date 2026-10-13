@@ -9,7 +9,8 @@ import yaml
 from typer.testing import CliRunner
 
 from social_video.cli import app
-from social_video.project_config import implicit_defaults
+from social_video.doctor import DoctorReport, _check_brand_font
+from social_video.project_config import font_install_hint, implicit_defaults
 
 
 def _project(tmp_path: Path, body: str) -> Path:
@@ -81,3 +82,17 @@ def test_init_refuses_choices_that_do_not_validate(tmp_path: Path) -> None:
     )
     assert result.exit_code != 0
     assert not (tmp_path / ".social-video" / "config.yaml").exists()
+
+
+def test_a_missing_brand_font_says_how_to_install_it(tmp_path: Path) -> None:
+    root = tmp_path / "projekt"
+    (root / ".social-video").mkdir(parents=True)
+    (root / ".social-video" / "config.yaml").write_text(
+        "schema_version: 1\nfont: Zzyzx Display\n", encoding="utf-8"
+    )
+    report = DoctorReport()
+    _check_brand_font(report, start=root / "sub")
+    (check,) = report.checks
+    assert not check.ok and not check.required
+    assert "sudo apt install fonts-zzyzx-display" in check.remedy
+    assert "font_file" in font_install_hint("Lato")
