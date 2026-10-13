@@ -5,16 +5,20 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 from social_video.captions.chunk import build_caption_track
+from social_video.captions.fix import fix_words
+from social_video.cli import app
 from social_video.editorial.compile import compile_plan
 from social_video.edl.timeline import Timeline
 from social_video.errors import ValidationError
 from social_video.motion.layout import pin_labels
 from social_video.pipeline import plan_transcripts
 from social_video.profiles import load_profile
-from social_video.schemas.base import save_artifact
+from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.brand import CaptionStyle
+from social_video.schemas.captions import CaptionCue, CaptionTrack, CaptionWord
 from social_video.schemas.edl import EDL, EDLRange, ReframeMode, ReframePlan
 from social_video.schemas.motion import MotionElement, MotionElementType
 from social_video.schemas.plan import EditPlan, PlanAction, PlanItem
@@ -158,3 +162,44 @@ def test_labels_are_pinned_to_the_scenes_the_edit_made() -> None:
     assert pinned[1].end == pytest.approx(timeline.duration, abs=1e-3)
     assert len(notes) == 2 and "beat 'Częsty odruch'" in notes[0]
 
+
+def _track() -> CaptionTrack:
+    words = [CaptionWord(text="pobaw", start=6.0, end=6.4), CaptionWord(text="się", start=6.5,
+             end=6.7), CaptionWord(text="sam.", start=6.8, end=7.2)]  # fmt: skip
+    return CaptionTrack(
+        cues=[CaptionCue(index=1, start=6.0, end=7.2, text="pobaw się sam.", words=words)]
+    )
+
+
+def test_a_caption_fix_changes_the_words_the_highlight_draws() -> None:
+    fixed, change = fix_words(_track(), at=6.9, old="sam.", new="już.")
+    cue = fixed.cues[0]
+    assert cue.text == "pobaw się już." and change.before == "pobaw się sam."
+    assert [w.text for w in cue.words] == ["pobaw", "się", "już."]
+    assert (cue.words[-1].start, cue.words[-1].end) == (6.8, 7.2), "timing kept"
+    assert fixed.corrected
+
+    two, _ = fix_words(_track(), at=6.1, old="Pobaw się", new="baw się teraz")
+    assert [w.text for w in two.cues[0].words][:3] == ["baw", "się", "teraz"]
+    with pytest.raises(ValidationError, match="has no 'potem'"):
+        fix_words(_track(), at=6.9, old="potem", new="już")
+    with pytest.raises(ValidationError, match=r"no caption on screen at 20\.00s"):
+        fix_words(_track(), at=20.0, old="sam.", new="już.")
+
+
+def test_the_cli_rewrites_every_caption_file(tmp_path: Path) -> None:
+    ws = Workspace.at(tmp_path / "edit")
+    ws.ensure()
+    base = ws.captions / "main.ass"
+    save_artifact(_track(), base.with_suffix(".json"))
+    save_artifact(EDL(ranges=[EDLRange(source="a", start=0, end=8)], captions=str(base)), ws.edl)
+
+    result = CliRunner().invoke(
+        app, ["captions", "fix", "-w", str(ws.root), "--at", "6.9", "--from", "sam.", "--to",
+              "już."],
+    )  # fmt: skip
+
+    assert result.exit_code == 0, result.output
+    assert load_artifact(CaptionTrack, base.with_suffix(".json")).cues[0].text.endswith("już.")
+    for suffix in (".srt", ".vtt", ".ass"):
+        assert "już." in base.with_suffix(suffix).read_text(encoding="utf-8")
