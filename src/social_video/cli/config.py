@@ -30,10 +30,19 @@ def config_init(
 @config_app.command("validate")
 def config_validate(
     project_root: Path = typer.Argument(Path(), help="Target project root."),
-    workspace_dir: Path | None = typer.Option(None, "--workspace", "-w"),
+    workspace_dir: Path | None = typer.Option(
+        None,
+        "--workspace",
+        "-w",
+        help="Edit workspace to write brand-contract.json into. Without it nothing is written.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Validate assets and compile configuration into an executable contract."""
+    """Validate assets and compile the configuration into an executable contract.
+
+    Only with --workspace is the compiled contract saved; validating never
+    creates an edit folder.
+    """
     from social_video.project_config import compile_brand_contract, find_project_config
     from social_video.workspace.layout import Workspace
 
@@ -42,22 +51,25 @@ def config_validate(
     if config is None:
         err_console.print("[red]error:[/red] no .social-video/config.yaml or social-video.yaml")
         raise typer.Exit(1)
-    workspace = Workspace.at(workspace_dir or root / "edit")
+    workspace = Workspace.at(workspace_dir) if workspace_dir else None
     contract = _guard(lambda: compile_brand_contract(config, workspace, project_root=root))
     payload = {
         "status": "valid",
         "config": str(config),
-        "contract": str(workspace.brand_contract),
+        "contract": str(workspace.brand_contract) if workspace else None,
         "font": contract.brand.captions.font_family,
         "font_file": contract.resolved_font_file,
         "resolution": f"{contract.output_width}x{contract.output_height}",
         "fps": contract.output_fps,
     }
     if as_json:
-        console.print_json(json.dumps(payload))
+        console.print_json(json.dumps(payload, ensure_ascii=False))
+        return
+    console.print(f"[green]valid[/green] {config}", soft_wrap=True)
+    if workspace is not None:
+        console.print(f"[green]compiled[/green] {workspace.brand_contract}", soft_wrap=True)
     else:
-        console.print(f"[green]valid[/green] {config}")
-        console.print(f"[green]compiled[/green] {workspace.brand_contract}")
+        console.print("compiled in memory; pass --workspace to save brand-contract.json")
 
 
 @config_app.command("migrate")
