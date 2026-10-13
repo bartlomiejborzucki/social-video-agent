@@ -179,6 +179,16 @@ def implicit_defaults(path: Path) -> dict[str, object]:
     return missing
 
 
+def font_install_hint(family: str) -> str:
+    """How to get a font family onto this machine, or point the config at a file."""
+    package = "fonts-" + re.sub(r"[^a-z0-9]+", "-", family.casefold()).strip("-")
+    return (
+        f"install {family!r} inside WSL/Linux (Debian/Ubuntu: `sudo apt install {package}`; "
+        f"or copy its .ttf files to ~/.local/share/fonts and run `fc-cache -f`), "
+        f"or set font_file to a .ttf/.otf in the project"
+    )
+
+
 def load_project_config(path: Path) -> ProjectVideoConfig:
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -213,7 +223,7 @@ def compile_brand_contract(
     if font_file is None:
         raise ValidationError(
             f"configured font family {config.font!r} is not installed and font_file was not set; "
-            "install the font inside WSL or point font_file to a project asset"
+            + font_install_hint(config.font)
         )
     logo_file = _resolve_asset(config.logo_file, root) if config.logo_file else None
     if config.logo_usage == "required" and logo_file is None:

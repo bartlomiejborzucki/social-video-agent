@@ -686,6 +686,44 @@ def _check_encoding(report: DoctorReport) -> None:
     )
 
 
+def _check_brand_font(report: DoctorReport, start: Path | None = None) -> None:
+    """Whether the project's brand font, by family name, is on this machine.
+
+    Only checked inside a project with a config that names a family and no
+    font_file: that is the case that fails late, at `config validate` or the
+    first render, on a machine set up without it.
+    """
+    from social_video.project_config import (
+        _system_font,
+        find_project_config,
+        font_install_hint,
+        load_project_config,
+    )
+
+    here = (start or Path.cwd()).resolve()
+    config_path = next(
+        (found for d in (here, *here.parents) if (found := find_project_config(d))), None
+    )
+    if config_path is None:
+        return
+    try:
+        config = load_project_config(config_path)
+    except SocialVideoError:
+        return
+    if config.font_file:
+        return
+    found = _system_font(config.font)
+    report.add(
+        Check(
+            "brand font",
+            found is not None,
+            False,
+            f"{config.font} ({found})" if found else f"{config.font} is not installed",
+            "" if found else font_install_hint(config.font) + ".",
+        )
+    )
+
+
 def run_doctor() -> DoctorReport:
     """Run every diagnostic."""
     report = DoctorReport()
@@ -696,6 +734,7 @@ def run_doctor() -> DoctorReport:
     _check_ffmpeg(report)
     _check_packages(report)
     _check_fonts(report)
+    _check_brand_font(report)
     _check_gpu(report)
     _check_image_generation(report)
     _check_node(report)
