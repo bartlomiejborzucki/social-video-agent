@@ -4,6 +4,18 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Fixed
+
+- Transcription no longer breaks when PyAV 19 is installed: `av` is pinned
+  below 19 until a faster-whisper release stops passing `metadata_errors`.
+- Scene detection reads `FrameTimecode.seconds` instead of the deprecated
+  `get_seconds()`.
+
+### Changed
+
+- Upstreams reviewed on 2026-10-13: video-use, faster-whisper, PySceneDetect
+  (lock moves to 0.7.2) and auto-editor. Nothing needed porting.
+
 ## [2.2.0] - 2026-10-14
 
 Short-form practices that measure, from 2026 creator research.
