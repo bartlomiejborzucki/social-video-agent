@@ -4,6 +4,54 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-10-13
+
+What the 13.10.2026 reel needed a local patch and hand-written scripts for,
+as configurable features. Workspaces started on 2.2 must be recreated.
+
+### Added
+
+- `label_style: scene_frame` draws each `label` as the title of a frame around
+  that scene's captions; the next label starting where one ends keeps the frame
+  and flips the title, with an accent flash. Both renderers draw it from one
+  geometry (`motion/layout.py`) that scales with the output height; the render
+  records `scene_frame` among the caption features.
+- `secondary_color` (default: the second brand colour) for the frame tab, the
+  top list card and the CTA text, compiled into the contract as
+  `brand.secondary_colour`.
+- `position` on `cta` (`above_captions` or `top`) and on `list` and `steps`
+  (`center` or `top`).
+- `compile` builds an edit from several recordings: plan items carry `order`,
+  `audio_source`/`audio_start`/`audio_end` (a voice under another file's
+  picture) and `reframe`; every transcript the plan keeps words from is loaded,
+  one numbered caption track (JSON, SRT, VTT, ASS) is built from all of them,
+  and the motion plan's labels are pinned to the scenes the edit made, by
+  `beat` or to the nearest cut.
+- `captions fix -w WS --at T --from OLD --to NEW` corrects caption words and
+  their per-word data, keeps the timing, and rewrites JSON, SRT, VTT and ASS.
+- `caption_hold_through_pauses` (or `caption_style.hold_through_pauses`) keeps
+  a caption up through a pause of up to 2 s within one range.
+- `config init` asks for motion energy, style pack, label style, karaoke, word
+  animation and brand words (or takes them as options) and writes them all.
+- `config validate` names every style decision left to a schema default.
+- `SOCIAL_VIDEO_YUNET_MODEL` points face detection at a local model file.
+- `doctor` checks the project's brand font and prints how to install it.
+
+### Changed
+
+- The `chip` label no longer uses the caption box colour: a white pill with
+  text in the second colour and an accent dot.
+- Motion QA measures labels, CTAs, lists and steps where they are drawn, and
+  reports a graphic that crowds a scene frame.
+- A render logs each motion-plan colour, font or style the brand contract
+  replaces.
+
+### Fixed
+
+- `config validate` without `--workspace` no longer creates `edit/` in the
+  project root; it writes nothing.
+- A `slide` transition no longer exposes a black edge.
+
 ## [2.2.1] - 2026-10-13
 
 ### Fixed
