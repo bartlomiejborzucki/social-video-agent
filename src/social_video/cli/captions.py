@@ -1,4 +1,4 @@
-"""Caption translation. The agent translates; nothing here calls a service."""
+"""Caption translation and correction. Nothing here calls a service."""
 
 from __future__ import annotations
 
@@ -115,3 +115,48 @@ def captions_apply(
     for key in ("json", "ass", "srt", "vtt"):
         console.print(f"  [green]written[/green] {paths[key]}", soft_wrap=True)
     console.print(f"Deliver it with `deliver --language {translated.language}`.")
+
+
+@captions_app.command("fix")
+def captions_fix(
+    workspace_dir: Path = typer.Option(..., "--workspace", "-w"),
+    at: float = typer.Option(..., "--at", help="Output time the caption is on screen, seconds."),
+    old: str = typer.Option(..., "--from", help="The word(s) to replace, as captioned."),
+    new: str = typer.Option(..., "--to", help="What the caption should say instead."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Correct the words of one caption; its timing stays as recognised.
+
+    Updates the cue and its words (the active-word highlight draws from the
+    words), then rewrites the track's SRT, VTT and ASS. The track is marked
+    corrected, so a later rebuild does not silently discard the fix.
+    """
+    from social_video.captions.ass import write_ass
+    from social_video.captions.fix import fix_words
+    from social_video.captions.srt import write_srt, write_vtt
+    from social_video.schemas.base import save_artifact
+
+    def run():
+        _ws, edl, track, brand = _loaded(workspace_dir)
+        fixed, change = fix_words(track, at=at, old=old, new=new, case=brand.captions.case)
+        base = Path(edl.captions)
+        save_artifact(fixed, base.with_suffix(".json"))
+        write_srt(fixed, base.with_suffix(".srt"))
+        write_vtt(fixed, base.with_suffix(".vtt"))
+        write_ass(
+            fixed,
+            brand.captions,
+            base.with_suffix(".ass"),
+            width=edl.output_width,
+            height=edl.output_height,
+            font_name=brand.captions.font_family or None,
+        )
+        return change, base
+
+    change, base = _guard(run)
+    if as_json:
+        console.print_json(data={"cue": change.cue, "before": change.before, "after": change.after})
+        return
+    console.print(f"cue {change.cue}: {change.before!r} -> {change.after!r}", soft_wrap=True)
+    for suffix in (".json", ".srt", ".vtt", ".ass"):
+        console.print(f"  [green]written[/green] {base.with_suffix(suffix)}", soft_wrap=True)
