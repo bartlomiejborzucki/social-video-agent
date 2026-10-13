@@ -17,8 +17,8 @@ upstreams:
     url: https://github.com/browser-use/video-use
     purpose: Primary architectural ancestor; the transcript-first agent editing pipeline.
     license: MIT
-    reviewed_sha: 9575612f066aa517354790a645fd90f9f95a743b
-    reviewed_on: 2026-09-15
+    reviewed_sha: 43cfc566833548093455c9d4a46bd69913b7e552
+    reviewed_on: 2026-10-13
     integration: adapted
     components:
       - src/social_video/ffmpeg/probe.py
@@ -99,21 +99,26 @@ upstreams:
     url: https://github.com/SYSTRAN/faster-whisper
     purpose: Default local transcription backend.
     license: MIT
-    reviewed_sha: ed9a06cd89a93e47838f564998a6c09b655d7f43
-    reviewed_on: 2026-09-15
+    reviewed_sha: a52b026ac844c02117865e61968547639b60a6f8
+    reviewed_on: 2026-10-13
     integration: dependency
     components:
       - src/social_video/transcribe/faster_whisper.py
     watch_for:
       - Maintenance stalling further (roughly 10 months without a commit)
       - CTranslate2 compatibility breaks
+      - A release after 1.2.1, which carries the PyAV 19 fix
+    notes: >
+      Commits resumed in October 2026. 1.2.1 passes `metadata_errors` to
+      `av.open`, which PyAV 19 removed, so we pin `av<19` until a release
+      carries the upstream fix; then raise the floor and drop the pin.
 
   - repository: Breakthrough/PySceneDetect
     url: https://github.com/Breakthrough/PySceneDetect
     purpose: Scene detection.
     license: BSD-3-Clause
-    reviewed_sha: 2fa8290de035
-    reviewed_on: 2026-09-15
+    reviewed_sha: 7cd1005e8349d8e913d0930fc1750363eb4ddc51
+    reviewed_on: 2026-10-13
     integration: dependency
     components:
       - src/social_video/analysis/scenes.py
@@ -132,8 +137,8 @@ upstreams:
     url: https://github.com/WyattBlue/auto-editor
     purpose: Skill documentation style; v3 timeline as a future export target.
     license: Unlicense
-    reviewed_sha: 1647365ff14fc60b04b872c8c2d658fc51235aee
-    reviewed_on: 2026-09-15
+    reviewed_sha: 58d87fe6befc0d274f24fce9816814c6a0264184
+    reviewed_on: 2026-10-13
     integration: reference
     components:
       - skills/social-video-agent/SKILL.md
