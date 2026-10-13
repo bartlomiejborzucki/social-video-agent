@@ -3,8 +3,8 @@ name: social-video-agent
 description: Create project-aware Reels and Shorts from recordings with local transcription, an explicit plan and EDL, persistent stages, rendering, and QA. Use when asked to edit, trim, caption, reframe, review or resume a preview, or create delivery variants. Do not use for generated video or simple conversion.
 license: Apache-2.0
 metadata:
-  version: "2.0.0"
-  last_updated: "2026-10-13"
+  version: "2.1.0"
+  last_updated: "2026-10-14"
 ---
 
 # Project-aware social video editing
@@ -71,6 +71,43 @@ mistake this installed skill's directory for the user's project.
 Use `social-video-agent workflow status WORKSPACE --json` for “Where are we?”
 and resume requests; `workflow brief` (also the Claude session-start hook)
 lists the edits in progress under the project.
+
+## Content first: the opening
+
+Frame 0 is the scene, never a card. In September 2026 a parenting brand's
+weakest reels lost viewers at one second, where a cover pasted into the
+timeline cut to the speaker. The best one opened on the action with the
+situation captioned from frame 0. So, by default (`opening_policy:
+content_first`):
+
+- **No card at the start.** There is no title card, cover, logo, black or
+  white frame at the start, and no silence over `max_leading_silence_s`
+  (0.3 s). An end card belongs only at the end.
+- **The first caption starts at 0.0 s** and carries the whole first sentence
+  of the situation, up to `first_cue_max_words` (8) on at most two lines. This
+  is the one exception to `max_words_per_cue` and `max_chars_per_cue`.
+- **The cover is `delivery/cover.jpg`,** set on IG, FB, TikTok and YouTube at
+  publication. It is never in the timeline:
+  `social-video-agent cover WORKSPACE --from-brief`.
+- **A montage brief overrides the defaults** (Nagranie / Scenariusz with "Co
+  mówisz" and "Napis na ekranie" / Montaż / Okładka). Import it first with
+  `brief import FILE -w WORKSPACE --labels`. Its first row is the first
+  caption. Short texts like "Spróbuj tak" are `label`s over the shot, not
+  cards. "Okładka" only makes `cover.jpg`. A child's line the recording lacks
+  is shown as text, never voiced.
+- **`deliver` checks the opening** and writes the result into
+  `delivery-manifest.json`: `first_frame_is_content`, `first_frame_note`,
+  `first_cue_start_s`, `first_cue_text`, `leading_silence_s`,
+  `cover_in_timeline`, `time_to_first_situation_s`, `end_card_only_at_end`,
+  `opening_ready`, `opening_issues` and `cover_path`. A broken rule means the
+  delivery is not ready: say what to fix and propose the variant.
+  `opening-qa WORKSPACE` runs the same check at any stage. Look at
+  `analysis/first-frame.png` and pass `--first-frame-note`.
+
+The config keys, with these defaults when absent: `opening_policy:
+content_first`, `cover_in_timeline: false`, `first_cue_full_sentence: true`,
+`first_cue_max_words: 8`, `max_leading_silence_s: 0.3`. The full rules, a brief
+example and every manifest field are in [opening.md](references/opening.md).
 
 ## Modes and invariants
 
@@ -161,6 +198,7 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 | The workflow as MCP tools | [mcp.md](references/mcp.md) |
 | Setup/render failures | [troubleshooting.md](references/troubleshooting.md) |
 | Agent on Windows, engine in WSL2 | [hybrid-runtime.md](references/hybrid-runtime.md) |
+| The opening, the cover and the montage brief | [opening.md](references/opening.md) |
 | Hook card, graphics, punch-ins, transitions, b-roll | [motion-design.md](references/motion-design.md) |
 | Hook, chapter or end card designed in Claude Motion | [motion-film.md](references/motion-film.md) |
 

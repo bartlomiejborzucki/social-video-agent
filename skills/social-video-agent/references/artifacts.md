@@ -13,6 +13,7 @@ edit/
     project-context.json  structured project facts and decisions
     project-context.md    compact human-readable summary
     context-sources.json  ranked source paths, confidence, fingerprints
+  context/brief.json      the montage brief, parsed (`brief import`)
   project.md              your notes and the user's standing preferences
   source-manifest.json    what the sources are, probed
   transcripts/            canonical transcript per source
@@ -27,6 +28,7 @@ edit/
   captions/               caption data, .srt, and .ass
   visuals.json            provenance for every generated plate
   motion-films.json       Claude Motion films specified and segments imported
+  analysis/opening-qa.json  measured opening, with .md report and first-frame.png
   cover.json              how the composed cover was built
   publish.json            title, description, hashtags, alt text
   assets/cover.jpg        composed cover still

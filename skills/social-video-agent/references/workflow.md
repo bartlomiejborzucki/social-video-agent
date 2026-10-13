@@ -99,8 +99,11 @@ Past Stage 2 this reopens Stage 2, because the preview must be rendered again.
 Recommended tier: `execution_balanced`.
 
 Read state, project context, and approved plan. Do not rediscover unchanged
-context or reinterpret the story without a concrete execution conflict. Create
-the exact `edl.json`, captions, and 9:16 framing. `social-video-agent compile
+context or reinterpret the story without a concrete execution conflict. If the
+request came with a montage brief, `brief import` it before building captions.
+Start the first range on the scene, so frame 0 has the person or the action and
+no more than `max_leading_silence_s` of silence ([opening.md](opening.md)).
+Create the exact `edl.json`, captions, and 9:16 framing. `social-video-agent compile
 SOURCE -w WORKSPACE` builds a word-aligned `edl.json` from the plan, accepted
 cuts included; it refuses to overwrite an existing EDL without `--force`. For the default renderer also
 write `motion-plan.json`: run `motion suggest`, accept the accents that serve
@@ -181,7 +184,10 @@ Use `social-video-agent deliver WORKSPACE --output DESTINATION` with desired
 variant flags. Create only approved mechanical variants: no-captions, SRT/VTT,
 poster, composed `--cover`, validated `--publish` metadata, a variant per
 translated caption language (`--language`), names, and
-`delivery-manifest.json`. `--platform` adds safe-zone and length checks for the
+`delivery-manifest.json`. Under `content_first` the composed cover is always
+delivered as `cover.jpg`, and the opening is measured into the manifest; a
+delivery whose opening breaks the rule is not ready and Stage 5 cannot
+complete. See [opening.md](opening.md). `--platform` adds safe-zone and length checks for the
 destination; see [publishing.md](publishing.md). Composing a cover and writing
 publishing copy are editorial acts: do them in Stage 4 or earlier if the wording
 matters, not as a mechanical afterthought. Every video gets QA and

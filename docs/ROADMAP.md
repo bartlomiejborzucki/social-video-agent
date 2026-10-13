@@ -115,6 +115,14 @@ Moved to "Under consideration": skill files that describe judgement only. A
 host without the MCP tools still needs the commands, so the references keep
 them.
 
+## 2.1 — content first (done)
+
+The opening rule from a diagnosis of September's reels: frame 0 is the scene,
+the first caption carries the whole first sentence from 0.0 s, the cover is a
+separate `cover.jpg`, and a montage brief drives the first caption, labels and
+cover. The render refuses card openings and delivery measures the rest. See
+[opening.md](../skills/social-video-agent/references/opening.md).
+
 ## Under consideration
 
 - **Skill files that describe judgement only** (moved from 2.0), once every
