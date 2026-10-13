@@ -23,6 +23,7 @@ import type {
   SocialVideoProps,
 } from './types';
 import {DATA_GRAPHICS, DataGraphic} from './DataGraphics';
+import {SceneFrame, rgba} from './SceneFrame';
 import {stylePack} from './stylePacks';
 import {useTransition} from './Transitions';
 
@@ -320,9 +321,14 @@ const ExtendedGraphic: React.FC<{
   durationInFrames: number;
   logoSource: string | null;
   safeMargins: SocialVideoProps['safeMargins'];
-}> = ({element, accent, text, background, font, durationInFrames, logoSource, safeMargins}) => {
+  secondary: string;
+  captionBackground: string | null;
+}> = ({element, accent, text, background, font, durationInFrames, logoSource, safeMargins, secondary, captionBackground}) => {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
+  // One pixel of a 1920-high frame: new placements scale with the output, so
+  // a 720x1280 preview is the final, smaller.
+  const u = height / 1920;
   const entrance = spring({frame, fps, config: {damping: 20, stiffness: 170}});
   const exit = interpolate(
     frame,
@@ -417,9 +423,26 @@ const ExtendedGraphic: React.FC<{
   if (element.type === 'list') {
     const items = element.items ?? [];
     const window = Math.max(1, durationInFrames * 0.7);
+    // `top` keeps the list over the shot's upper zone, clear of a face in the
+    // middle: a card in the brand's second colour with a white rim.
+    const top = element.position === 'top';
     return (
-      <AbsoluteFill style={{justifyContent: 'center', paddingLeft: pad.left + 24, paddingRight: pad.right + 24, opacity: exit}}>
-        <div style={{...card, padding: '30px 38px'}}>
+      <AbsoluteFill
+        style={{
+          justifyContent: top ? 'flex-start' : 'center',
+          paddingTop: top ? pad.top + 10 * u : undefined,
+          paddingLeft: pad.left + 24,
+          paddingRight: pad.right + 24,
+          opacity: exit,
+        }}
+      >
+        <div
+          style={
+            top
+              ? {...card, background: rgba(secondary, 0.92), border: `${4 * u}px solid rgba(255,255,255,0.95)`, borderRadius: 30 * u, padding: `${24 * u}px ${34 * u}px`, color: '#FFFFFF'}
+              : {...card, padding: '30px 38px'}
+          }
+        >
           {items.map((item, index) => {
             const at = (window / items.length) * index;
             const shown = spring({frame: frame - at, fps, config: {damping: 20, stiffness: 170}});
@@ -429,11 +452,11 @@ const ExtendedGraphic: React.FC<{
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 22,
-                  fontSize: 48,
-                  fontWeight: 700,
-                  lineHeight: 1.2,
-                  margin: '12px 0',
+                  gap: 22 * (top ? u : 1),
+                  fontSize: top ? 56 * u : 48,
+                  fontWeight: top ? 800 : 700,
+                  lineHeight: top ? 1.18 : 1.2,
+                  margin: top ? `${12 * u}px 0` : '12px 0',
                   opacity: shown,
                   transform: `translateX(${interpolate(shown, [0, 1], [-40, 0])}px)`,
                 }}
@@ -463,26 +486,38 @@ const ExtendedGraphic: React.FC<{
   }
 
   if (element.type === 'label') {
-    // A short text over the shot, in the top safe zone: the brand accent
-    // behind the caption colour. It labels the scene; it is never a card.
+    // A chip naming the scene, in the top safe zone. It must never look like
+    // a caption, so it never takes the caption box colour: a white pill with
+    // text in the brand's second colour and an accent dot -- or, when the
+    // captions themselves sit on white, the second colour with white text.
+    const onWhite = (captionBackground ?? '').toUpperCase() === '#FFFFFF';
+    const fill = onWhite ? secondary : 'rgba(255,255,255,0.94)';
+    const ink = onWhite ? '#FFFFFF' : secondary;
     return (
       <AbsoluteFill style={{paddingTop: pad.top, paddingLeft: pad.left, paddingRight: pad.right, alignItems: 'center', opacity}}>
         <div
           style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14 * u,
             fontFamily: font,
-            fontSize: 44,
-            fontWeight: 700,
+            fontSize: 34 * u,
+            fontWeight: 800,
+            letterSpacing: 3 * u,
+            textTransform: 'uppercase',
             lineHeight: 1.15,
-            color: text,
-            background: accent,
-            padding: '14px 30px',
-            borderRadius: 18,
+            color: ink,
+            background: fill,
+            padding: `${12 * u}px ${28 * u}px`,
+            borderRadius: 999,
+            boxShadow: `0 ${4 * u}px ${18 * u}px ${rgba(secondary, 0.25)}`,
             textAlign: 'center',
             maxWidth: '100%',
             transform: `translateY(${-rise}px)`,
           }}
         >
-          {element.text}
+          <span style={{width: 14 * u, height: 14 * u, borderRadius: 999, background: accent, flex: 'none'}} />
+          <span>{element.text}</span>
         </div>
       </AbsoluteFill>
     );
@@ -504,8 +539,39 @@ const ExtendedGraphic: React.FC<{
     );
   }
 
-  // cta: above the caption area, which owns the bottom of the frame.
+  // cta: above the caption area, which owns the bottom of the frame -- or,
+  // with `position: top`, in the top safe zone, where it never meets a scene
+  // frame: a white pill, text in the second colour, an accent bookmark.
   const pulse = 1 + 0.04 * Math.sin((frame / fps) * Math.PI * 2);
+  if (element.position === 'top') {
+    return (
+      <AbsoluteFill style={{justifyContent: 'flex-start', alignItems: 'center', paddingTop: pad.top + 20 * u, opacity}}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 18 * u,
+            fontFamily: font,
+            fontSize: 62 * u,
+            fontWeight: 800,
+            lineHeight: 1.15,
+            color: secondary,
+            background: '#FFFFFF',
+            border: `${5 * u}px solid ${accent}`,
+            padding: `${18 * u}px ${40 * u}px`,
+            borderRadius: 999,
+            boxShadow: `0 ${10 * u}px ${36 * u}px rgba(20,24,40,0.35)`,
+            transform: `translateY(${-rise}px) scale(${entrance >= 0.99 ? pulse : entrance})`,
+          }}
+        >
+          <svg width={38 * u} height={48 * u} viewBox="0 0 38 48">
+            <path d="M4 2h30v44L19 34 4 46z" fill={accent} />
+          </svg>
+          <span>{element.text}</span>
+        </div>
+      </AbsoluteFill>
+    );
+  }
   return (
     <AbsoluteFill style={{justifyContent: 'flex-end', alignItems: 'center', paddingBottom: pad.bottom + height * 0.16, opacity}}>
       <div
@@ -534,6 +600,26 @@ const ExtendedGraphic: React.FC<{
  * and eases back out, so the push reads as a deliberate move rather than a
  * jump. Outside every punch-in the picture is untouched.
  */
+/**
+ * The caption style for one cue: as contracted, or -- inside a scene frame --
+ * moved so the cue's box is centred in the frame, the same place for every
+ * cue of the scene.
+ */
+const framedStyle = (cue: CaptionCue, props: SocialVideoProps): CaptionStyle => {
+  const style = props.captionStyle as CaptionStyle;
+  const layout = props.captionLayout as CaptionLayout;
+  const g = props.sceneFrame;
+  if (!cue.framed || !g) {
+    return style;
+  }
+  const boxed = style.background_style !== 'none';
+  const boxH =
+    cue.lines.length * cue.font_size_px * layout.line_height +
+    (boxed ? layout.padding_top + layout.padding_bottom : 0);
+  const bottom = props.height - g.caption_centre - boxH / 2;
+  return {...style, position: 'bottom', margin_pct: (bottom / props.height) * 100};
+};
+
 const usePunchIn = (punchIns: PunchIn[]): {scale: number; origin: string} => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
@@ -593,7 +679,16 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
         const duration = Math.max(1, Math.round((element.end - element.start) * props.fps));
         return (
           <Sequence key={`${element.type}-${index}`} from={from} durationInFrames={duration}>
-            {DATA_GRAPHICS.has(element.type) ? (
+            {element.type === 'label' && props.labelStyle === 'scene_frame' && props.sceneFrame ? (
+              <SceneFrame
+                text={element.text}
+                previous={element.continues}
+                geometry={props.sceneFrame}
+                accent={props.accentColor}
+                secondary={props.secondaryColor}
+                font={props.fontFamily}
+              />
+            ) : DATA_GRAPHICS.has(element.type) ? (
               <DataGraphic
                 element={element}
                 accent={props.accentColor}
@@ -603,6 +698,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
                 durationInFrames={duration}
                 safeMargins={props.safeMargins}
                 pack={pack}
+                secondary={props.secondaryColor}
               />
             ) : EXTENDED.has(element.type) ? (
               <ExtendedGraphic
@@ -614,6 +710,8 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
                 durationInFrames={duration}
                 logoSource={props.logoSource}
                 safeMargins={props.safeMargins}
+                secondary={props.secondaryColor}
+                captionBackground={props.captionStyle?.background_style !== 'none' ? props.captionStyle?.background_colour ?? null : null}
               />
             ) : (
               <MotionGraphic
@@ -636,7 +734,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
               <Sequence key={`caption-${cue.index}`} from={from} durationInFrames={duration}>
                 <Caption
                   cue={cue}
-                  style={props.captionStyle as CaptionStyle}
+                  style={framedStyle(cue, props)}
                   layout={props.captionLayout as CaptionLayout}
                   font={props.fontFamily}
                   height={props.height}

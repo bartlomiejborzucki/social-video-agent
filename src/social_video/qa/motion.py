@@ -6,7 +6,9 @@ moving without moving too much. Each of those is a number here, reported as
 measured against expected, the way platform QA reports safe zones. Every
 check is a warning: the editor decides, and accepts a deviation by name.
 
-Where a graphic sits is not visible to Python -- Remotion lays it out -- so
+Where a label, a call to action, a list or steps sit comes from
+``motion.layout``, the geometry the compositor draws them with, so a list
+moved to the top is measured at the top. For the other graphics
 ``GRAPHIC_BANDS`` mirrors the compositor's layout as fractions of the frame
 height. A face is measured on a real frame: the technical base render on the
 Remotion route, which has no graphics drawn over it.
@@ -21,6 +23,7 @@ from pathlib import Path
 
 from social_video.edl.timeline import Timeline
 from social_video.motion.energy import EnergyPreset, energy_preset
+from social_video.motion.layout import SceneFrameGeometry, element_band, scene_frame_geometry
 from social_video.schemas.brand import CaptionPosition, CaptionStyle
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.config import BrandContract
@@ -38,6 +41,9 @@ NOTICE_SECONDS = 0.6
 LONGEST_STILL = 6.0
 #: Share of a face a graphic may cover before it reads as covering the speaker.
 FACE_COVER_LIMIT = 0.3
+#: Clear space a graphic keeps from a scene frame, as a fraction of the frame
+#: height: a pulse and a shadow make a graphic closer than this touch the rim.
+FRAME_CLEARANCE = 0.012
 
 #: Vertical extent of each graphic as (top, bottom) fractions of the frame,
 #: mirroring remotion/SocialVideo.tsx and DataGraphics.tsx. ``None`` edges
@@ -87,13 +93,16 @@ def check_motion(
     shown = _shown(plan, film_segments or [])
     margins = contract.safe_margins if contract else {}
     style = contract.brand.captions if contract else None
+    place = _Placement.of(contract, margins)
 
     for item in shown:
         _readable(report, item, pack)
         if style is not None and captions is not None and not item.film:
-            _clear_of_captions(report, item, style, captions, margins)
+            _clear_of_captions(report, item, style, captions, place)
+        if place.frame is not None and not item.film:
+            _clear_of_scene_frame(report, item, shown, place)
         if faces is not None:
-            _clear_of_faces(report, item, faces, margins)
+            _clear_of_faces(report, item, faces, place)
     if faces is None and shown:
         report.checks.append(
             QACheck(
@@ -122,6 +131,48 @@ def graphic_band(kind: MotionElementType, margins: dict[str, float]) -> tuple[fl
     if kind is MotionElementType.PROGRESS:
         return top * 0.5, top * 0.5 + 0.01
     return GRAPHIC_BANDS.get(kind)
+
+
+@dataclass(frozen=True)
+class _Placement:
+    """Where this contract's graphics are drawn, for the overlap checks."""
+
+    margins: dict[str, float]
+    height: int = 1920
+    label_style: str = "chip"
+    frame: SceneFrameGeometry | None = None
+
+    @classmethod
+    def of(cls, contract: BrandContract | None, margins: dict[str, float]) -> _Placement:
+        if contract is None:
+            return cls(margins=margins)
+        frame = None
+        if contract.brand.label_style == "scene_frame":
+            frame = scene_frame_geometry(
+                contract.brand.captions,
+                width=contract.output_width,
+                height=contract.output_height,
+                safe_margins=margins,
+            )
+        return cls(
+            margins=margins,
+            height=contract.output_height,
+            label_style=contract.brand.label_style,
+            frame=frame,
+        )
+
+    def band(self, element: MotionElement) -> tuple[float, float] | None:
+        placed = element_band(
+            element,
+            height=self.height,
+            margins=self.margins,
+            label_style=self.label_style,
+            frame=self.frame,
+        )
+        return placed if placed is not None else graphic_band(element.type, self.margins)
+
+    def framed(self, element: MotionElement) -> bool:
+        return self.frame is not None and element.type is MotionElementType.LABEL
 
 
 def caption_band(style: CaptionStyle) -> tuple[float, float]:
@@ -246,10 +297,13 @@ def _clear_of_captions(
     item: Shown,
     style: CaptionStyle,
     captions: CaptionTrack,
-    margins: dict[str, float],
+    place: _Placement,
 ) -> None:
     element = item.element
-    band = graphic_band(element.type, margins)
+    # A scene frame holds the captions by design; its title sits on the rim.
+    if place.framed(element):
+        return
+    band = place.band(element)
     if band is None or element.type is MotionElementType.END_CARD:
         return
     spoken = [c for c in captions.cues if c.start < element.end and element.start < c.end]
@@ -273,9 +327,44 @@ def _clear_of_captions(
     )
 
 
-def _clear_of_faces(
-    report: QAReport, item: Shown, faces: FaceProvider, margins: dict[str, float]
+def _clear_of_scene_frame(
+    report: QAReport, item: Shown, shown: list[Shown], place: _Placement
 ) -> None:
+    """A graphic on screen with a scene frame must not cut across the frame."""
+    element = item.element
+    if place.frame is None or element.type in (MotionElementType.LABEL, MotionElementType.END_CARD):
+        return
+    framing = [
+        s.element
+        for s in shown
+        if place.framed(s.element)
+        and s.element.start < element.end
+        and element.start < s.element.end
+    ]
+    band = place.band(element)
+    if not framing or band is None:
+        return
+    top = place.frame.tab_top / place.height - FRAME_CLEARANCE
+    bottom = place.frame.bottom / place.height + FRAME_CLEARANCE
+    overlap = max(0.0, min(band[1], bottom) - max(band[0], top))
+    hint = " Set position: top." if element.type is MotionElementType.CTA else ""
+    _add(
+        report,
+        f"{item.label} clear of the scene frame",
+        overlap <= 0.0,
+        (
+            f"touches the scene frame of {framing[0].text!r}: {overlap:.1%} of the frame "
+            f"height inside it or its {FRAME_CLEARANCE:.1%} clearance.{hint}"
+            if overlap > 0
+            else "clear of the scene frame"
+        ),
+        at=element.start,
+        measured=round(overlap * 100, 1),
+        expected=0.0,
+    )
+
+
+def _clear_of_faces(report: QAReport, item: Shown, faces: FaceProvider, place: _Placement) -> None:
     element = item.element
     # A full-frame segment hides the face it covers, so look just after it.
     middle = element.end + 0.1 if item.film else (element.start + element.end) / 2
@@ -293,7 +382,7 @@ def _clear_of_faces(
             measured=round(element.end - element.start, 2),
         )
         return
-    band = graphic_band(element.type, margins)
+    band = place.band(element)
     if band is None or element.type is MotionElementType.END_CARD:
         return
     covered = max(

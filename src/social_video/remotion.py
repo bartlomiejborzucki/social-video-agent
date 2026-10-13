@@ -12,6 +12,7 @@ from social_video.captions.features import (
     CAPTION_LAYOUT_ESTIMATED,
     CAPTION_LAYOUT_MEASURED,
     PUNCH_IN,
+    SCENE_FRAME,
     TRANSITIONS,
     caption_features,
     highlight_possible,
@@ -22,6 +23,7 @@ from social_video.ffmpeg.probe import probe
 from social_video.ffmpeg.run import run_ffmpeg
 from social_video.fsutil import atomic_copy
 from social_video.imaging import load_image
+from social_video.motion.layout import continues, framing_label, labels, scene_frame_geometry
 from social_video.remotion_runtime import locate_runtime
 from social_video.schemas.brand import CaptionCase, CaptionStyle
 from social_video.schemas.captions import CaptionTrack
@@ -43,6 +45,8 @@ def render_motion_design(
     logo_path: Path | None = None,
     logo_usage: str = "none",
     safe_margins: dict[str, float] | None = None,
+    label_style: str = "chip",
+    secondary_colour: str = "#1F2430",
 ) -> tuple[Path, list[str], CaptionLayout | None]:
     if base_video.resolve() == output.resolve():
         raise ValidationError("Remotion output must not overwrite its technical base video")
@@ -127,6 +131,17 @@ def render_motion_design(
     )
     if layout is not None:
         features.append(CAPTION_LAYOUT_MEASURED if layout.measured else CAPTION_LAYOUT_ESTIMATED)
+    frame = (
+        scene_frame_geometry(caption_style, width=width, height=height, safe_margins=safe_margins)
+        if label_style == "scene_frame" and caption_style is not None and labels(plan.elements)
+        else None
+    )
+    if frame is not None:
+        features.append(SCENE_FRAME)
+    caption_payload = _caption_payload(layout, captions, caption_style, highlight=highlight)
+    if frame is not None:
+        for item in caption_payload:
+            item["framed"] = framing_label(item["start"], item["end"], plan.elements) is not None
     # Node runs with the compositor as its working directory, so every path it
     # is handed must be absolute.
     work = staging_root.resolve() / f"remotion-{uuid4().hex}"
@@ -155,14 +170,8 @@ def render_motion_design(
             "backgroundColor": plan.background_color,
             "fontFamily": plan.font_family,
             "fontSource": font_source,
-            "elements": [
-                {
-                    **item.model_dump(mode="json", exclude={"schema_version", "image_asset"}),
-                    "image_source": plate_sources.get(item.image_asset or ""),
-                }
-                for item in plan.elements
-            ],
-            "captions": _caption_payload(layout, captions, caption_style, highlight=highlight),
+            "elements": [_element_payload(item, plan, plate_sources) for item in plan.elements],
+            "captions": caption_payload,
             "captionStyle": (
                 caption_style.model_dump(mode="json", exclude={"schema_version"})
                 if caption_style
@@ -191,6 +200,9 @@ def render_motion_design(
             "logoSource": logo_source,
             "logoUsage": logo_usage,
             "safeMargins": safe_margins or {"top": 6, "right": 6, "bottom": 12, "left": 6},
+            "secondaryColor": secondary_colour,
+            "labelStyle": label_style,
+            "sceneFrame": frame.as_props() if frame is not None else None,
         }
         props_path = work / "props.json"
         props_path.write_text(json.dumps(props, ensure_ascii=False), encoding="utf-8")
@@ -219,6 +231,17 @@ def render_motion_design(
     finally:
         shutil.rmtree(work, ignore_errors=True)
     return output, features, layout
+
+
+def _element_payload(item, plan: MotionPlan, plate_sources: dict[str, str]) -> dict:
+    """One element as the compositor reads it, its placement resolved."""
+    payload = item.model_dump(mode="json", exclude={"schema_version", "image_asset"})
+    payload["image_source"] = plate_sources.get(item.image_asset or "")
+    payload["position"] = item.placement.value if item.placement else None
+    if item.type is MotionElementType.LABEL:
+        previous = continues(item, plan.elements)
+        payload["continues"] = previous.text if previous is not None else None
+    return payload
 
 
 def _caption_payload(

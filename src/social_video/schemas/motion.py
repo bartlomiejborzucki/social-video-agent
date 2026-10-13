@@ -24,7 +24,7 @@ class MotionElementType(str, Enum):
     LIST = "list"
     #: A section title for a new part of the argument.
     CHAPTER = "chapter"
-    #: A call to action set above the caption area.
+    #: A call to action, above the caption area or in the top safe zone.
     CTA = "cta"
     #: A thin bar showing how far through the video the viewer is. No text.
     PROGRESS = "progress"
@@ -39,9 +39,30 @@ class MotionElementType(str, Enum):
     COMPARE = "compare"
     #: Numbered steps of a process, two to five `items`, revealed in order.
     STEPS = "steps"
-    #: A short text over the shot in the top safe zone ("Spróbuj tak"): brand
-    #: accent behind white text, never a card of its own. At most 48 characters.
+    #: A short text naming the scene ("Spróbuj tak"), never a card of its own
+    #: and never drawn like a caption. At most 48 characters. The contract's
+    #: ``label_style`` draws it as a chip in the top safe zone or as the title
+    #: of a frame around the scene's captions.
     LABEL = "label"
+
+
+class ElementPosition(str, Enum):
+    """Where an element that may move sits on the frame."""
+
+    #: In the top safe zone, clear of the captions and usually of the face.
+    TOP = "top"
+    #: Centred vertically: the 1.0 placement of lists and steps.
+    CENTER = "center"
+    #: Just above the caption band: the 1.0 placement of a call to action.
+    ABOVE_CAPTIONS = "above_captions"
+
+
+#: The positions each movable type accepts, its default first.
+POSITIONS: dict[MotionElementType, tuple[ElementPosition, ...]] = {
+    MotionElementType.CTA: (ElementPosition.ABOVE_CAPTIONS, ElementPosition.TOP),
+    MotionElementType.LIST: (ElementPosition.CENTER, ElementPosition.TOP),
+    MotionElementType.STEPS: (ElementPosition.CENTER, ElementPosition.TOP),
+}
 
 
 #: Types drawn without words of their own.
@@ -72,6 +93,17 @@ class MotionElement(Artifact):
     image_asset: str | None = None
     #: How much the plate is darkened so the end-card text stays readable.
     image_dim_pct: float = Field(default=45.0, ge=0.0, le=90.0)
+    #: Placement of a ``cta`` (above_captions or top) or a ``list``/``steps``
+    #: (center or top). Empty means the type's 1.0 placement.
+    position: ElementPosition | None = None
+
+    @property
+    def placement(self) -> ElementPosition | None:
+        """The position this element is drawn at, its default filled in."""
+        allowed = POSITIONS.get(self.type)
+        if allowed is None:
+            return None
+        return self.position or allowed[0]
 
     def _check_items(self) -> None:
         kind = self.type.value
@@ -107,6 +139,11 @@ class MotionElement(Artifact):
             raise ValueError(
                 f"items are only used by lists, charts, comparisons and steps, not a {kind}"
             )
+        if self.position is not None:
+            allowed = POSITIONS.get(self.type, ())
+            if self.position not in allowed:
+                names = ", ".join(p.value for p in allowed) or "none (it has a fixed place)"
+                raise ValueError(f"a {kind} accepts position: {names}")
         if self.type is MotionElementType.LABEL and len(self.text) > 48:
             raise ValueError("a label is a short text over the shot: at most 48 characters")
         if self.type is MotionElementType.HOOK_CARD:

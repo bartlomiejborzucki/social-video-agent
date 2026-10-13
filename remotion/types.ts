@@ -25,6 +25,28 @@ export type MotionElement = {
   /** Staged public-directory filename of the end-card plate, never a local path. */
   image_source?: string | null;
   image_dim_pct?: number;
+  /** Resolved placement of a cta (above_captions | top) or list/steps (center | top). */
+  position?: 'top' | 'center' | 'above_captions' | null;
+  /** For a label: the text of the label it takes over from without a break. */
+  continues?: string | null;
+};
+
+/** The scene frame in output pixels, computed in Python (motion/layout.py). */
+export type SceneFrameGeometry = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  radius: number;
+  border: number;
+  tab_font_px: number;
+  tab_pad_x: number;
+  tab_pad_y: number;
+  tab_border: number;
+  tab_dot: number;
+  tab_top: number;
+  tab_height: number;
+  caption_centre: number;
 };
 
 export type SocialVideoProps = {
@@ -49,6 +71,11 @@ export type SocialVideoProps = {
   logoSource: string | null;
   logoUsage: 'none' | 'optional' | 'required';
   safeMargins: {top: number; right: number; bottom: number; left: number};
+  /** The brand's second colour: scene-frame tab, list card, CTA text. */
+  secondaryColor: string;
+  /** How a label is drawn: a chip in the top zone, or a frame title. */
+  labelStyle: 'chip' | 'scene_frame';
+  sceneFrame: SceneFrameGeometry | null;
 };
 
 /** An effect across one cut, centred on its output time. */
@@ -95,6 +122,8 @@ export type CaptionCue = {
   lines: CaptionLine[];
   /** Per-cue size in pixels: a cue that needed shrinking carries a smaller one. */
   font_size_px: number;
+  /** Drawn centred in the scene frame of the label it falls under. */
+  framed?: boolean;
 };
 
 export type CaptionLayout = {

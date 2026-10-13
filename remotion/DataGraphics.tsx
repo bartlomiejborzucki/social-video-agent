@@ -12,6 +12,8 @@ type Props = {
   durationInFrames: number;
   safeMargins: SocialVideoProps['safeMargins'];
   pack: StylePack;
+  /** The brand's second colour, for steps placed at the top. */
+  secondary?: string;
 };
 
 export const DATA_GRAPHICS = new Set(['hook_card', 'chart', 'compare', 'steps']);
@@ -43,6 +45,7 @@ export const DataGraphic: React.FC<Props> = ({
   durationInFrames,
   safeMargins,
   pack,
+  secondary,
 }) => {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
@@ -127,16 +130,24 @@ export const DataGraphic: React.FC<Props> = ({
   const title = element.text ? (
     <div style={{...heading, fontSize: 46, marginBottom: 24}}>{element.text}</div>
   ) : null;
+  // Steps may sit at the top, over the shot's upper zone and clear of the face:
+  // a card in the brand's second colour with a white rim.
+  const top = element.type === 'steps' && element.position === 'top' && Boolean(secondary);
+  const u = height / 1920;
+  const topCard: React.CSSProperties = top
+    ? {background: `${secondary}EB`, border: `${4 * u}px solid rgba(255,255,255,0.95)`, color: '#FFFFFF'}
+    : {};
   const wrap = (content: React.ReactNode) => (
     <AbsoluteFill
       style={{
         ...side,
-        justifyContent: 'center',
-        paddingBottom: height * 0.18,
+        justifyContent: top ? 'flex-start' : 'center',
+        paddingTop: top ? (height * safeMargins.top) / 100 + 10 * u : undefined,
+        paddingBottom: top ? undefined : height * 0.18,
         opacity: exit,
       }}
     >
-      <div style={{...card, transform: entranceTransform(pack, entrance), opacity: entrance}}>
+      <div style={{...card, ...topCard, transform: entranceTransform(pack, entrance), opacity: entrance}}>
         {title}
         {content}
       </div>
