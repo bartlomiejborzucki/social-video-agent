@@ -65,8 +65,11 @@ else's video to use as a reference.
    graphics (hook card, chapter, CTA, quote, end card) as a Claude Motion film:
    [motion-film.md](motion-film.md).
 
-Always accept or write a hook card unless the first frame already carries the
-hook. It is where a scrolling viewer decides.
+Under `opening_policy: content_first` (the default) there is no hook card: the
+first caption carries the situation from frame 0, and a card over the opening
+is what a scrolling viewer leaves on. `motion suggest` then proposes none. With
+`opening_policy: free`, accept or write a hook card unless the first frame
+already carries the hook. See [opening.md](opening.md).
 
 ## Vocabulary
 
@@ -82,6 +85,7 @@ hook. It is where a scrolling viewer decides.
 | `chapter` | a new part of the argument | `text`, `secondary_text` kicker |
 | `cta` | the one action at the end | `text` |
 | `lower_third` | who is speaking | `text`, `secondary_text` role |
+| `label` | a short brief text over the shot, top safe zone | `text` ≤ 48 chars |
 | `progress`, `logo_reveal`, `end_card`, `hook` | as named | see artifacts.md |
 
 `transitions` (`zoom`, `slide`, `flash`) sit on cuts only. `punch_ins` push the

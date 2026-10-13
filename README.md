@@ -33,6 +33,10 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
 - Cut candidates found from timing — hesitations (`yyy`, `eee`, `um`), doubled
   words, restarted phrases, long pauses — applied only when the agent accepts
   them.
+- Content first: frame 0 is the scene and the first caption carries the whole
+  first sentence from 0.0 s; the cover is a separate `cover.jpg`, never in the
+  timeline; a montage brief drives the first caption, labels and cover, and
+  delivery refuses an opening that breaks the rule.
 - One long recording into several standalone shorts, or a folder of recordings
   as one batch under a shared brand.
 - Captions translated by the agent into other languages, checked against the
@@ -476,7 +480,7 @@ that reports information supports `--json`.
 | Motion | `motion suggest/accept/sfx/variants/sheet/qa`, `motion film spec/import/remove/status`, `broll suggest/accept`, `style analyze` |
 | Render and check | `render`, `edit`, `qa`, `platforms` |
 | Images | `image status/prompt/register/capabilities/plate`, `cover` |
-| Output | `deliver`, `export`, `captions translate/apply` |
+| Output | `deliver`, `export`, `captions translate/apply`, `brief import/show`, `opening-qa` |
 | Agents | `mcp serve`, `mcp tools` |
 
 Run `social-video-agent COMMAND --help` for options.
