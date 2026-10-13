@@ -37,6 +37,9 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
   first sentence from 0.0 s; the cover is a separate `cover.jpg`, never in the
   timeline; a montage brief drives the first caption, labels and cover, and
   delivery refuses an opening that breaks the rule.
+- `reel-check`: the short-form practices that measure (hook within a second,
+  length window per platform, dead air, holds, captions, payoff, an honest ask
+  for a save or a send), advisory and recorded at delivery.
 - One long recording into several standalone shorts, or a folder of recordings
   as one batch under a shared brand.
 - Captions translated by the agent into other languages, checked against the
@@ -480,7 +483,7 @@ that reports information supports `--json`.
 | Motion | `motion suggest/accept/sfx/variants/sheet/qa`, `motion film spec/import/remove/status`, `broll suggest/accept`, `style analyze` |
 | Render and check | `render`, `edit`, `qa`, `platforms` |
 | Images | `image status/prompt/register/capabilities/plate`, `cover` |
-| Output | `deliver`, `export`, `captions translate/apply`, `brief import/show`, `opening-qa` |
+| Output | `deliver`, `export`, `captions translate/apply`, `brief import/show`, `opening-qa`, `reel-check` |
 | Agents | `mcp serve`, `mcp tools` |
 
 Run `social-video-agent COMMAND --help` for options.

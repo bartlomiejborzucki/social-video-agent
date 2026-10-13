@@ -139,6 +139,9 @@ social-video-agent motion qa -w WORKSPACE
 social-video-agent motion sheet -w WORKSPACE
 ```
 
+Advisory short-form findings come from `social-video-agent reel-check
+WORKSPACE` ([short-form.md](short-form.md)); read them with the motion QA.
+
 `motion qa` writes `qa/qa-motion.json`, which Stage 3 requires on the Remotion
 route: per graphic, its time on screen against the time to read it, its
 overlap with the caption band while words are spoken, and the share of a face

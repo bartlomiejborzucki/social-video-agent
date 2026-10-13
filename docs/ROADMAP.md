@@ -123,6 +123,13 @@ separate `cover.jpg`, and a montage brief drives the first caption, labels and
 cover. The render refuses card openings and delivery measures the rest. See
 [opening.md](../skills/social-video-agent/references/opening.md).
 
+## 2.2 — short-form practices (done)
+
+`reel-check` turns the practices that measure into advisory findings (hook
+speed, length window, dead air, holds, captions, payoff, an honest ask for a
+save or a send), recorded at delivery. The windows are directional and the
+account's own analytics outrank them.
+
 ## Under consideration
 
 - **Skill files that describe judgement only** (moved from 2.0), once every
