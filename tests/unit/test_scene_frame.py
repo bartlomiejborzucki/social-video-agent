@@ -210,3 +210,29 @@ def test_the_compositor_gets_the_frame_and_the_framed_cues(
     assert [c["framed"] for c in props["captions"]] == [True, False]
     assert [e["continues"] for e in props["elements"]] == [None, "Częsty odruch"]
 
+
+def test_the_render_says_which_plan_values_the_contract_replaces(tmp_path: Path) -> None:
+    from social_video.pipeline import brand_overrides
+
+    project = tmp_path / "project"
+    (project / "assets").mkdir(parents=True)
+    (project / "assets" / "Lato.ttf").write_bytes(b"fixture-font")
+    config = project / "social-video.yaml"
+    config.write_text(
+        'schema_version: 1\nfont: Lato\nfont_file: assets/Lato.ttf\nbrand_colors: ["#28BCA5"]\n',
+        encoding="utf-8",
+    )
+    contract = compile_brand_contract(config, Workspace.at(tmp_path / "edit"))
+    plan = MotionPlan(rationale="r", accent_color="#28bca5", font_family="Inter")
+    lines = brand_overrides(plan, contract)
+    assert any("font_family 'Inter'" in line and "'Lato'" in line for line in lines)
+    assert not any("accent_color" in line for line in lines), "same colour, any case"
+    same = plan.model_copy(
+        update={
+            "font_family": "Lato",
+            "text_color": contract.brand.captions.primary_colour,
+            "background_color": contract.brand.background_colour,
+            "style": contract.brand.style_pack,
+        }
+    )
+    assert brand_overrides(same, contract) == []
