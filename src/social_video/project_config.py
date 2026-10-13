@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -53,10 +54,15 @@ caption_style:
   # Colour the word being spoken while it is spoken.
   active_word_highlight: false
   highlight_color: "#FFD400"
+  # How the spoken word moves: none, pop or box. Empty follows motion_energy.
+  animation: ""
   # Brand words drawn in their own colour wherever they are spoken. One word
   # per entry; list inflected forms separately.
   emphasis_words: []
   emphasis_color: "#FFD400"
+  # Keep a caption up through a pause within one shot, so a scene frame is
+  # never empty.
+  hold_through_pauses: false
 safe_margins:
   top: 6
   right: 6
@@ -68,6 +74,12 @@ punch_in_intensity: 0.25
 motion_energy: lively
 # Visual family of the motion layer: editorial, bold-social or tech-minimal.
 style_pack: editorial
+# How a scene label is drawn: chip (a pill in the top zone) or scene_frame (the
+# title of a frame around that scene's captions; never mistaken for a caption).
+label_style: chip
+# The brand's second colour, for the scene-frame tab, list card and CTA text.
+# Empty means the second entry of brand_colors.
+secondary_color:
 broll_density: 0
 music_policy: none
 sfx_policy: none
@@ -108,13 +120,63 @@ def find_project_config(project_root: Path) -> Path | None:
     )
 
 
-def init_project_config(project_root: Path, *, force: bool = False) -> Path:
+#: The choices that change how every edit looks and moves. A project that
+#: leaves them out gets the schema defaults -- calm, no karaoke, no animation --
+#: which nobody chose; `config init` asks for them and writes them down, and
+#: `config validate` names any still left to the default.
+STYLE_DECISIONS: dict[str, str] = {
+    "motion_energy": "How much the cut moves: calm, lively or bold",
+    "style_pack": "Visual family of the motion layer: editorial, bold-social or tech-minimal",
+    "label_style": "Scene labels as a chip, or as the title of a frame (scene_frame)",
+    "caption_style.active_word_highlight": "Colour the word being spoken (karaoke): true/false",
+    "caption_style.animation": "How the spoken word moves: none, pop, box, or empty for energy",
+    "caption_style.emphasis_words": "Brand words drawn in their own colour",
+}
+
+
+def init_project_config(
+    project_root: Path, *, force: bool = False, choices: dict[str, object] | None = None
+) -> Path:
+    """Write the documented template, with the style decisions filled in.
+
+    ``choices`` maps keys of `STYLE_DECISIONS` to values; the rest keep the
+    template's explicit values, so every decision is in the file either way.
+    """
     target = project_root.resolve() / ".social-video" / "config.yaml"
     if target.exists() and not force:
         raise ValidationError(f"project config already exists: {target}; use --force to replace it")
+    text = DEFAULT_CONFIG
+    for key, value in (choices or {}).items():
+        if key not in STYLE_DECISIONS:
+            raise ValidationError(f"not a style decision: {key}")
+        name = key.rsplit(".", 1)[-1]
+        rendered = yaml.safe_dump(value, default_flow_style=True, allow_unicode=True).strip()
+        rendered = rendered.removesuffix("\n...").strip()
+        indent = "  " if "." in key else ""
+        line = re.compile(rf"(?m)^{indent}{re.escape(name)}:.*$")
+        if not line.search(text):
+            raise ValidationError(f"the template has no {key}")
+        text = line.sub(lambda _m, entry=f"{indent}{name}: {rendered}": entry, text, count=1)
+    try:
+        ProjectVideoConfig.model_validate(yaml.safe_load(text) or {})
+    except ValueError as exc:
+        raise ValidationError(f"these choices do not make a valid config: {exc}") from exc
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(DEFAULT_CONFIG, encoding="utf-8")
+    target.write_text(text, encoding="utf-8")
     return target
+
+
+def implicit_defaults(path: Path) -> dict[str, object]:
+    """The style decisions this config leaves to the schema default, with that default."""
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    config = load_project_config(path)
+    missing: dict[str, object] = {}
+    for key in STYLE_DECISIONS:
+        head, _, tail = key.partition(".")
+        present = (tail in (raw.get(head) or {})) if tail else head in raw
+        if not present:
+            missing[key] = getattr(config.caption_style, tail) if tail else getattr(config, head)
+    return missing
 
 
 def load_project_config(path: Path) -> ProjectVideoConfig:

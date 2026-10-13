@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+import yaml
 from typer.testing import CliRunner
 
 from social_video.cli import app
+from social_video.project_config import implicit_defaults
 
 
 def _project(tmp_path: Path, body: str) -> Path:
@@ -31,3 +34,50 @@ def test_validate_without_a_workspace_writes_nothing(tmp_path: Path) -> None:
     result = CliRunner().invoke(app, ["config", "validate", str(root), "-w", str(edit)])
     assert result.exit_code == 0, result.output
     assert (edit / "brand-contract.json").is_file()
+
+
+def test_validate_names_the_style_left_to_defaults(tmp_path: Path) -> None:
+    root = _project(tmp_path, "motion_energy: bold\ncaption_style:\n  animation: box\n")
+    result = CliRunner().invoke(app, ["config", "validate", str(root), "--json"])
+    unset = json.loads(result.output)["defaults_not_in_config"]
+    assert "motion_energy" not in unset and "caption_style.animation" not in unset
+    assert unset["style_pack"] == "editorial"
+    assert unset["caption_style.active_word_highlight"] is False
+    assert unset["label_style"] == "chip"
+
+    plain = CliRunner().invoke(app, ["config", "validate", str(root)])
+    assert "default style_pack: 'editorial' -- not in the config" in plain.output
+
+
+def test_init_writes_every_style_decision_down(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        app,
+        ["config", "init", str(tmp_path), "--motion-energy", "bold", "--style-pack",
+         "bold-social", "--karaoke", "--animation", "box", "--emphasis-words",
+         "smutek, długa", "--label-style", "scene_frame"],
+    )  # fmt: skip
+    assert result.exit_code == 0, result.output
+    config = tmp_path / ".social-video" / "config.yaml"
+    raw = yaml.safe_load(config.read_text(encoding="utf-8"))
+    assert (raw["motion_energy"], raw["style_pack"], raw["label_style"]) == (
+        "bold", "bold-social", "scene_frame"
+    )  # fmt: skip
+    style = raw["caption_style"]
+    assert style["active_word_highlight"] is True and style["animation"] == "box"
+    assert style["emphasis_words"] == ["smutek", "długa"]
+    assert implicit_defaults(config) == {}, "nothing left to a default"
+
+
+def test_init_without_a_terminal_asks_nothing_and_still_writes_it_all(tmp_path: Path) -> None:
+    result = CliRunner().invoke(app, ["config", "init", str(tmp_path), "--defaults"])
+    assert result.exit_code == 0, result.output
+    assert "(template)" in result.output
+    assert implicit_defaults(tmp_path / ".social-video" / "config.yaml") == {}
+
+
+def test_init_refuses_choices_that_do_not_validate(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        app, ["config", "init", str(tmp_path), "--defaults", "--motion-energy", "wild"]
+    )
+    assert result.exit_code != 0
+    assert not (tmp_path / ".social-video" / "config.yaml").exists()
