@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
 from social_video.cli import app
 from social_video.doctor import DoctorReport, _check_brand_font
+from social_video.errors import SocialVideoError
 from social_video.project_config import font_install_hint, implicit_defaults
+from social_video.reframe import detect
 
 
 def _project(tmp_path: Path, body: str) -> Path:
@@ -96,3 +99,19 @@ def test_a_missing_brand_font_says_how_to_install_it(tmp_path: Path) -> None:
     assert not check.ok and not check.required
     assert "sudo apt install fonts-zzyzx-display" in check.remedy
     assert "font_file" in font_install_hint("Lato")
+
+
+def test_the_face_model_can_come_from_a_local_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model = tmp_path / "face_detection_yunet_2023mar.onnx"
+    model.write_bytes(b"\0" * 4096)
+    monkeypatch.setenv(detect.MODEL_ENV, str(model))
+    monkeypatch.setattr(
+        detect.urllib.request, "urlopen", lambda *a, **k: pytest.fail("must not download")
+    )
+    assert detect.ensure_model() == model
+
+    monkeypatch.setenv(detect.MODEL_ENV, str(tmp_path / "missing.onnx"))
+    with pytest.raises(SocialVideoError, match="SOCIAL_VIDEO_YUNET_MODEL points at"):
+        detect.ensure_model()
