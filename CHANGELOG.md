@@ -4,6 +4,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-10-13
+
 ### Fixed
 
 - Transcription no longer breaks when PyAV 19 is installed: `av` is pinned
@@ -15,8 +17,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 - Upstreams reviewed on 2026-10-13: video-use, faster-whisper, PySceneDetect
   (lock moves to 0.7.2) and auto-editor. Nothing needed porting.
+- Development dependencies: hypothesis 6.168.5 and the dev-tooling group.
 
-## [2.2.0] - 2026-10-14
+## [2.2.0] - 2026-10-13
 
 Short-form practices that measure, from 2026 creator research.
 
@@ -35,7 +38,7 @@ Short-form practices that measure, from 2026 creator research.
 - `references/short-form.md`: the practices, what each check means, and the
   sources, flagged as creator research rather than platform documentation.
 
-## [2.1.0] - 2026-10-14
+## [2.1.0] - 2026-10-13
 
 Content first: a short opens on the scene, never on a card.
 
