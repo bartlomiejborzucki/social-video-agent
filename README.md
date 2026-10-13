@@ -29,7 +29,10 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
   unfit to cut on — music under the voice, decoding loops, an English-only
   model on Polish — is reported with the model to retry with.
 - An editorial plan the agent writes and you review, compiled into a
-  word-aligned EDL. Nothing is cut that the plan does not say.
+  word-aligned EDL. Nothing is cut that the plan does not say. One plan may
+  cut between several recordings and put a voice recorded on its own under
+  another shot; captions come from all of them as one track, and a misheard
+  word is fixed with `captions fix`.
 - Cut candidates found from timing — hesitations (`yyy`, `eee`, `um`), doubled
   words, restarted phrases, long pauses — applied only when the agent accepts
   them.
@@ -54,6 +57,9 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
   licensed music bed.
 - Fifteen brand-driven graphics in three style packs, from hook cards and lower
   thirds to charts, before/after comparisons and logo reveals.
+- Scene labels that never look like captions: a chip in the top zone, or the
+  title of a frame around the scene's captions that flips when the next scene
+  takes over -- the same layout on both renderers.
 - Sound under the motion from your own library, b-roll from your own clips,
   hook A/B variants and a review sheet of every animated moment.
 - "Make it feel like this one": a reference video's shot length, cut rate,
@@ -483,7 +489,7 @@ that reports information supports `--json`.
 | Motion | `motion suggest/accept/sfx/variants/sheet/qa`, `motion film spec/import/remove/status`, `broll suggest/accept`, `style analyze` |
 | Render and check | `render`, `edit`, `qa`, `platforms` |
 | Images | `image status/prompt/register/capabilities/plate`, `cover` |
-| Output | `deliver`, `export`, `captions translate/apply`, `brief import/show`, `opening-qa`, `reel-check` |
+| Output | `deliver`, `export`, `captions translate/apply/fix`, `brief import/show`, `opening-qa`, `reel-check` |
 | Agents | `mcp serve`, `mcp tools` |
 
 Run `social-video-agent COMMAND --help` for options.

@@ -24,7 +24,21 @@ field and the full list is in the repository's `docs/migrations/`.
 **Configured font/logo is missing.** Assets resolve relative to the target
 project, never the installed skill. Install the font inside WSL or set
 `font_file`; fix `logo_file` when `logo_usage: required`. Ubuntu bootstrap
-installs Lato and Noto Sans.
+installs Lato and Noto Sans. `doctor`, run inside the project, checks the brand
+font by name and prints the command, e.g. `sudo apt install fonts-lato`; in a
+fresh cloud session install it before the first render.
+
+**Face detection cannot download its model.** `motion qa` and face or speaker
+reframing need YuNet (`face_detection_yunet_2023mar.onnx`, about 233 KB),
+fetched from GitHub on first use. Behind a proxy that answers HTTP 403, or
+offline, download it another way and point
+`SOCIAL_VIDEO_YUNET_MODEL=/path/to/face_detection_yunet_2023mar.onnx` at it, or
+copy it to the models folder the error names. Nothing is downloaded when the
+variable is set. Without the model, `motion qa` reports faces as not measured
+and `--reframe center` still works.
+
+**`config validate` and the `edit/` folder.** Without `--workspace` it only
+validates; it never creates a workspace in the project root.
 
 **Stage 5 output stayed temporary.** Use `social-video-agent deliver edit
 --output /durable/path --with-captions`. `/tmp` is rejected. Alternatively set

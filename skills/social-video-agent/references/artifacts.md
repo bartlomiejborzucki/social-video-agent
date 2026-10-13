@@ -69,6 +69,26 @@ edit/
 and take precedence when present — use them when assembling from moments rather
 than trimming a recording.
 
+Keep items may come from several recordings of the same workspace. Then each
+names its `source` and its `order` in the output (items without one keep their
+place in the list), and may add:
+
+- `audio_source`, `audio_start`, `audio_end` — all three or none: the words
+  come from another recording, under this item's picture (`start`/`end` in
+  `source`). The picture is trimmed to the voice, and a voice longer than the
+  picture is refused.
+- `reframe` — a fixed crop for this item, a `ReframePlan` in source pixels as
+  displayed (after the file's rotation), e.g. `{"mode": "manual",
+  "crop_width": 1080, "crop_height": 1920, "keyframes": [{"t": 0, "x": 420,
+  "y": 0}], "reason": "..."}`.
+- `beat` — the scene's name; a `label` with the same text spans that scene.
+
+```json
+{"action": "keep", "source": "kubek", "start": 0.0, "end": 3.0, "order": 1,
+ "audio_source": "dziecko", "audio_start": 0.4, "audio_end": 1.9,
+ "reason": "the child's line over the mug shot"}
+```
+
 ## edl.json — execution
 
 ```json
@@ -177,9 +197,11 @@ Allowed element types:
 - `quote` — a spoken line as a pull quote; `secondary_text` attributes it.
 - `stat` — one figure of at most 12 characters (`73%`, `3x`, `12,5 mln`), counted
   up when it is a number; `secondary_text` says what it measures.
-- `list` — two to five `items` of at most 60 characters, revealed in order.
+- `list` — two to five `items` of at most 60 characters, revealed in order;
+  `position: top` puts it over the upper zone instead of the middle.
 - `chapter` — a section title; `secondary_text` is the kicker (`Krok 2`).
-- `cta` — one call to action, set above the caption area.
+- `cta` — one call to action, above the caption area, or with `position:
+  top` in the top safe zone.
 - `progress` — a thin bar filling across its interval; no text.
 - `logo_reveal` — the contract's logo animated in; no text, and it needs
   `logo_file` in the project config.
@@ -187,7 +209,13 @@ Allowed element types:
   the first 0.5 s, `text` at most 90 characters.
 - `chart` — 2–6 `items` written "Label: number"; bars grow and values count.
 - `compare` — exactly 2 `items` written "Label: text" (before/after).
-- `steps` — 2–5 numbered `items`, revealed in order.
+- `steps` — 2–5 numbered `items`, revealed in order; `position: top` as `list`.
+- `label` — a scene name of at most 48 characters, drawn per the contract's
+  `label_style` (`chip` or `scene_frame`); never like a caption.
+
+`position` is only accepted by `cta`, `list` and `steps`. The plan's colours,
+font and style are replaced by the brand contract's at render; the render logs
+each value it replaced.
 
 `transitions` lists effects across cuts: `at` (the cut's output time), `style`
 (`zoom`, `slide`, `flash`), `duration` (0.2–0.8 s) and `reason`. How many are
@@ -220,15 +248,19 @@ than an even split of a segment. If it is false, do not place cuts from it.
 
 ## Captions
 
-`captions/<name>.json` is canonical data; `.srt` and `.ass` are derived peers.
-QA resolves either derived extension back to JSON and fails visibly if the
-structured data is missing. To fix a
-misheard word, edit the JSON or the `.srt` and re-render — you do not need to
-re-cut. Captions are burned last so nothing composites over them.
+`captions/<name>.json` is canonical data; `.srt`, `.vtt` and `.ass` are derived
+peers. QA resolves either derived extension back to JSON and fails visibly if
+the structured data is missing. `compile` builds one track from every
+transcript the plan keeps words from. To fix a misheard word, run `captions fix
+-w WORKSPACE --at SECONDS --from OLD --to NEW` and re-render — you do not need
+to re-cut. It changes the cue text and its `words`, which the karaoke highlight
+draws from, keeps every time, rewrites all four files and sets `corrected`.
+Captions are burned last so nothing composites over them.
 
 ## brand-contract.json and brand QA
 
-`config validate` resolves project config into exact font/logo paths, caption
+`config validate --workspace WORKSPACE` resolves project config into exact
+font/logo paths, `label_style`, `secondary_colour`, caption
 colors, box style, margins, size, line/word/character limits, dimensions and
 CFR. It refuses a caption geometry whose own text cannot be drawn at the
 configured resolution. The EDL records its fingerprint; render manifests record

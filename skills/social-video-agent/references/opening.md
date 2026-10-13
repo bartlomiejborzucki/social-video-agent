@@ -57,11 +57,18 @@ social-video-agent brief import plany/pakiet_sm_2026-10.json -w WORKSPACE \
   "Napis na ekranie" instead.
 - **A child's voice is never synthesised.** If the recording does not carry
   the child's line, the line is shown as text from 0.0 s until the speech
-  begins, and is not heard.
+  begins, and is not heard. When the child's line was recorded on its own
+  file, put it under the opening picture with the plan item's
+  `audio_source`, `audio_start` and `audio_end`; `compile` captions it from
+  that file's transcript.
 - **Short texts are labels, not cards.** Texts such as "Częsty odruch" or
-  "Spróbuj tak" become `label` graphics over the shot, in the top safe zone:
-  white text on the brand accent. `--labels` adds them to `motion-plan.json`.
-  They are drawn by Remotion.
+  "Spróbuj tak" become `label` graphics that name the scene; `--labels` adds
+  them to `motion-plan.json` with the brief's times. They are never drawn like
+  a caption: with `label_style: scene_frame` each is the title of a frame around
+  that scene's captions, otherwise a chip in the top safe zone
+  ([motion-design.md](motion-design.md)). `compile` then pins them to the
+  scenes the edit actually made; give a plan item `beat: "Spróbuj tak"` to tie
+  a label to its scene exactly.
 - **"Okładka" is only for `cover.jpg`:**
   `social-video-agent cover WORKSPACE --from-brief`.
 - **The brief goes into the plan.** It is saved as `context/brief.json`, and

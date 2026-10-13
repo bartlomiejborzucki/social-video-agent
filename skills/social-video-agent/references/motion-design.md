@@ -79,17 +79,62 @@ already carries the hook. See [opening.md](opening.md).
 | `stat` | one figure worth seeing | `text` ≤ 12 chars, `secondary_text` label |
 | `chart` | figures compared | 2–6 `items` "Label: number" |
 | `compare` | before/after, us/them | 2 `items` "Label: text" |
-| `steps` / `list` | a process / points | 2–5 `items` |
+| `steps` / `list` | a process / points | 2–5 `items`; `position` `center` or `top` |
 | `quote` | a line worth keeping | `text`, `secondary_text` attribution |
 | `callout` | a question, a key claim | `text` |
 | `chapter` | a new part of the argument | `text`, `secondary_text` kicker |
-| `cta` | the one action at the end | `text` |
+| `cta` | the one action at the end | `text`; `position` `above_captions` or `top` |
 | `lower_third` | who is speaking | `text`, `secondary_text` role |
-| `label` | a short brief text over the shot, top safe zone | `text` ≤ 48 chars |
+| `label` | names the scene ("Spróbuj tak"), drawn per `label_style` | `text` ≤ 48 chars |
 | `progress`, `logo_reveal`, `end_card`, `hook` | as named | see artifacts.md |
 
-`transitions` (`zoom`, `slide`, `flash`) sit on cuts only. `punch_ins` push the
-picture only; captions and graphics stay put.
+`transitions` (`zoom`, `slide`, `flash`) sit on cuts only. Prefer `zoom`; a
+`slide` scales the picture just enough to keep the frame covered while it
+moves, so it never shows a black edge, but it is the busiest of the three.
+`punch_ins` push the picture only; captions and graphics stay put.
+
+## Labels, the call to action and lists
+
+A label names a scene. It must never look like a caption, or the viewer reads
+the scene name as something said. The project's `label_style` decides how it
+is drawn, on both renderers:
+
+- `chip` (default): a pill in the top safe zone, white with text in the brand's
+  second colour and an accent dot -- the second colour with white text when the
+  captions themselves sit on white. Never the caption box colour.
+- `scene_frame`: the label is the title tab of a frame drawn around the caption
+  band for as long as the label lasts, and the captions inside it are centred
+  in the frame. The frame keeps one geometry for the whole scene. When the next
+  label starts where this one ends (within 0.05 s), the frame stays, the title
+  flips over in about half a second and the rim flashes the accent colour. Set
+  `caption_hold_through_pauses: true` with it, so a pause never leaves the
+  frame empty. The FFmpeg route draws the same frame around rounded-box
+  captions; with another caption background it draws no labels and says so.
+
+The tab, a top list card and the CTA text use `secondary_color` (default: the
+second `brand_colors` entry); the dot, flash and CTA rim use the accent. Every
+size is a share of the output height, so a 720x1280 preview is the final,
+scaled.
+
+`compile` pins labels to the scenes the edit made: a label whose text is a
+plan item's `beat` spans exactly that item's ranges; any other label edge moves
+to the nearest cut within 1.5 s, and labels that then nearly meet are joined so
+the title flips instead of the frame leaving. It prints every label it moved.
+
+A `cta` sits above the caption band by default. Inside a scene frame that
+crowds the rim, and `motion qa` says so; use `position: top` -- a white pill,
+text in the second colour, an accent bookmark and a gentle pulse. A `list` or
+`steps` sits in the middle by default, which covers a face in a talking-head
+shot; `position: top` puts it over the upper zone as a card in the second
+colour. `motion qa` measures both where they are actually drawn.
+
+## Colours and font come from the brand
+
+The motion plan's `accent_color`, `text_color`, `background_color`,
+`font_family` and `style` are drafts: a render with a brand contract replaces
+them with the contract's values and logs one INFO line per value it replaced,
+so brand QA vouches for what was drawn. Change the brand in the project config,
+not in the plan. There is no per-element colour override, for the same reason.
 
 ## Style
 

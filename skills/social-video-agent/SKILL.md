@@ -47,7 +47,11 @@ mistake this installed skill's directory for the user's project.
    overrides the stored statement without replacing it.
 
    If project config exists, run `social-video-agent config validate PROJECT
-   --workspace WORKSPACE`. Treat `brand-contract.json` as executable input and
+   --workspace WORKSPACE` (without `--workspace` it writes nothing). It names
+   every style decision the config leaves to a default -- `motion_energy`,
+   `style_pack`, `label_style`, the karaoke highlight, word animation, brand
+   words. Tell the user: a default is a choice nobody made, and `config init`
+   asks for each one. Treat `brand-contract.json` as executable input and
    stop on a missing required asset or component-version mismatch. Captions are
    never shortened to fit: the contract's `font_size_pct`, `max_words_per_cue`
    and `max_chars_per_cue` decide the geometry, validation refuses a geometry
@@ -108,6 +112,33 @@ The config keys, with these defaults when absent: `opening_policy:
 content_first`, `cover_in_timeline: false`, `first_cue_full_sentence: true`,
 `first_cue_max_words: 8`, `max_leading_silence_s: 0.3`. The full rules, a brief
 example and every manifest field are in [opening.md](references/opening.md).
+
+## Scenes, labels and the cut
+
+The house rules for a scripted reel, from the 13.10.2026 decisions:
+
+- **No card at the start.** The hook is the scene and the whole first caption
+  from 0.0 s (above).
+- **A scene label is never drawn like a caption.** With `label_style:
+  scene_frame` it is the title of a frame around that scene's captions; when
+  one scene hands over to the next, the frame stays and the title flips. Set
+  `caption_hold_through_pauses: true` so the frame is never empty. With the
+  default `chip` it is a pill in the top zone, never in the caption colour.
+- **A push-in every 3-5 s** (at most the energy's `punch_in_max`), and `zoom`
+  transitions on cuts; `slide` is allowed but busier.
+- **A call to action only at the end**, when the publish copy asks for a save or
+  a send; inside a scene frame put it at `position: top`. A summary list sits
+  over the upper zone with `position: top`, off the face.
+
+A reel cut from several recordings -- takes of the speaker plus a child's line
+recorded on its own -- is one plan: each item names its `source` and `order`,
+`audio_source`/`audio_start`/`audio_end` put a voice under another file's
+picture, and `reframe` fixes a crop. `compile` builds the EDL, one caption
+track from every transcript, and pins the brief's labels to the scenes it made.
+Correct a misheard caption word with `captions fix -w WORKSPACE --at SECONDS
+--from OLD --to NEW`; never edit the caption files by hand. Details:
+[motion-design.md](references/motion-design.md) and
+[workflow.md](references/workflow.md).
 
 ## What helps a reel travel
 

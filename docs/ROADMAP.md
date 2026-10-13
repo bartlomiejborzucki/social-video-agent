@@ -130,6 +130,15 @@ speed, length window, dead air, holds, captions, payoff, an honest ask for a
 save or a send), recorded at delivery. The windows are directional and the
 account's own analytics outrank them.
 
+## 2.3 — what the 13.10 reel needed by hand (done)
+
+The scene frame (`label_style: scene_frame`) on both renderers, CTA and list
+placement measured by motion QA, a multi-source `compile` with voice-off items,
+one caption track from several transcripts, `captions fix`, captions held
+through pauses, and safer setup: `config init` writes every style decision,
+`config validate` names the defaults and writes nothing without a workspace,
+a local YuNet model and the brand font checked by `doctor`.
+
 ## Under consideration
 
 - **Skill files that describe judgement only** (moved from 2.0), once every
