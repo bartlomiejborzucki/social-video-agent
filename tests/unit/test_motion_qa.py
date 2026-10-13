@@ -203,3 +203,42 @@ def test_the_cli_writes_motion_qa_and_colours_the_sheet(tmp_path: Path) -> None:
 
     with Image.open(ws.qa / "motion-sheet.png") as image:
         assert image.convert("RGB").getpixel((100, 10)) == (190, 120, 0)
+
+
+def test_a_list_at_the_top_is_measured_at_the_top(tmp_path: Path) -> None:
+    """2.3: a list moved over the face is not reported as covering the captions."""
+    contract = _contract(tmp_path, "caption_style:\n  bottom_margin_pct: 22\n")
+    items = {"items": ["Nazwij uczucie", "Daj wybór", "Wróć do zabawy"]}
+    plan = MotionPlan(
+        rationale="r",
+        elements=[
+            _element("list", 2.0, 8.0, **items, position="top"),
+            _element("steps", 10.0, 16.0, **items, position="top"),
+        ],
+    )
+
+    checks = _by_name(check_motion(_edl(), plan, contract, captions=_track((2.0, 16.0))))
+
+    assert checks["list at 2.00s clear of captions"].passed
+    assert checks["steps at 10.00s clear of captions"].passed
+
+
+def test_a_cta_inside_a_scene_is_told_to_move_to_the_top(tmp_path: Path) -> None:
+    contract = _contract(tmp_path, "label_style: scene_frame\n")
+    plan = MotionPlan(
+        rationale="r",
+        elements=[
+            _element("label", 0.0, 10.0, text="Spróbuj tak"),
+            _element("cta", 6.0, 9.0, text="Zapisz na później"),
+            _element("cta", 12.0, 15.0, text="Zapisz", position="top"),
+        ],
+    )
+
+    report = check_motion(_edl(), plan, contract, captions=_track((0.0, 10.0)))
+    checks = _by_name(report)
+
+    framed = checks["cta at 6.00s clear of the scene frame"]
+    assert not framed.passed and "position: top" in framed.message
+    assert "cta at 12.00s clear of the scene frame" not in checks, "no scene on screen then"
+    # The frame holds the captions by design; its label is not "over" them.
+    assert "label at 0.00s clear of captions" not in checks

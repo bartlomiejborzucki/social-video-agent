@@ -24,6 +24,9 @@ const defaults: SocialVideoProps = {
   logoSource: null,
   logoUsage: 'none',
   safeMargins: {top: 6, right: 6, bottom: 12, left: 6},
+  secondaryColor: '#1F2430',
+  labelStyle: 'chip',
+  sceneFrame: null,
 };
 
 export const RemotionRoot: React.FC = () => (

@@ -30,6 +30,8 @@ CAPTION_LAYOUT_MEASURED = "caption_layout_measured"
 #: glyph width was used instead. Captions are still never truncated; they are
 #: just laid out with less precision, so QA reports it.
 CAPTION_LAYOUT_ESTIMATED = "caption_layout_estimated"
+#: Recorded when labels were drawn as the title of a frame around the captions.
+SCENE_FRAME = "scene_frame"
 
 
 def highlight_possible(style: CaptionStyle | None, captions: CaptionTrack | None) -> bool:

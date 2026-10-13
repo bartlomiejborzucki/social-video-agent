@@ -97,6 +97,9 @@ class CaptionStyle(Artifact):
     #: box slides behind it). Drawn by Remotion.
     animation: str = "none"
     speaker_colours: dict[str, str] = Field(default_factory=dict)
+    #: Within one scene a cue stays until the next one starts; see
+    #: ``captions.chunk.hold_through_pauses``.
+    hold_through_pauses: bool = False
 
 
 class BrandProfile(Artifact):
@@ -108,7 +111,11 @@ class BrandProfile(Artifact):
     captions: CaptionStyle = Field(default_factory=CaptionStyle)
 
     accent_colour: str = "#FFD400"
+    #: The brand's second colour: scene-frame tab, list card, CTA text.
+    secondary_colour: str = "#1F2430"
     background_colour: str = "#000000"
+    #: How a ``label`` is drawn: ``chip`` or ``scene_frame``.
+    label_style: str = "chip"
     title_font_family: str = ""
     logo_path: str | None = None
     logo_usage: str = "none"

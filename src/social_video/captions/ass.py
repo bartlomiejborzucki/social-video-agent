@@ -12,11 +12,18 @@ Real ASS, not SRT with a ``force_style`` override. The difference matters:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from social_video.captions.emphasis import emphasis_keys, is_emphasised
 from social_video.schemas.brand import CaptionPosition, CaptionStyle
 from social_video.schemas.captions import CaptionTrack
+from social_video.schemas.motion import MotionElement
+
+if TYPE_CHECKING:
+    # motion.layout measures with captions.fit, which imports this package.
+    from social_video.motion.layout import SceneFrameGeometry
 
 #: ASS numpad alignment values.
 _ALIGNMENT = {
@@ -239,6 +246,7 @@ def render_boxed_ass(
     height: int,
     safe_margins: dict[str, float] | None = None,
     font_name: str | None = None,
+    scene: SceneFrameDrawing | None = None,
 ) -> str:
     """Captions on a rounded box, drawn by libass from the measured layout.
 
@@ -247,6 +255,10 @@ def render_boxed_ass(
     corner radius. The box is a vector drawing on layer 0 and each line of text
     is placed on layer 1 at its own computed position, so libass never wraps
     or spaces anything itself.
+
+    With ``scene``, each label is drawn as the title of a frame around the
+    caption band, and the captions under a label are centred in its frame --
+    the layout the Remotion compositor draws, from the same geometry.
     """
     margins = safe_margins or {}
     left = width * float(margins.get("left", 6.0)) / 100
@@ -280,6 +292,8 @@ def render_boxed_ass(
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
+    if scene is not None:
+        lines += _scene_frame_events(scene, family)
     for cue in sorted(track.cues, key=lambda c: c.start):
         drawn = by_index.get(cue.index)
         if drawn is None:
@@ -288,7 +302,9 @@ def render_boxed_ass(
         box_w = drawn.max_line_width_px + 2 * layout.padding_x
         box_h = len(drawn.lines) * line_px + layout.padding_top + layout.padding_bottom
         margin = height * style.margin_pct / 100
-        if style.position is CaptionPosition.TOP:
+        if scene is not None and scene.frames(cue.start, cue.end):
+            top = scene.geometry.caption_centre - box_h / 2
+        elif style.position is CaptionPosition.TOP:
             top = margin
         elif style.position is CaptionPosition.CENTER:
             top = (height - box_h) / 2
@@ -319,6 +335,102 @@ def render_boxed_ass(
                 f"\\1c{hex_to_ass_colour(base)}}}{text}"
             )
     return "\n".join(lines) + "\n"
+
+
+@dataclass(frozen=True)
+class SceneFrameDrawing:
+    """What the FFmpeg route needs to draw scene frames: labels and colours."""
+
+    geometry: SceneFrameGeometry
+    labels: list[MotionElement]
+    accent: str
+    secondary: str
+    font_file: Path | None = None
+
+    def frames(self, start: float, end: float) -> bool:
+        from social_video.motion.layout import framing_label
+
+        return framing_label(start, end, self.labels) is not None
+
+
+def _ms(seconds: float) -> int:
+    return max(0, round(seconds * 1000))
+
+
+def _scene_frame_events(scene: SceneFrameDrawing, family: str) -> list[str]:
+    """Frame, title tab, accent dot and title for every label, flips included.
+
+    The frame is layer 0 under the caption box; the tab is drawn above it. A
+    label that continues the previous one starts with the frame already in
+    place, flips the old title away and the new one in (``\\fscy`` around the
+    tab's centre), and flashes the frame's rim in the accent colour.
+    """
+    from social_video.captions.fit import _measurer
+    from social_video.motion.layout import FLIP_S, continues
+
+    g = scene.geometry
+    white = hex_to_ass_colour("#FFFFFF")
+    accent = hex_to_ass_colour(scene.accent)
+    secondary = hex_to_ass_colour(scene.secondary)
+    measure = _measurer(scene.font_file)
+    font_px = round(g.tab_font_px)
+    spacing = g.tab_font_px * 0.07
+    centre_x = g.left + g.width / 2
+    tab_y = g.tab_top + g.tab_height / 2
+    flip = _ms(FLIP_S)
+    half = round(flip * 0.45)
+    events: list[str] = []
+    for label in scene.labels:
+        start, end = format_timestamp(label.start), format_timestamp(label.end)
+        previous = continues(label, scene.labels)
+        rim = ""
+        if previous is not None:
+            flash, settle = f"\\3c{accent}", f"\\3c{white}"
+            rim = f"\\t({half},{half + 150},{flash})\\t({half + 300},{half + 1000},{settle})"
+        events.append(
+            f"Dialogue: 0,{start},{end},Default,,0,0,0,,"
+            f"{{\\an7\\pos({round(g.left)},{round(g.top)})\\p1\\bord{g.border:.1f}\\shad0"
+            f"\\1c{secondary}\\1a&HB3&\\3c{white}\\3a&H0A&{rim}}}"
+            f"{_rounded_rect(g.width, g.height, g.radius)}"
+        )
+        titles = [(label.text, 0, None)]
+        if previous is not None:
+            titles = [(previous.text, 0, half), (label.text, half, None)]
+        for text, begin, until in titles:
+            upper = text.upper()
+            text_w = measure.width(upper, font_px) + spacing * max(0, len(upper) - 1)
+            tab_w = text_w + g.tab_dot + g.tab_dot + 2 * g.tab_pad_x + 2 * g.tab_border
+            tab_h = g.tab_height - g.tab_border
+            # Times inside the tags count from each event's own start.
+            if previous is None:
+                scale = ""
+            elif until is not None:
+                scale = f"\\t(0,{until},\\fscy0)"
+            else:
+                scale = f"\\fscy0\\t(0,{flip - begin},\\fscy100)"
+            shown_from = label.start + begin / 1000
+            shown_to = label.start + until / 1000 if until is not None else label.end
+            t0, t1 = format_timestamp(shown_from), format_timestamp(shown_to)
+            pill = _rounded_rect(tab_w, tab_h, tab_h / 2)
+            events.append(
+                f"Dialogue: 1,{t0},{t1},Default,,0,0,0,,"
+                f"{{\\an5\\pos({round(centre_x)},{round(tab_y)})\\p1\\bord{g.tab_border:.1f}"
+                f"\\shad0\\1c{secondary}\\1a&H00&\\3c{white}{scale}}}{pill}"
+            )
+            dot_x = centre_x - tab_w / 2 + g.tab_border + g.tab_pad_x + g.tab_dot / 2
+            dot = _rounded_rect(g.tab_dot, g.tab_dot, g.tab_dot / 2)
+            events.append(
+                f"Dialogue: 2,{t0},{t1},Default,,0,0,0,,"
+                f"{{\\an5\\pos({round(dot_x)},{round(tab_y)})\\p1\\bord0\\shad0"
+                f"\\1c{accent}\\1a&H00&{scale}}}{dot}"
+            )
+            text_x = dot_x + g.tab_dot / 2 + g.tab_dot + text_w / 2
+            events.append(
+                f"Dialogue: 2,{t0},{t1},Default,,0,0,0,,"
+                f"{{\\an5\\pos({round(text_x)},{round(tab_y)})\\fn{family}\\fs{font_px}"
+                f"\\b1\\fsp{spacing:.1f}\\bord0\\shad0\\1c{white}{scale}}}{escape_text(upper)}"
+            )
+    return events
 
 
 class _LineCue:

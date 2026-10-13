@@ -123,6 +123,9 @@ class ProjectConfig(BaseModel):
     audio_cleanup_policy: str | None = None
     image_generation_policy: str | None = None
     brand_asset_upload: str | None = None
+    label_style: str | None = None
+    secondary_color: str | None = None
+    caption_hold_through_pauses: bool | None = None
     opening_policy: str | None = None
     cover_in_timeline: bool | None = None
     first_cue_full_sentence: bool | None = None

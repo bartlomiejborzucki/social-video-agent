@@ -320,6 +320,18 @@ def stage_render(
         and captions is not None
         and contract.brand.captions.background_style.value == "rounded_box"
     )
+    if (
+        renderer is Renderer.FFMPEG
+        and not rounded_on_ffmpeg
+        and contract is not None
+        and contract.brand.label_style == "scene_frame"
+        and workspace.motion_plan.is_file()
+    ):
+        log.warning(
+            "label_style: scene_frame is drawn on the FFmpeg route only around rounded-box "
+            "captions; this render draws no labels. Use background_style: rounded_box or "
+            "render with Remotion."
+        )
     q: Quality = QUALITIES[quality]
     out_dir = workspace.previews if quality != "final" else workspace.final
     output = output or out_dir / ("final.mp4" if quality == "final" else "preview.mp4")
@@ -348,9 +360,10 @@ def stage_render(
             base_captions = None
     caption_fonts_dir: Path | None = None
     boxed_layout = None
+    scene_framed = False
     if rounded_on_ffmpeg:
         assert contract is not None and captions is not None
-        base_captions, boxed_layout, caption_fonts_dir = _rounded_box_captions(
+        base_captions, boxed_layout, caption_fonts_dir, scene_framed = _rounded_box_captions(
             captions, contract, edl, workspace
         )
         caption_track = load_artifact(CaptionTrack, captions.with_suffix(".json"))
@@ -413,6 +426,8 @@ def stage_render(
             ),
             logo_usage=contract.brand.logo_usage if contract else "none",
             safe_margins=contract.safe_margins if contract else None,
+            label_style=contract.brand.label_style if contract else "chip",
+            secondary_colour=contract.brand.secondary_colour if contract else "#1F2430",
         )
         final_info = probe(output)
         manifest_obj.output = str(output)
@@ -440,6 +455,10 @@ def stage_render(
             applied_caption_features.append(
                 CAPTION_LAYOUT_MEASURED if boxed_layout.measured else CAPTION_LAYOUT_ESTIMATED
             )
+        if scene_framed:
+            from social_video.captions.features import SCENE_FRAME
+
+            applied_caption_features.append(SCENE_FRAME)
     if contract is not None:
         manifest_obj.brand_contract_sha256 = contract.project_config_sha256
         manifest_obj.caption_style = contract.brand.captions.model_dump(
@@ -506,6 +525,7 @@ def _rounded_box_captions(captions: Path, contract: BrandContract, edl: EDL, wor
         safe_margins=contract.safe_margins,
         font_file=font_file,
     )
+    scene = _scene_frame_drawing(contract, edl, workspace, font_file)
     document = render_boxed_ass(
         track,
         style,
@@ -514,10 +534,38 @@ def _rounded_box_captions(captions: Path, contract: BrandContract, edl: EDL, wor
         height=edl.output_height,
         safe_margins=contract.safe_margins,
         font_name=(font_family_name(font_file) if font_file else None) or style.font_family,
+        scene=scene,
     )
     target = workspace.cache / "captions" / f"{captions.stem}.rounded.ass"
     atomic_write_bytes(target, document.encode("utf-8"))
-    return target, layout, (font_file.parent if font_file else None)
+    return target, layout, (font_file.parent if font_file else None), scene is not None
+
+
+def _scene_frame_drawing(
+    contract: BrandContract, edl: EDL, workspace: Workspace, font_file: Path | None
+):
+    """The labels of the workspace's motion plan as scene frames, when the
+    contract asks for them; the FFmpeg route draws no other motion graphic."""
+    from social_video.captions.ass import SceneFrameDrawing
+    from social_video.motion.layout import labels, scene_frame_geometry
+
+    if contract.brand.label_style != "scene_frame" or not workspace.motion_plan.is_file():
+        return None
+    found = labels(load_artifact(MotionPlan, workspace.motion_plan).elements)
+    if not found:
+        return None
+    return SceneFrameDrawing(
+        geometry=scene_frame_geometry(
+            contract.brand.captions,
+            width=edl.output_width,
+            height=edl.output_height,
+            safe_margins=contract.safe_margins,
+        ),
+        labels=found,
+        accent=contract.brand.accent_colour,
+        secondary=contract.brand.secondary_colour,
+        font_file=font_file,
+    )
 
 
 def _check_movement(edl: EDL, plan: MotionPlan | None, contract: BrandContract) -> None:

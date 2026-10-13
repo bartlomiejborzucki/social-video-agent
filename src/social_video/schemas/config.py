@@ -57,6 +57,10 @@ class CaptionConfig(BaseModel):
     emphasis_color: str = "#FFD400"
     #: How the spoken word moves. Empty means "what motion_energy implies".
     animation: Literal["", "none", "pop", "box"] = ""
+    #: Within one scene, keep a caption on screen until the next one starts,
+    #: so a pause in the speech never leaves the scene frame empty. A cut to
+    #: another range, or a pause of more than two seconds, still clears it.
+    hold_through_pauses: bool = False
 
     @field_validator("emphasis_words")
     @classmethod
@@ -160,6 +164,16 @@ class ProjectVideoConfig(BaseModel):
     #: Motion film. They are brand files; `none` keeps them on this machine,
     #: and a film then carries neither. The recording is never uploaded.
     brand_asset_upload: Literal["none", "allowed"] = "none"
+    #: How a `label` motion element is drawn. `chip`: a small pill in the top
+    #: safe zone, coloured unlike the captions. `scene_frame`: the label is the
+    #: title of a frame drawn around the caption band for that scene, so it can
+    #: never be read as a caption.
+    label_style: Literal["chip", "scene_frame"] = "chip"
+    #: The brand's second colour: the scene-frame tab, the list card and the
+    #: call-to-action text. Empty means the second entry of `brand_colors`.
+    secondary_color: str | None = None
+    #: Shorthand for `caption_style.hold_through_pauses`.
+    caption_hold_through_pauses: bool | None = None
     #: The opening rules; see `OpeningPolicy`. Absent keys take its defaults.
     opening_policy: Literal["content_first", "free"] = "content_first"
     cover_in_timeline: bool = False
@@ -192,6 +206,26 @@ class ProjectVideoConfig(BaseModel):
     @classmethod
     def _colours(cls, values: list[str]) -> list[str]:
         return [CaptionConfig._colour(value) for value in values]
+
+    @field_validator("secondary_color")
+    @classmethod
+    def _secondary(cls, value: str | None) -> str | None:
+        return CaptionConfig._colour(value) if value else None
+
+    @property
+    def secondary_colour(self) -> str:
+        """`secondary_color`, else the second brand colour, else the caption outline."""
+        if self.secondary_color:
+            return self.secondary_color
+        if len(self.brand_colors) > 1:
+            return self.brand_colors[1]
+        return self.caption_style.outline_color
+
+    @property
+    def hold_through_pauses(self) -> bool:
+        if self.caption_hold_through_pauses is not None:
+            return self.caption_hold_through_pauses
+        return self.caption_style.hold_through_pauses
 
     @field_validator("safe_margins")
     @classmethod
