@@ -72,9 +72,13 @@ uncertain language), tell the user what it found before planning cuts on that
 transcript and offer the `suggested_model` re-run (`--model <m> --force`). It
 is their call: a larger model costs minutes on a CPU.
 
-Run `config validate` when project config is present. It creates executable
-`brand-contract.json`; missing required font/logo assets or mixed
-CLI/skill/plugin versions block the workflow before editorial work.
+Run `config validate PROJECT --workspace WORKSPACE` when project config is
+present. It creates executable `brand-contract.json`; missing required
+font/logo assets or mixed CLI/skill/plugin versions block the workflow before
+editorial work. Without `--workspace` it validates and writes nothing. It also
+lists each style decision left to a schema default (`motion_energy`,
+`style_pack`, `label_style`, karaoke, word animation, brand words): tell the
+user, and offer to write the choice into the config.
 
 `social-video-agent cuts find SOURCE -w WORKSPACE` lists hesitations, doubled
 words, restarted phrases and long pauses, each with an id, a confidence and the
@@ -121,6 +125,38 @@ machine; with no history there is none, so do not invent one.
 When the contract asks for an active-word highlight, the caption track must
 carry word timings: the renderer records the features it actually drew and brand
 QA fails if a contracted one was dropped.
+
+### One reel from several recordings
+
+A scripted reel is often several files: takes of the speaker, a cutaway, a
+child's line recorded on its own. Ingest and `transcribe` each into the same
+workspace, then write one plan. Each kept item names its `source` and its
+`order` in the reel. `audio_source`, `audio_start` and `audio_end` put another
+file's sound under the item's picture (a voice off camera); the picture is
+trimmed to the voice, and a voice longer than the picture is refused with the
+end it needs. `reframe` fixes a crop for the item, in source pixels as
+displayed, which `reframe` then leaves alone. `beat` names the scene, and a
+label with the same text is pinned to it.
+
+```bash
+social-video-agent compile PRIMARY_SOURCE -w WORKSPACE --force
+```
+
+`compile` loads the transcript of every recording the plan keeps words from
+(it says which one is missing), builds the EDL in `order`, writes one caption
+track numbered across all of them (`captions/main.json`, `.srt`, `.vtt`,
+`.ass`; `--no-captions` skips it) and pins the motion plan's labels to the
+scenes it made. Never write `edl.json` or merge caption files by hand.
+
+To correct a misheard or reworded caption, change the words, never the times:
+
+```bash
+social-video-agent captions fix -w WORKSPACE --at 6.9 --from "sam." --to "już."
+```
+
+It updates the cue and its words (the karaoke highlight draws from the words)
+and rewrites the JSON, SRT, VTT and ASS. `caption_hold_through_pauses: true`
+keeps each caption up through a pause within one range.
 
 Generate captions from the compiled brand contract. The EDL stores its
 fingerprint, never an unresolvable project/profile name. Rounded caption boxes are drawn by
