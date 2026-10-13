@@ -51,6 +51,9 @@ as configurable features. Workspaces started on 2.2 must be recreated.
 - `config validate` without `--workspace` no longer creates `edit/` in the
   project root; it writes nothing.
 - A `slide` transition no longer exposes a black edge.
+- On the FFmpeg route, rounded-box caption text and the scene-frame tab are
+  sized as the browser sizes them: libass measured a font by its line height,
+  so the same box held visibly smaller type than in Remotion.
 
 ## [2.2.1] - 2026-10-13
 
