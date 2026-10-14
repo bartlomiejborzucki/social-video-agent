@@ -401,7 +401,7 @@ def _scene_frame_events(scene: SceneFrameDrawing, family: str) -> list[str]:
             f"\\1c{secondary}\\1a&HB3&\\3c{white}\\3a&H0A&{rim}}}"
             f"{_rounded_rect(g.width, g.height, g.radius)}"
         )
-        titles = [(label.text, 0, None)]
+        titles: list[tuple[str, int, int | None]] = [(label.text, 0, None)]
         if previous is not None:
             titles = [(previous.text, 0, half), (label.text, half, None)]
         for text, begin, until in titles:

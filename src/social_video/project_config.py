@@ -156,7 +156,8 @@ def init_project_config(
         line = re.compile(rf"(?m)^{indent}{re.escape(name)}:.*$")
         if not line.search(text):
             raise ValidationError(f"the template has no {key}")
-        text = line.sub(lambda _m, entry=f"{indent}{name}: {rendered}": entry, text, count=1)
+        entry = f"{indent}{name}: {rendered}"
+        text = line.sub(entry.replace("\\", "\\\\"), text, count=1)
     try:
         ProjectVideoConfig.model_validate(yaml.safe_load(text) or {})
     except ValueError as exc:

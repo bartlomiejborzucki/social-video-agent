@@ -168,12 +168,6 @@ def _compile_items(
         )
         because = item.reason or _describe(snapped.start_reason, snapped.end_reason)
         quote = text_in(transcript, snapped.start, snapped.end)[:300]
-        common = {
-            "audio_track": transcript.audio_track,
-            "beat": item.beat,
-            "reframe": item.reframe,
-            "quote": quote,
-        }
         if item.audio_source is not None:
             voice = snapped.end - snapped.start
             picture = item.end - item.start
@@ -192,7 +186,10 @@ def _compile_items(
                     audio_start=round(snapped.start, 4),
                     audio_end=round(snapped.end, 4),
                     reason=because + f"; voice from {item.audio_source}",
-                    **common,
+                    audio_track=transcript.audio_track,
+                    beat=item.beat,
+                    reframe=item.reframe,
+                    quote=quote,
                 )
             )
             continue
@@ -206,7 +203,10 @@ def _compile_items(
                     start=round(piece_start, 4),
                     end=round(piece_end, 4),
                     reason=because + (f"; then {', '.join(removed)} removed" if removed else ""),
-                    **{**common, "quote": text_in(transcript, piece_start, piece_end)[:300]},
+                    audio_track=transcript.audio_track,
+                    beat=item.beat,
+                    reframe=item.reframe,
+                    quote=text_in(transcript, piece_start, piece_end)[:300],
                 )
             )
     if not ranges:
