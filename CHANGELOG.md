@@ -4,7 +4,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
-## [2.3.0] - 2026-10-13
+## [2.3.0] - 2026-10-14
 
 What the 13.10.2026 reel needed a local patch and hand-written scripts for,
 as configurable features. Workspaces started on 2.2 must be recreated.
