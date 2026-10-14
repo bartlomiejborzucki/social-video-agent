@@ -4,7 +4,7 @@ description: Create project-aware Reels and Shorts from recordings with local tr
 license: Apache-2.0
 metadata:
   version: "2.3.0"
-  last_updated: "2026-10-13"
+  last_updated: "2026-10-14"
 ---
 
 # Project-aware social video editing
