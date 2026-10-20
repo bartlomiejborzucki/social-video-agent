@@ -48,8 +48,9 @@ else's video to use as a reference.
    It lists accents found in what is said: the **hook** (first sentence as a
    hook card), **figures** (a counting stat), **enumerations** (numbered steps),
    **questions** (a callout), **punchlines** (a push-in after a pause),
-   **turns** ("ale", "zamiast", "but": a push-in) and **jumping cuts** (a
-   transition). Each has an id and a confidence, spaced to the energy level;
+   **turns** ("ale", "zamiast", "but": a push-in), **jumping cuts** (a
+   transition) and **mid-speech cuts in one take** (a `jump`: a sharp change
+   of framing, see below). Each has an id and a confidence, spaced to the energy level;
    over a licensed music bed punch-ins land on the beat.
 2. Read each against the transcript and the story. Accept by id
    (`motion accept -w WORKSPACE acc-001 acc-004`) or by kind
@@ -85,10 +86,18 @@ already carries the hook. See [opening.md](opening.md).
 | `chapter` | a new part of the argument | `text`, `secondary_text` kicker |
 | `cta` | the one action at the end | `text`; `position` `above_captions` or `top` |
 | `lower_third` | who is speaking | `text`, `secondary_text` role |
-| `label` | names the scene ("Spróbuj tak"), drawn per `label_style` | `text` ≤ 48 chars |
+| `label` | names the scene ("Spróbuj tak"), drawn per `label_style` | `text` that fits the frame tab |
 | `progress`, `logo_reveal`, `end_card`, `hook` | as named | see artifacts.md |
 
-`transitions` (`zoom`, `slide`, `flash`) sit on cuts only. Prefer `zoom`; a
+`transitions` (`zoom`, `slide`, `flash`) sit on cuts only. Never put one on a
+cut inside one take while the speaker keeps talking: a zoom or blur over a
+mouth that is still moving reads as the sound being out of sync. For a cut
+with speech on both sides (at most 0.3 s of silence) `motion suggest`
+proposes a `jump` instead -- the range after the cut framed at 1.1 (inside
+1.08–1.12), fully sharp, on the cut. `motion accept` writes that `zoom` onto
+the plan item and the EDL range, so it survives a recompile. `motion qa`
+warns about any transition that still runs over speech with a face on screen.
+Prefer `zoom`; a
 `slide` scales the picture just enough to keep the frame covered while it
 moves, so it never shows a black edge, but it is the busiest of the three.
 `punch_ins` push the picture only; captions and graphics stay put.
@@ -111,6 +120,12 @@ is drawn, on both renderers:
   frame empty. The FFmpeg route draws the same frame around rounded-box
   captions; with another caption background it draws no labels and says so.
 
+A title is fitted to its tab, measured with the brand font: it keeps the
+frame's size when it fits, shrinks (at most to 60 %) when it does not, and is
+refused with the length that would fit when even that is not enough -- the
+limit is the frame's width, not a number of characters. `motion qa` reports
+each title's size.
+
 The tab, a top list card and the CTA text use `secondary_color` (default: the
 second `brand_colors` entry); the dot, flash and CTA rim use the accent. Every
 size is a share of the output height, so a 720x1280 preview is the final,
@@ -127,6 +142,29 @@ text in the second colour, an accent bookmark and a gentle pulse. A `list` or
 `steps` sits in the middle by default, which covers a face in a talking-head
 shot; `position: top` puts it over the upper zone as a card in the second
 colour. `motion qa` measures both where they are actually drawn.
+
+## The end card
+
+An `end_card` is the last thing on screen. Its text is laid out in Python
+with the brand font and drawn as given: a link, domain or e-mail address
+(`przyklad-marki.example/strona-z-zapisami/`) is never split, the font shrinks
+until the longest one fits the width, and `\n` starts a new line. An element
+that reaches the final frame never fades out over it.
+
+- `hold: true` places the card after the last word and extends the edit by its
+  length (`end - start`) in silence: `edl.json` gets `end_hold`, the base
+  render holds its last frame, and the card covers it to the end. `compile`
+  and the render keep the two in step; QA approves that still tail.
+- `layout: image_top` draws the `image_asset` whole in the upper half (a book
+  cover) and the text below it; the default `overlay` dims the image behind
+  the text.
+
+```json
+{"type": "end_card", "start": 0, "end": 2.6, "hold": true,
+ "text": "Nowy poradnik\nZapisz się na listę\nprzyklad-marki.example/strona-z-zapisami/",
+ "secondary_text": "Premiera: wkrótce\nlink także w bio",
+ "reason": "The waiting-list link after the last word."}
+```
 
 ## Colours and font come from the brand
 

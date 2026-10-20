@@ -82,6 +82,9 @@ place in the list), and may add:
   "crop_width": 1080, "crop_height": 1920, "keyframes": [{"t": 0, "x": 420,
   "y": 0}], "reason": "..."}`.
 - `beat` — the scene's name; a `label` with the same text spans that scene.
+- `zoom` (1.0–2.0), `speed` (0.25–4) and `grade` — carried onto every range
+  the item compiles to. Under an `audio_source`, `speed` retimes only the
+  picture: the voice keeps its pace and sets the length.
 
 ```json
 {"action": "keep", "source": "kubek", "start": 0.0, "end": 3.0, "order": 1,
@@ -120,6 +123,16 @@ Rules that hold:
 - `output_fps: null` selects a compatible social CFR (30, 29.97, 60, or 59.94)
   from the nominal source rate. Phone VFR averages are never copied to output.
 - The same EDL renders identically every time.
+- `grade` (on a range, or on the EDL for all of them) is a named look:
+  `mono`, `mono_contrast`, `shake`, combined with `+`. An unknown name fails
+  validation. Both renderers show it: the FFmpeg base draws it and Remotion
+  composites over that base.
+- `speed` retimes the range's own sound with its picture; a range with a
+  separate `audio_source` plays that voice at its natural pace
+  (`voice_speed` is 1.0) and lasts as long as it.
+- `end_hold` holds the last frame in silence after the last range, for an
+  `end_card` with `hold: true`. It is set from the motion plan by `compile`
+  and the render; do not write it by hand.
 
 ### Separate audio and privacy-safe visual endings
 
@@ -210,8 +223,10 @@ Allowed element types:
 - `chart` — 2–6 `items` written "Label: number"; bars grow and values count.
 - `compare` — exactly 2 `items` written "Label: text" (before/after).
 - `steps` — 2–5 numbered `items`, revealed in order; `position: top` as `list`.
-- `label` — a scene name of at most 48 characters, drawn per the contract's
-  `label_style` (`chip` or `scene_frame`); never like a caption.
+- `label` — a scene name, drawn per the contract's `label_style` (`chip` or
+  `scene_frame`); never like a caption. In a scene frame its tab must fit the
+  frame's width: a long title is drawn smaller, down to 60 %, and refused
+  beyond that (80 characters at most in any case).
 
 `position` is only accepted by `cta`, `list` and `steps`. The plan's colours,
 font and style are replaced by the brand contract's at render; the render logs
@@ -223,7 +238,9 @@ allowed per minute depends on `motion_energy`. `punch_ins` are described in
 style.md.
 
 An
-`end_card` may add `image_asset` (a local PNG/JPEG/WebP background) and
+`end_card` may add `hold: true` (placed after the last word, the edit extended
+by its length in silence, see motion-design.md), `layout` (`overlay` or
+`image_top`), `image_asset` (a local PNG/JPEG/WebP background) and
 `image_dim_pct`; no other type may, because a plate behind a hook or callout
 covers the person the edit exists for. See
 [generated-visuals.md](generated-visuals.md).
@@ -305,6 +322,17 @@ when it is exhausted, report what remains rather than continuing.
 `failed`, artifact paths, audio/video timing, full decode, `opens on an image`,
 `captions start immediately`, and `ending visual continuity`. The ending check reports the longest near-identical-frame span,
 its start/end, and whether the EDL explicitly approved it.
+
+After a Remotion render, `audio/video sync against base` compares the
+delivered file with the base render it was composited over (recorded as
+`base_render` in `renders/<name>.manifest.json`): RMS envelopes of the sound
+in 10 s windows on a 5 ms grid, and frames away from punch-ins, transitions
+and full-frame cards. An A/V error beyond 20 ms fails; sound without enough
+variation to align on is reported as not measured.
+
+`delivery-manifest.json` items delivered under `--max-size-mb` also carry
+`size_limit_bytes`, `video_bitrate_kbps` (unset when the file already fitted)
+and `av_error_ms`.
 
 ## qa-editorial.json — supervising handoff
 

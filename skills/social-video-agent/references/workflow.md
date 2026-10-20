@@ -72,6 +72,24 @@ uncertain language), tell the user what it found before planning cuts on that
 transcript and offer the `suggested_model` re-run (`--model <m> --force`). It
 is their call: a larger model costs minutes on a CPU.
 
+It also lists `suspect_words`: a word longer than 1.2 s, or one the sound goes
+quiet inside for 0.3 s or more. That is whisper folding a false start and its
+pause into the next word ("zawsze" over 51.4–55.3 s) or sliding a run of
+words. Re-transcribe only those passages; `refine` lists them ready to paste:
+
+```bash
+social-video-agent transcribe SOURCE -w WORKSPACE --refine 51.0-56.0 --model large-v3
+```
+
+The passage's words replace the old ones in `transcripts/<id>.json`, gaps are
+re-synthesised and the change is printed (`was` / `now`). Never paste words
+into a transcript by hand.
+
+`transcripts/<id>.json` is the source of truth for every recording: `compile`,
+`cuts`, `motion suggest` and `plan` read it whatever model made it, and the
+cache under `cache/transcripts/` only fills it. A correction made there
+reaches the edit; `transcribe --force` is the way to start over.
+
 Run `config validate PROJECT --workspace WORKSPACE` when project config is
 present. It creates executable `brand-contract.json`; missing required
 font/logo assets or mixed CLI/skill/plugin versions block the workflow before
@@ -109,7 +127,22 @@ Start the first range on the scene, so frame 0 has the person or the action and
 no more than `max_leading_silence_s` of silence ([opening.md](opening.md)).
 Create the exact `edl.json`, captions, and 9:16 framing. `social-video-agent compile
 SOURCE -w WORKSPACE` builds a word-aligned `edl.json` from the plan, accepted
-cuts included; it refuses to overwrite an existing EDL without `--force`. For the default renderer also
+cuts included; it refuses to overwrite an existing EDL without `--force`.
+
+`compile` then moves each range's outer edges from the word times to where the
+speech is heard to start and stop (RMS against the local noise floor, within
+0.4 s of the word), keeping a 0.08–0.12 s breath and never crossing a
+neighbouring word. Whisper ends words early (the last syllable of "wieczorem"
+was cut, leaving an open mouth) and glues silence onto a first word (dead air
+at the opening); both are fixed here, and every move is printed under "Edges
+moved to the speech" and noted in the range's `reason`. A warning says when
+speech carries on past the final out-point. `--word-edges` keeps the
+transcript's edges.
+
+`zoom`, `speed` and `grade` on a plan item are carried onto every range it
+compiles to, so a fix such as a sharp 1.1 framing jump belongs in the plan,
+not in a hand edit of `edl.json`. `compile` lists any `qa-editorial.json` EDL
+fix the rebuilt EDL no longer carries. For the default renderer also
 write `motion-plan.json`: run `motion suggest`, accept the accents that serve
 the story, add the graphics it cannot see, and keep the rhythm the project's
 `motion_energy` asks for (see motion-design.md). Every graphic keeps its
@@ -129,20 +162,29 @@ QA fails if a contracted one was dropped.
 ### One reel from several recordings
 
 A scripted reel is often several files: takes of the speaker, a cutaway, a
-child's line recorded on its own. Ingest and `transcribe` each into the same
-workspace, then write one plan. Each kept item names its `source` and its
+child's line recorded on its own. Start with one (`workflow init FILE --id
+kamera`), add the rest to the same workspace with `sources add FILE -w
+WORKSPACE --id ID` (probed and fingerprinted; transcripts and state are left
+alone; `sources list -w WORKSPACE` shows them), `transcribe` each one with
+sound into it, then write one plan. Each kept item names its `source` and its
 `order` in the reel. `audio_source`, `audio_start` and `audio_end` put another
 file's sound under the item's picture (a voice off camera); the picture is
 trimmed to the voice, and a voice longer than the picture is refused with the
-end it needs. `reframe` fixes a crop for the item, in source pixels as
+end it needs. `speed` below 1 slows only the picture under such a voice
+(a playground clip at 0.88 under a longer sentence); the voice keeps its own
+pace and length, and the error names the speed that would fit. `grade` gives
+the item a named look: `mono`, `mono_contrast`, `shake`, combined with `+`
+(`mono_contrast+shake` for a remembered, shaky scene). An unknown grade is
+refused; never prepare a black-and-white derivative file. `reframe` fixes a crop for the item, in source pixels as
 displayed, which `reframe` then leaves alone. `beat` names the scene, and a
 label with the same text is pinned to it.
 
 ```bash
-social-video-agent compile PRIMARY_SOURCE -w WORKSPACE --force
+social-video-agent compile -w WORKSPACE --force
 ```
 
-`compile` loads the transcript of every recording the plan keeps words from
+The source argument is optional with `-w`, and may be a picture with no sound
+of its own. `compile` loads the transcript of every recording the plan keeps words from
 (it says which one is missing), builds the EDL in `order`, writes one caption
 track numbered across all of them (`captions/main.json`, `.srt`, `.vtt`,
 `.ass`; `--no-captions` skips it) and pins the motion plan's labels to the
@@ -188,6 +230,10 @@ then colours each tile green, amber or red by those findings. Fix what you
 agree with, or accept a deviation by name in `accepted_qa_warnings` and say
 why in the review.
 
+`motion qa` also warns when a transition runs over speech while a face is on
+screen -- a blurred or zoomed mouth that keeps moving reads as audio out of
+sync -- and reports each scene title's size in the frame tab.
+
 Read context, plan, EDL, and technical QA. Inspect the preview efficiently:
 first 1–3 seconds, relevant cut boundaries, key transitions, final ten seconds,
 dense final-five-second sheet, last frame, and audio/motion ending. Judge hook,
@@ -211,8 +257,11 @@ Apply only `qa-editorial.json` fixes. Approval is a no-op; do not perform a new
 full editorial analysis. Fixes explicitly target `edl`, `captions`, or `style`;
 all paths and resulting artifacts validate before any write. Update affected artifacts, render a new
 preview if substantive, rerun technical QA, render `final.mp4`, fully decode it,
-and verify duration, CFR, A/V timing, captions, ending, and destination. Require
-passing `qa/qa-brand.json` before Stage 4 completes. Persist state.
+and verify duration, CFR, A/V timing, captions, ending, and destination. On the
+Remotion route technical QA measures `audio/video sync against base`: the
+sound and picture of the delivered file against the base render they were
+composited over, failing beyond 20 ms. Require passing `qa/qa-brand.json`
+before Stage 4 completes. Persist state.
 
 ## Stage 5 — optional delivery
 
@@ -232,6 +281,12 @@ publishing copy are editorial acts: do them in Stage 4 or earlier if the wording
 matters, not as a mechanical afterthought. Every video gets QA and
 every item gets size, format, SHA-256 and status. Verify the EDL hash before and
 after; Stage 5 must not change cuts or story, and `/tmp` is not a delivery target.
+
+`--max-size-mb 30` keeps every delivered video under a size (some routes to a
+phone refuse anything larger): a larger one is re-encoded in two passes at
+the bitrate its length and audio leave, the audio stream is copied untouched,
+and A/V against the file it replaced is checked. The manifest item records
+`size_limit_bytes`, `video_bitrate_kbps` and `av_error_ms`.
 
 ## Several recordings at once
 

@@ -22,7 +22,11 @@ after the next reels go out.
   Facebook, TikTok and YouTube when the reel is published. It never enters the
   timeline. `cover_in_timeline: true` is only allowed with `opening_policy:
   free`.
-- **An end card only at the end**, if the project uses one at all.
+- **An end card only at the end**, if the project uses one at all. Put it
+  after the last word with `hold: true` ([motion-design.md](motion-design.md)):
+  the edit is extended by the card's length in silence, so the card never
+  covers the last spoken seconds and stays to the final frame. Never cut a
+  still image or a silent clip into the plan to make room for it.
 
 The render refuses a content-first edit that opens on a card or ends early on
 an end card. Delivery measures the opening and refuses to call a delivery
@@ -42,15 +46,27 @@ max_leading_silence_s: 0.3
 
 ## The brief
 
-A monthly package carries a brief per reel, as text or as an entry of
+A monthly package carries a brief per reel, as text, as an entry of
 `plany/pakiet_sm_YYYY-MM.json` (fields `nagranie`, `scenariusz`, `montaz`,
-`okladka`). It overrides the project defaults for that edit:
+`okladka`), or in the month's posts document in Word
+(`PLANY/<MIESIĄC>/posty-RRRR-MM.docx`). It overrides the
+project defaults for that edit:
 
 ```bash
 social-video-agent brief import BRIEF.txt -w WORKSPACE --labels
 social-video-agent brief import plany/pakiet_sm_2026-10.json -w WORKSPACE \
   --match "Nie pobawię" --labels
+social-video-agent brief import posty-2026-01.docx -w WORKSPACE \
+  --match "Przecież się dogadaliśmy" --labels
 ```
+
+In the Word document each post sits under a heading `DD.MM DZIEŃ · ROLKA ·
+Tytuł`; `--match` chooses the reel by its title. Its Nagranie paragraph,
+Scenariusz table (Czas | Ujęcie | Co mówisz | Napis na ekranie), Montaż and
+Okładka are read; the platform descriptions after them are not. The text is
+what Word shows with every tracked change accepted: deletions (`w:del`) are
+left out and insertions (`w:ins`) kept, so read the brief from the document
+as its author left it, never from a copy with the changes typed in by hand.
 
 - **The first row is the first caption.** The words in "Co mówisz" become cue
   1. When a child says the first line off screen, cue 1 shows the text from

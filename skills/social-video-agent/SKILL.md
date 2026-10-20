@@ -140,6 +140,22 @@ Correct a misheard caption word with `captions fix -w WORKSPACE --at SECONDS
 [motion-design.md](references/motion-design.md) and
 [workflow.md](references/workflow.md).
 
+Never work around the tool by hand; each of these is a feature:
+
+- A new file for the edit: `sources add FILE -w WORKSPACE --id ID`.
+  `compile -w WORKSPACE` needs no source argument, and a picture without sound
+  is fine when the plan's voice is transcribed.
+- `transcripts/<id>.json` is the truth for every recording. Words the sound
+  contradicts are listed with a span: `transcribe SOURCE --refine START-END
+  --model large-v3`.
+- `compile` puts range edges on the heard speech and prints every move.
+- A slowed picture (`speed`), a look (`grade: mono_contrast+shake`) and a
+  sharp framing jump (`zoom`) go on the plan item; never a derivative file.
+- No transition over a talking mouth inside one take: accept the `jump`.
+- An end card after the last word is `hold: true`, never a clip in the plan.
+- `deliver --max-size-mb 30` when the file must stay small; the audio is
+  copied untouched, and QA holds A/V to the base render within 20 ms.
+
 ## What helps a reel travel
 
 No edit guarantees reach. What it can do is avoid the known ways of losing a

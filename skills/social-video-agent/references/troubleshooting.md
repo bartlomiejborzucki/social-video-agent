@@ -104,6 +104,55 @@ and applied. `inspect` shows stored size, display size, and rotation separately.
 **Cuts sound abrupt.** Cut boundaries snap to word edges and carry short fades.
 If it still feels tight, raise `cut_padding` in the profile.
 
+**The last syllable is cut, or the reel opens on silence.** Whisper's word
+edges are not where the sound is. `compile` moves range edges to the heard
+speech by default and prints each move; check that it ran with
+`--acoustic-edges` (the default) and read its warnings -- "speech carries on
+... after the edit ends" means the plan's out-point is still inside a word.
+Edges stay on the words when a recording is missing from the source manifest
+(`sources add`).
+
+**A word spans a pause, or words are seconds off.** `transcribe` lists
+`suspect_words` with a `--refine START-END` span for each passage; re-run just
+those with `--model large-v3`. Do not copy fragments in by hand.
+
+**A transcript correction did not reach the edit.** `transcripts/<id>.json` is
+read first for every recording; the cache only fills it. If it still seems
+ignored, the file no longer matches the recording (`workspace_transcript`
+logs "made from a different version"): transcribe again.
+
+**"has no audio track, so it cannot be transcribed" in `compile`.** The source
+argument is a picture whose sound comes from elsewhere. Leave it out
+(`compile -w WORKSPACE`) or keep it: a picture-only source is accepted when the
+plan's sound is transcribed.
+
+**A new file for an existing edit.** `sources add FILE -w WORKSPACE --id ID`;
+never re-run `workflow init` for it.
+
+**A zoom or speed fix vanished after `compile --force`.** Put it on the plan
+item (`zoom`, `speed`, `grade`); `compile` lists the `qa-editorial.json` fixes
+it dropped.
+
+**Lips and sound look out of sync on a cut.** A transition over a mouth that is
+still talking blurs it for ~0.4 s. Use the `jump` `motion suggest` proposes
+(a sharp 1.1 framing change) instead; `motion qa` names such transitions.
+
+**`audio/video sync against base` fails.** The composited file's sound moved
+against its picture. Since 2.4 the Remotion route copies the base audio
+unchanged, so this means a stale render or a hand-edited file: re-render. Do
+not shift the audio by a fixed amount to compensate.
+
+**The end card's link breaks, or the card vanishes on the last frame.** Both
+were fixed in 2.4: the text is measured with links kept whole, and an element
+that reaches the last frame stays on it. A text that cannot fit at a readable
+size is refused with the piece that would not.
+
+**"label ... does not fit the scene frame's title tab".** Shorten the title to
+the length the message names; the limit is the frame's width.
+
+**The delivered file is too large for the bridge.** `deliver --max-size-mb 30`
+re-encodes only the picture to fit and keeps the audio stream as it was.
+
 **VLC has no sound, Windows playback stutters, or audio bitrate is absurd.**
 Re-render with the current CLI and run `social-video-agent qa WORKSPACE`. QA now
 blocks nonstandard VFR output, compressed/non-monotonic AAC timestamps, wrong
