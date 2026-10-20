@@ -101,3 +101,42 @@ def test_no_private_reference_is_committed(path: Path) -> None:
                 f"{relative} names a real user directory ({user!r}); "
                 f"use one of {PLACEHOLDER_USERS} in examples and fixtures"
             )
+
+
+#: Words only one user's projects use -- a brand, a domain, a reel's lines.
+#: They cannot be listed here, or this file would publish them, so each
+#: contributor keeps their own list outside the repository: one term per line
+#: in the file named by SOCIAL_VIDEO_PRIVATE_TERMS, or in
+#: ~/.config/social-video-agent/private-terms.txt. Lines starting with # are
+#: comments. Without the file the check is skipped.
+def private_terms() -> list[str]:
+    import os
+
+    named = os.environ.get("SOCIAL_VIDEO_PRIVATE_TERMS")
+    path = (
+        Path(named).expanduser()
+        if named
+        else Path.home() / ".config" / "social-video-agent" / "private-terms.txt"
+    )
+    if not path.is_file():
+        return []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return [line.strip() for line in lines if line.strip() and not line.startswith("#")]
+
+
+def test_no_term_from_the_users_projects_is_committed() -> None:
+    terms = private_terms()
+    if not terms:
+        pytest.skip("no private-terms.txt on this machine")
+    found = []
+    for path in tracked_text_files():
+        try:
+            text = path.read_text(encoding="utf-8").casefold()
+        except (OSError, UnicodeDecodeError):
+            continue
+        found += [
+            f"{path.relative_to(ROOT).as_posix()}: {term!r}"
+            for term in terms
+            if term.casefold() in text
+        ]
+    assert not found, "project-private text in tracked files:\n" + "\n".join(found)
