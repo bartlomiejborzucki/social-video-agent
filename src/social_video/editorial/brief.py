@@ -94,6 +94,11 @@ def load_brief(path: Path, *, entry: int | None = None, match: str | None = None
     """A brief from a text file or a package JSON, choosing one entry if needed."""
     if not path.is_file():
         raise ValidationError(f"no brief at {path}")
+    if path.suffix.casefold() == ".docx":
+        from social_video.editorial.docx_brief import docx_brief_text
+
+        text, title = docx_brief_text(path, match=match)
+        return parse_brief_text(text, source=str(path), title=title)
     text = path.read_text(encoding="utf-8")
     if path.suffix.casefold() != ".json":
         return parse_brief_text(text, source=str(path))

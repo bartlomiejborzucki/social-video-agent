@@ -13,10 +13,16 @@ from social_video.cli._common import _guard, console
 
 @brief_app.command("import")
 def brief_import(
-    file: Path = typer.Argument(..., help="A brief as text, or the package's pakiet_sm JSON."),
+    file: Path = typer.Argument(
+        ...,
+        help="A brief as text, the package's pakiet_sm JSON, or the month's posts .docx "
+        "(choose the reel with --match; tracked deletions are left out).",
+    ),
     workspace_dir: Path = typer.Option(..., "--workspace", "-w"),
     entry: int | None = typer.Option(None, "--entry", help="Which reel of the package (from 0)."),
-    match: str | None = typer.Option(None, "--match", help="Choose the reel whose text has this."),
+    match: str | None = typer.Option(
+        None, "--match", help="Choose the reel whose title (or text) has this."
+    ),
     labels: bool = typer.Option(
         False, "--labels", help="Add the brief's short on-screen texts to motion-plan.json."
     ),
