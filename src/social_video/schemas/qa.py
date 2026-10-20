@@ -138,3 +138,6 @@ class RenderManifest(Artifact):
     #: The technical base a compositor drew over. Its audio is the edit's
     #: audio, so QA measures the delivered sync against it.
     base_render: str | None = None
+    #: Each sticker drawn: its emoji with the font, licence and source that
+    #: drew it, or the project image.
+    stickers_applied: list[dict] = Field(default_factory=list)

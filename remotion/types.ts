@@ -15,7 +15,8 @@ export type MotionElement = {
     | 'chart'
     | 'compare'
     | 'steps'
-    | 'label';
+    | 'label'
+    | 'sticker';
   start: number;
   end: number;
   text: string;
@@ -38,7 +39,17 @@ export type MotionElement = {
   layout?: 'overlay' | 'image_top';
   /** End card: lines and sizes measured in Python; links are never split. */
   fitted?: FittedCard | null;
+  /** Sticker: one emoji (drawn from the emoji font) or image_source. */
+  emoji?: string | null;
+  animation?: 'pop' | 'shake' | 'pulse' | 'drop';
+  /** Sticker height as a percentage of the output height. */
+  size_pct?: number;
+  /** Sticker centre as fractions of the output width and height. */
+  x_pct?: number;
+  y_pct?: number;
 };
+
+export type Shake = {start: number; end: number; amplitude_pct: number; frequency_hz: number};
 
 export type FittedBlock = {font_px: number; lines: string[]};
 
@@ -89,6 +100,10 @@ export type SocialVideoProps = {
   /** How a label is drawn: a chip in the top zone, or a frame title. */
   labelStyle: 'chip' | 'scene_frame';
   sceneFrame: SceneFrameGeometry | null;
+  /** Moments the picture shakes, on the output timeline. */
+  shakes?: Shake[];
+  /** Staged Noto Color Emoji file, when a sticker shows an emoji. */
+  emojiFontSource?: string | null;
 };
 
 /** An effect across one cut, centred on its output time. */

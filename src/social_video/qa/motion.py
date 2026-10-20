@@ -102,6 +102,9 @@ def check_motion(
     place = _Placement.of(contract, margins)
 
     for item in shown:
+        if item.element.type is MotionElementType.STICKER:
+            _sticker(report, item.element, style, captions, place, faces, energy)
+            continue
         _readable(report, item, pack)
         if style is not None and captions is not None and not item.film:
             _clear_of_captions(report, item, style, captions, place)
@@ -124,6 +127,88 @@ def check_motion(
     _budget(report, edl, plan, shown, energy)
     _rhythm(report, edl, plan, shown)
     return report
+
+
+def _overlap(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
+    """Share of box ``a`` that box ``b`` covers; boxes are (left, top, right, bottom)."""
+    width = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    height = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    area = max((a[2] - a[0]) * (a[3] - a[1]), 1e-9)
+    return width * height / area
+
+
+def _sticker(
+    report: QAReport,
+    element: MotionElement,
+    style: CaptionStyle | None,
+    captions: CaptionTrack | None,
+    place: _Placement,
+    faces: FaceProvider | None,
+    energy: EnergyPreset,
+) -> None:
+    """A sticker answers one word: off the face, the captions and the frame."""
+    from social_video.schemas.motion import STICKER_LIMIT
+
+    box = element.box
+    name = f"sticker at {element.start:.2f}s"
+    on_screen = element.end - element.start
+    _add(
+        report,
+        f"{name} on screen",
+        0.6 <= on_screen <= 1.5,
+        f"{on_screen:.2f}s; a reaction reads in 0.6-1.5 s",
+        measured=round(on_screen, 2),
+    )
+    limit = STICKER_LIMIT.get(energy.name, 0)
+    _add(
+        report,
+        f"{name} within the energy's limit",
+        limit > 0,
+        f"{energy.name} allows {limit} sticker(s) per reel",
+    )
+    if faces is not None:
+        middle = (element.start + element.end) / 2
+        covered = max((_overlap(face, box) for face in faces(middle)), default=0.0)
+        hidden = max((_overlap(box, face) for face in faces(middle)), default=0.0)
+        worst = max(covered, hidden)
+        _add(
+            report,
+            f"{name} clear of faces",
+            worst <= 0.05,
+            f"overlaps a face by {worst:.0%} of the smaller box",
+            at=element.start,
+            measured=round(worst * 100, 1),
+            expected=5.0,
+        )
+    if style is not None and captions is not None:
+        talking = any(cue.start < element.end and element.start < cue.end for cue in captions.cues)
+        top, bottom = caption_band(style)
+        hit = _overlap(box, (0.0, top, 1.0, bottom))
+        _add(
+            report,
+            f"{name} clear of captions",
+            not (talking and hit > 0),
+            f"covers {hit:.0%} of itself in the caption band"
+            + (" while a caption is up" if talking else ""),
+            at=element.start,
+        )
+    if place.frame is not None:
+        g = place.frame
+        width = place.height * 9 / 16
+        frame_box = (
+            g.left / width,
+            g.tab_top / place.height,
+            (g.left + g.width) / width,
+            g.bottom / place.height,
+        )
+        hit = _overlap(box, frame_box)
+        _add(
+            report,
+            f"{name} clear of the scene frame",
+            hit == 0,
+            f"{hit:.0%} of the sticker lies on the frame",
+            at=element.start,
+        )
 
 
 def _titles_fit_tab(

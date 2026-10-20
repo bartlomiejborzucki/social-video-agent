@@ -138,6 +138,9 @@ class BrandProfile(Artifact):
     #: Visual family of the motion layer: editorial, bold-social, tech-minimal.
     style_pack: str = "editorial"
     broll_density: float = Field(default=0.0, ge=0.0, le=1.0)
+    broll_library: str | None = None
+    broll_synonyms: dict[str, list[str]] = Field(default_factory=dict)
+    sticker_allowlist: list[str] = Field(default_factory=list)
     music_enabled: bool = False
     sfx_enabled: bool = False
 

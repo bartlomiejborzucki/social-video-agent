@@ -356,6 +356,21 @@ def _check_fonts(report: DoctorReport) -> None:
             f"Install a wider font such as Noto Sans.",
         )
     )
+    from social_video.motion.stickers import emoji_font
+
+    emoji = emoji_font()
+    report.add(
+        Check(
+            "sticker emoji font",
+            emoji is not None,
+            False,
+            f"{emoji.family} ({emoji.license}) {emoji.path}" if emoji else "not found",
+            ""
+            if emoji
+            else "Emoji stickers need Noto Color Emoji (SIL OFL): "
+            "`sudo apt install fonts-noto-color-emoji`.",
+        )
+    )
 
 
 def _check_image_generation(report: DoctorReport) -> None:

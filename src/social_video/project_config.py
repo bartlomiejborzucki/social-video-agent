@@ -281,6 +281,11 @@ def compile_brand_contract(
         motion_energy=energy.name,
         style_pack=config.style_pack,
         broll_density=config.broll_density,
+        broll_library=(
+            str(_resolve_output(config.broll_library, root)) if config.broll_library else None
+        ),
+        broll_synonyms={k.casefold(): list(v) for k, v in config.broll_synonyms.items()},
+        sticker_allowlist=list(config.sticker_allowlist),
         music_enabled=config.music_policy != "none",
         sfx_enabled=config.sfx_policy != "none",
     )

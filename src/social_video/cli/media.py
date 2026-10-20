@@ -384,6 +384,7 @@ def compile_edl(
     """
     from social_video.errors import ValidationError
     from social_video.pipeline import (
+        anchor_workspace_reactions,
         compile_transcripts,
         load_workspace_brand,
         speech_edges,
@@ -434,6 +435,8 @@ def compile_edl(
             used = {r.effective_audio_source for r in edl.ranges}
             heard = [t for t in [transcript, *others.values()] if t.source_id in used]
             stage_captions(heard or [transcript], edl, ws, load_workspace_brand(ws))
+            for note in anchor_workspace_reactions(ws, edl):
+                err_console.print(f"[green]anchored[/green] {escape(note)}")
         return edl, edges
 
     edl, edges = _guard(run)

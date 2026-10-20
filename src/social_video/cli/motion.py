@@ -344,6 +344,10 @@ def motion_qa(
         track = None
         if edl.captions and Path(edl.captions).with_suffix(".json").is_file():
             track = load_artifact(CaptionTrack, Path(edl.captions).with_suffix(".json"))
+        if plan is not None:
+            from social_video.motion.stickers import anchor_to_words
+
+            plan, _notes = anchor_to_words(plan, track)
         # The Remotion base render has no graphics over the faces.
         base = ws.cache / "remotion" / "base-preview.mp4"
         frames = video or (base if base.is_file() else ws.previews / "preview.mp4")

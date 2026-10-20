@@ -149,6 +149,14 @@ class ProjectVideoConfig(BaseModel):
     #: Visual family of the Remotion layer, in the brand's colours and font.
     style_pack: Literal["editorial", "bold-social", "tech-minimal"] = "editorial"
     broll_density: float = Field(default=0, ge=0, le=1)
+    #: The project's own b-roll folder, relative to the project root. Clips are
+    #: described in `broll.yaml` beside them (see `motion.broll`).
+    broll_library: str | None = None
+    #: Extra words a b-roll keyword answers to: {"plac": ["huśtawka", ...]}.
+    broll_synonyms: dict[str, list[str]] = Field(default_factory=dict)
+    #: The emoji a `sticker` may show. Empty means stickers show only images
+    #: from the project; an emoji outside the list is refused.
+    sticker_allowlist: list[str] = Field(default_factory=list, max_length=50)
     music_policy: Literal["none", "optional", "required"] = "none"
     sfx_policy: Literal["none", "optional", "required"] = "none"
     #: Voice cleanup. `measured` is the default: the render measures this

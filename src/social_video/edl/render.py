@@ -119,6 +119,54 @@ def end_hold_frames(edl: EDL, fps: str) -> int:
     return max(0, round(edl.total_duration * rate) - ranges)
 
 
+@dataclass(frozen=True)
+class ShakeWindow:
+    """A moment the whole picture shakes, on the output timeline."""
+
+    start: float
+    end: float
+    amplitude_pct: float
+    frequency_hz: float
+
+
+def shake_graph(label: str, shakes: list[ShakeWindow], canvas: tuple[int, int]) -> tuple[str, str]:
+    """Shake the picture inside each window and leave it untouched outside.
+
+    The shaken copy is enlarged just enough that its moving edge never shows,
+    and laid over the steady picture only while the window is open. The
+    displacement rises and falls with the window, so it never jumps.
+    """
+    width, height = canvas
+    parts: list[str] = []
+    for number, shake in enumerate(shakes):
+        amp = shake.amplitude_pct / 100 * width
+        margin = shake.amplitude_pct / 100 + 0.005
+        big_w = round(width * (1 + 2 * margin) / 2) * 2
+        big_h = round(height * (1 + 2 * margin) / 2) * 2
+        length = max(shake.end - shake.start, 1e-3)
+        rise = f"sin(PI*(t-{shake.start:.4f})/{length:.4f})"
+        wave = f"(t-{shake.start:.4f})*{shake.frequency_hz:.3f}*2*PI"
+        x = f"(iw-ow)/2+{amp:.2f}*{rise}*sin({wave})"
+        y = f"(ih-oh)/2+{amp * 0.6:.2f}*{rise}*cos({wave}*1.3)"
+        steady, moving, shaken, out = (
+            f"[shk{number}a]",
+            f"[shk{number}b]",
+            f"[shk{number}s]",
+            f"[shk{number}]",
+        )
+        parts.append(f"{label}split{steady}{moving}")
+        parts.append(
+            f"{moving}scale={big_w}:{big_h}:flags=bicubic,"
+            f"crop={width}:{height}:x='{x}':y='{y}',setsar=1{shaken}"
+        )
+        parts.append(
+            f"{steady}{shaken}overlay=0:0:"
+            f"enable='between(t,{shake.start:.4f},{shake.end:.4f})'{out}"
+        )
+        label = out
+    return ";".join(parts), label
+
+
 def _canvas_for(edl: EDL, quality: Quality) -> tuple[int, int]:
     """Output canvas, scaled down for the cheaper qualities.
 
@@ -449,6 +497,7 @@ def build_filtergraph(
     cleanup: str | None = None,
     caption_fonts_dir: Path | None = None,
     hold_frames: int = 0,
+    shakes: list[ShakeWindow] | None = None,
 ) -> tuple[str, str, str]:
     """Build the whole filter graph. Returns (graph, video_label, audio_label).
 
@@ -541,6 +590,9 @@ def build_filtergraph(
     parts.append(f"[ca]{_final_audio_chain(total_duration)}[cam]")
 
     vlabel = "[cvm]"
+    if shakes:
+        graph, vlabel = shake_graph(vlabel, shakes, canvas)
+        parts.append(graph)
     speech_label = "[cam]"
     if cleanup:
         parts.append(f"{speech_label}{cleanup}[acleaned]")
@@ -636,6 +688,7 @@ def render_edl(
     caption_file: Path | None = None,
     audio_cleanup_policy: str = "none",
     caption_fonts_dir: Path | None = None,
+    shakes: list[ShakeWindow] | None = None,
 ) -> RenderManifest:
     """Render an EDL to a file. Returns a manifest describing what was made.
 
@@ -685,6 +738,7 @@ def render_edl(
         cleanup=cleanup.chain,
         caption_fonts_dir=caption_fonts_dir,
         hold_frames=hold_frames,
+        shakes=shakes,
     )
 
     output = output.resolve()

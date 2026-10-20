@@ -464,6 +464,28 @@ def stage_render(
 
             save_artifacts_atomically({workspace.edl: edl, workspace.motion_plan: motion_plan})
             log.info("%s", note)
+    reactive = motion_plan
+    if reactive is None and renderer is Renderer.FFMPEG and workspace.motion_plan.is_file():
+        # The FFmpeg route draws no graphics, but it does shake the picture.
+        reactive = load_artifact(MotionPlan, workspace.motion_plan)
+    ffmpeg_shakes = None
+    if reactive is not None:
+        from social_video.motion.stickers import anchor_to_words
+
+        anchored, notes = anchor_to_words(reactive, _caption_json(captions, edl))
+        if notes:
+            save_artifact(anchored, workspace.motion_plan)
+            for note in notes:
+                log.info("%s", note)
+        if renderer is Renderer.REMOTION:
+            motion_plan = anchored
+        else:
+            from social_video.edl.render import ShakeWindow
+
+            ffmpeg_shakes = [
+                ShakeWindow(s.start, s.end, s.amplitude_pct, s.frequency_hz)
+                for s in anchored.shakes
+            ]
     contract: BrandContract | None = None
     if workspace.brand_contract.is_file():
         contract = load_artifact(BrandContract, workspace.brand_contract)
@@ -476,6 +498,18 @@ def stage_render(
     elif edl.brand_profile:
         # Backward-compatible named profiles remain supported; arbitrary names do not.
         load_brand(edl.brand_profile)
+    if motion_plan is not None:
+        from social_video.motion.stickers import sticker_problems
+
+        problems = sticker_problems(
+            motion_plan,
+            energy=contract.brand.motion_energy if contract else "lively",
+            allowlist=contract.brand.sticker_allowlist if contract else [],
+        )
+        if problems:
+            raise ValidationError(
+                "the motion plan's stickers break the brand: " + "; ".join(problems)
+            )
     if contract is not None:
         _check_audio_policy(edl, contract)
         _check_movement(edl, motion_plan if renderer is Renderer.REMOTION else None, contract)
@@ -569,6 +603,7 @@ def stage_render(
         caption_file=base_captions,
         audio_cleanup_policy=cleanup_policy,
         caption_fonts_dir=caption_fonts_dir,
+        shakes=ffmpeg_shakes,
     )
     if renderer is Renderer.REMOTION:
         from social_video.remotion import render_motion_design
@@ -626,6 +661,7 @@ def stage_render(
         runtime = locate_runtime()
         manifest_obj.tool_versions["remotion"] = runtime.locked_version if runtime else "unknown"
         manifest_obj.base_render = str(render_target)
+        manifest_obj.stickers_applied = _sticker_evidence(render_plan)
     else:
         # libass draws the ASS track; it honours the same contracted features.
         # A plain track wraps inside libass, so there is no measured layout to
@@ -956,6 +992,43 @@ def stage_qa(
         {"passed": report.passed, "status": report.status, "attempt": attempt},
     )
     return report
+
+
+def anchor_workspace_reactions(workspace: Workspace, edl: EDL) -> list[str]:
+    """Put the motion plan's stickers and shakes on their words; say what moved."""
+    from social_video.motion.stickers import anchor_to_words
+
+    if not workspace.motion_plan.is_file():
+        return []
+    plan = load_artifact(MotionPlan, workspace.motion_plan)
+    anchored, notes = anchor_to_words(plan, _caption_json(None, edl))
+    if notes:
+        save_artifact(anchored, workspace.motion_plan)
+    return notes
+
+
+def _caption_json(captions: Path | None, edl: EDL) -> CaptionTrack | None:
+    """The structured caption track beside a render's caption file, if there is one."""
+    source = captions or (Path(edl.captions) if edl.captions else None)
+    if source is None:
+        return None
+    path = source.with_suffix(".json")
+    return load_artifact(CaptionTrack, path) if path.is_file() else None
+
+
+def _sticker_evidence(plan: MotionPlan) -> list[dict]:
+    from social_video.motion.stickers import emoji_font
+
+    font = emoji_font()
+    found: list[dict] = []
+    for element in plan.elements:
+        if element.type is not MotionElementType.STICKER:
+            continue
+        if element.emoji is not None and font is not None:
+            found.append({"at": element.start, **font.evidence(element.emoji)})
+        elif element.image_asset is not None:
+            found.append({"at": element.start, "image": element.image_asset})
+    return found
 
 
 def _sync_against_base(output: Path, workspace: Workspace) -> QACheck | None:

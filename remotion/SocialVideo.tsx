@@ -22,6 +22,7 @@ import type {
   FittedCard,
   MotionElement,
   PunchIn,
+  Shake,
   SocialVideoProps,
 } from './types';
 import {DATA_GRAPHICS, DataGraphic} from './DataGraphics';
@@ -759,21 +760,98 @@ const usePunchIn = (punchIns: PunchIn[]): {scale: number; origin: string; focusX
   };
 };
 
+const EMOJI_FAMILY = 'StickerEmoji';
+
+/** The picture's displacement in pixels while a shake is open; it rises and falls. */
+const useShake = (shakes: Shake[]): {x: number; y: number} => {
+  const frame = useCurrentFrame();
+  const {fps, width} = useVideoConfig();
+  const now = frame / fps;
+  const active = shakes.find((s) => now >= s.start && now <= s.end);
+  if (!active) {
+    return {x: 0, y: 0};
+  }
+  const length = Math.max(active.end - active.start, 1e-3);
+  const rise = Math.sin((Math.PI * (now - active.start)) / length);
+  const wave = (now - active.start) * active.frequency_hz * 2 * Math.PI;
+  const amp = (active.amplitude_pct / 100) * width;
+  return {x: amp * rise * Math.sin(wave), y: amp * 0.6 * rise * Math.cos(wave * 1.3)};
+};
+
+/**
+ * A reaction on one word: an emoji or a small project image, 0.6-1.5 s,
+ * placed by its centre. pop springs it in, drop falls it in, shake wobbles it,
+ * pulse beats it; every one leaves in the last 0.15 s.
+ */
+const Sticker: React.FC<{element: MotionElement; durationInFrames: number}> = ({
+  element,
+  durationInFrames,
+}) => {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const size = ((element.size_pct ?? 12) / 100) * height;
+  const enter = spring({frame, fps, config: {damping: 11, stiffness: 220}});
+  const leave = interpolate(
+    frame,
+    [Math.max(0, durationInFrames - Math.round(fps * 0.15)), durationInFrames],
+    [1, 0],
+    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
+  );
+  const t = frame / fps;
+  const animation = element.animation ?? 'pop';
+  const scale =
+    animation === 'pop'
+      ? interpolate(enter, [0, 1], [0.2, 1])
+      : animation === 'pulse'
+        ? 1 + 0.12 * Math.sin(t * Math.PI * 6)
+        : 1;
+  const dy = animation === 'drop' ? interpolate(enter, [0, 1], [-size * 1.2, 0]) : 0;
+  const rotate = animation === 'shake' ? 14 * Math.sin(t * Math.PI * 14) * Math.exp(-t * 2) : 0;
+  return (
+    <AbsoluteFill>
+      <div
+        style={{
+          position: 'absolute',
+          left: (element.x_pct ?? 0.78) * width - size / 2,
+          top: (element.y_pct ?? 0.3) * height - size / 2,
+          width: size,
+          height: size,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: leave * Math.min(1, enter * 3),
+          transform: `translateY(${dy}px) rotate(${rotate}deg) scale(${scale})`,
+        }}
+      >
+        {element.image_source ? (
+          <img src={staticFile(element.image_source)} style={{width: '100%', height: '100%', objectFit: 'contain'}} />
+        ) : (
+          <span style={{fontFamily: EMOJI_FAMILY, fontSize: size * 0.86, lineHeight: 1}}>{element.emoji}</span>
+        )}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
   useProjectFont(props.fontFamily, props.fontSource);
+  useProjectFont(EMOJI_FAMILY, props.emojiFontSource ?? null);
+  const shake = useShake(props.shakes ?? []);
   const punch = usePunchIn(props.punchIns ?? []);
   const cut = useTransition(props.transitions ?? []);
   const pack = stylePack(props.style);
   // A slide moves the picture sideways; scaling it just enough that it still
   // covers the frame keeps the edge it moves away from from showing black.
   const anchor = Math.max(1, props.width * Math.min(punch.focusX, 1 - punch.focusX));
-  const scale = Math.max(punch.scale * cut.scale, 1 + Math.abs(cut.shiftX) / anchor);
+  // A shake moves the picture too: enlarge it just enough to keep the frame covered.
+  const shaken = 1 + 2.2 * Math.max(Math.abs(shake.x) / props.width, Math.abs(shake.y) / props.height);
+  const scale = Math.max(punch.scale * cut.scale, 1 + Math.abs(cut.shiftX) / anchor, shaken);
   return (
     <AbsoluteFill style={{backgroundColor: '#000'}}>
       <AbsoluteFill
         style={{
           overflow: 'hidden',
-          transform: `translateX(${cut.shiftX}px) scale(${scale})`,
+          transform: `translate(${cut.shiftX + shake.x}px, ${shake.y}px) scale(${scale})`,
           transformOrigin: punch.origin,
           filter: cut.blur > 0.05 ? `blur(${cut.blur}px)` : undefined,
         }}
@@ -802,7 +880,9 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
         const holdToEnd = from + duration >= props.durationInFrames - 1;
         return (
           <Sequence key={`${element.type}-${index}`} from={from} durationInFrames={duration}>
-            {element.type === 'label' && props.labelStyle === 'scene_frame' && props.sceneFrame ? (
+            {element.type === 'sticker' ? (
+              <Sticker element={element} durationInFrames={duration} />
+            ) : element.type === 'label' && props.labelStyle === 'scene_frame' && props.sceneFrame ? (
               <SceneFrame
                 text={element.text}
                 previous={element.continues}

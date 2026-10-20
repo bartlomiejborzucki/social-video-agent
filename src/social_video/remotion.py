@@ -74,12 +74,27 @@ def render_motion_design(
         # reported as a plan problem rather than as a missing Node install.
         if element.image_asset:
             plate = Path(element.image_asset).expanduser().resolve()
-            load_image(plate, label=f"motion element {index} image_asset")
+            if plate.suffix.casefold() == ".svg":
+                # A vector sticker: the browser draws it; check it is a file.
+                if not plate.is_file() or plate.stat().st_size > 2 * 1024 * 1024:
+                    raise ValidationError(f"sticker image {plate} is missing or over 2 MB")
+            else:
+                load_image(plate, label=f"motion element {index} image_asset")
             plates[element.image_asset] = plate
     plate_sources = {
         asset: f"motion-plate-{index}{path.suffix.casefold()}"
         for index, (asset, path) in enumerate(sorted(plates.items()))
     }
+    emoji = None
+    if any(e.type is MotionElementType.STICKER and e.emoji for e in plan.elements):
+        from social_video.motion.stickers import emoji_font
+
+        emoji = emoji_font()
+        if emoji is None:
+            raise ToolNotFoundError(
+                "stickers draw emoji only from Noto Color Emoji (SIL OFL); install it with "
+                "`sudo apt install fonts-noto-color-emoji`"
+            )
     node = shutil.which("node")
     if node is None:
         raise ToolNotFoundError(
@@ -172,6 +187,8 @@ def render_motion_design(
             shutil.copy2(logo_path, public / logo_source)
         for asset, name in plate_sources.items():
             shutil.copy2(plates[asset], public / name)
+        if emoji is not None:
+            shutil.copy2(emoji.path, public / f"emoji-font{emoji.path.suffix.casefold()}")
         props = {
             "source": "base.mp4",
             "durationInFrames": duration_in_frames,
@@ -221,6 +238,12 @@ def render_motion_design(
             "punchIns": [
                 item.model_dump(mode="json", exclude={"schema_version"}) for item in plan.punch_ins
             ],
+            "shakes": [
+                item.model_dump(mode="json", exclude={"schema_version"}) for item in plan.shakes
+            ],
+            "emojiFontSource": (
+                f"emoji-font{emoji.path.suffix.casefold()}" if emoji is not None else None
+            ),
             "logoSource": logo_source,
             "logoUsage": logo_usage,
             "safeMargins": safe_margins or {"top": 6, "right": 6, "bottom": 12, "left": 6},

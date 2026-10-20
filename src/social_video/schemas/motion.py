@@ -45,6 +45,9 @@ class MotionElementType(str, Enum):
     #: ``label_style`` draws it as a chip in the top safe zone or as the title
     #: of a frame around the scene's captions.
     LABEL = "label"
+    #: An emoji or a small project image reacting to one word, 0.6-1.5 s,
+    #: in the safe zone and off the face, captions and scene frame.
+    STICKER = "sticker"
 
 
 class EndCardLayout(str, Enum):
@@ -54,6 +57,19 @@ class EndCardLayout(str, Enum):
     OVERLAY = "overlay"
     #: The image whole in the upper part (a book cover), the text below it.
     IMAGE_TOP = "image_top"
+
+
+class StickerAnimation(str, Enum):
+    POP = "pop"
+    SHAKE = "shake"
+    PULSE = "pulse"
+    DROP = "drop"
+
+
+#: Stickers allowed in one reel, by `motion_energy`.
+STICKER_LIMIT = {"calm": 0, "lively": 1, "bold": 2}
+#: A sticker never shares frame 0 with the opening.
+STICKER_EARLIEST = 0.3
 
 
 class ElementPosition(str, Enum):
@@ -76,7 +92,9 @@ POSITIONS: dict[MotionElementType, tuple[ElementPosition, ...]] = {
 
 
 #: Types drawn without words of their own.
-TEXTLESS = frozenset({MotionElementType.PROGRESS, MotionElementType.LOGO_REVEAL})
+TEXTLESS = frozenset(
+    {MotionElementType.PROGRESS, MotionElementType.LOGO_REVEAL, MotionElementType.STICKER}
+)
 #: Types built from `items` rather than from `text` alone.
 ITEMISED = frozenset(
     {
@@ -112,6 +130,19 @@ class MotionElement(Artifact):
     hold: bool = False
     #: An end card's composition with its image_asset.
     layout: EndCardLayout = EndCardLayout.OVERLAY
+    #: A sticker: one emoji from the contract's `sticker_allowlist`, or a
+    #: project image in `image_asset` (PNG, WebP or SVG).
+    emoji: str | None = None
+    #: Anchor a sticker to a spoken word: its start becomes the start of that
+    #: word's ``occurrence``-th appearance in the captions.
+    at_word: str | None = Field(default=None, max_length=60)
+    occurrence: int = Field(default=1, ge=1)
+    animation: StickerAnimation = StickerAnimation.POP
+    #: Height of the sticker, as a percentage of the output height.
+    size_pct: float = Field(default=12.0, ge=3.0, le=30.0)
+    #: Centre of the sticker, as fractions of the output width and height.
+    x_pct: float = Field(default=0.78, ge=0.0, le=1.0)
+    y_pct: float = Field(default=0.3, ge=0.0, le=1.0)
 
     @property
     def placement(self) -> ElementPosition | None:
@@ -177,18 +208,47 @@ class MotionElement(Artifact):
             self.hold or self.layout is not EndCardLayout.OVERLAY
         ):
             raise ValueError("hold and layout are only used by an end_card")
+        if self.type is MotionElementType.STICKER:
+            self._check_sticker()
+        elif self.emoji is not None or self.at_word is not None:
+            raise ValueError("emoji and at_word are only used by a sticker")
         if self.layout is EndCardLayout.IMAGE_TOP and self.image_asset is None:
             raise ValueError("layout image_top needs an image_asset to put above the text")
-        if self.image_asset is not None:
+        if self.image_asset is not None and self.type is not MotionElementType.STICKER:
             if self.type is not MotionElementType.END_CARD:
                 raise ValueError(
-                    "image_asset is only supported on an end_card; a plate behind a hook "
-                    "or callout covers the speaker the edit was made for"
+                    "image_asset is only supported on an end_card or a sticker; a plate "
+                    "behind a hook or callout covers the speaker the edit was made for"
                 )
             suffix = Path(self.image_asset).suffix.casefold()
             if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
                 raise ValueError("image_asset must be a .png, .jpg, .jpeg or .webp file")
         return self
+
+    def _check_sticker(self) -> None:
+        if (self.emoji is None) == (self.image_asset is None):
+            raise ValueError("a sticker shows one emoji or one image_asset")
+        if self.image_asset is not None:
+            suffix = Path(self.image_asset).suffix.casefold()
+            if suffix not in {".png", ".webp", ".svg"}:
+                raise ValueError("a sticker image must be a .png, .webp or .svg file")
+        length = self.end - self.start
+        if not 0.6 - 1e-6 <= length <= 1.5 + 1e-6:
+            raise ValueError(f"a sticker stays 0.6-1.5 s on screen, not {length:.2f} s")
+        if self.start < STICKER_EARLIEST:
+            raise ValueError(
+                f"a sticker never shares the opening frame: start at {STICKER_EARLIEST} s or later"
+            )
+        left, top, right, bottom = self.box
+        if left < 0 or top < 0 or right > 1 or bottom > 1:
+            raise ValueError("a sticker must lie wholly inside the frame")
+
+    @property
+    def box(self) -> tuple[float, float, float, float]:
+        """A sticker's (left, top, right, bottom), as fractions of a 9:16 frame."""
+        half_h = self.size_pct / 100 / 2
+        half_w = half_h * 16 / 9
+        return (self.x_pct - half_w, self.y_pct - half_h, self.x_pct + half_w, self.y_pct + half_h)
 
 
 def chart_value(item: str) -> tuple[str, float] | None:
@@ -209,6 +269,25 @@ class TransitionStyle(str, Enum):
     SLIDE = "slide"
     #: A brief wash of the brand's accent colour.
     FLASH = "flash"
+
+
+class Shake(Artifact):
+    """The picture shaken for a moment, e.g. under "Zgodziłeś!"."""
+
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+    #: Largest displacement, as a percentage of the output width.
+    amplitude_pct: float = Field(default=1.2, gt=0.0, le=4.0)
+    frequency_hz: float = Field(default=9.0, ge=2.0, le=20.0)
+    at_word: str | None = Field(default=None, max_length=60)
+    occurrence: int = Field(default=1, ge=1)
+    reason: str = Field(min_length=1, max_length=300)
+
+    @model_validator(mode="after")
+    def _valid(self) -> Shake:
+        if not 0.15 <= self.end - self.start <= 2.0:
+            raise ValueError("a shake lasts 0.15-2 s; a longer one is a grade (`shake`)")
+        return self
 
 
 class Transition(Artifact):
@@ -254,6 +333,8 @@ class MotionPlan(Artifact):
     elements: list[MotionElement] = Field(default_factory=list)
     punch_ins: list[PunchIn] = Field(default_factory=list)
     transitions: list[Transition] = Field(default_factory=list)
+    #: Moments the whole picture shakes, drawn by both renderers.
+    shakes: list[Shake] = Field(default_factory=list)
     rationale: str = Field(min_length=1, max_length=800)
 
     @model_validator(mode="after")

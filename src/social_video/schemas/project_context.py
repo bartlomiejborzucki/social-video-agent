@@ -118,6 +118,9 @@ class ProjectConfig(BaseModel):
     motion_energy: str | None = None
     style_pack: str | None = None
     broll_density: str | float | None = None
+    broll_library: str | None = None
+    broll_synonyms: dict[str, list[str]] = Field(default_factory=dict)
+    sticker_allowlist: list[str] = Field(default_factory=list)
     music_policy: str | None = None
     sfx_policy: str | None = None
     audio_cleanup_policy: str | None = None
