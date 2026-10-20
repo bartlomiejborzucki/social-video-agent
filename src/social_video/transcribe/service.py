@@ -26,8 +26,23 @@ from social_video.workspace.layout import Workspace
 log = logging.getLogger(__name__)
 
 
-def source_id_for(path: str | Path) -> str:
-    """Stable, readable handle for a source file."""
+def source_id_for(path: str | Path, workspace: Workspace | None = None) -> str:
+    """Stable, readable handle for a source file.
+
+    The id the workspace's source manifest gives the file, so a recording
+    added with `sources add --id` is transcribed under the name plans use;
+    otherwise its file stem.
+    """
+    if workspace is not None and workspace.source_manifest.is_file():
+        from social_video.schemas.source import SourceManifest
+        from social_video.sources import id_for_path
+
+        try:
+            known = id_for_path(load_artifact(SourceManifest, workspace.source_manifest), path)
+        except ValidationError:
+            known = None
+        if known is not None:
+            return known
     return Path(path).stem
 
 
@@ -50,7 +65,7 @@ def transcribe_source(
     workspace.ensure()
 
     info = probe(src)
-    sid = source_id_for(src)
+    sid = source_id_for(src, workspace)
     fingerprint = file_fingerprint(src)
     out_path = workspace.transcript_for(sid, opts.audio_track)
     # Constructing a backend is cheap; heavy imports wait for transcribe().
@@ -133,7 +148,7 @@ def workspace_transcript(
     a later command asked for a different default model.
     """
     src = normalize_user_path(source, must_exist=True)
-    path = workspace.transcript_for(source_id or source_id_for(src), audio_track)
+    path = workspace.transcript_for(source_id or source_id_for(src, workspace), audio_track)
     if not path.is_file():
         return None
     try:

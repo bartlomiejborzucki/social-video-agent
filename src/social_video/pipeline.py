@@ -49,7 +49,7 @@ from social_video.schemas.qa import QACheck, QAReport, QASeverity, RenderManifes
 from social_video.schemas.source import SourceManifest
 from social_video.schemas.transcript import Transcript
 from social_video.schemas.workflow import RemotionLicenseAttestation, Renderer
-from social_video.sources import build_manifest
+from social_video.sources import build_manifest, merge_manifest
 from social_video.transcribe.base import TranscriptionOptions
 from social_video.transcribe.quality import assess_transcript
 from social_video.transcribe.service import transcribe_source
@@ -76,9 +76,12 @@ def record_stage(workspace: Workspace, stage: str, detail: dict | None = None) -
 
 
 def stage_ingest(source: Path, workspace: Workspace) -> SourceManifest:
-    """Probe the sources and write the manifest."""
+    """Probe the sources and write the manifest, keeping sources added before."""
     workspace.ensure()
     manifest = build_manifest([source])
+    if workspace.source_manifest.is_file():
+        existing = load_artifact(SourceManifest, workspace.source_manifest)
+        manifest = merge_manifest(existing, manifest)
     save_artifact(manifest, workspace.source_manifest)
     record_stage(workspace, "ingest", {"sources": manifest.ids})
     return manifest

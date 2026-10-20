@@ -21,8 +21,10 @@ cuts_app = typer.Typer(
 license_app = typer.Typer(
     help="Record, inspect, refresh or revoke this project's Remotion license declaration."
 )
+sources_app = typer.Typer(help="List the recordings an edit can use; add one to a workspace.")
 app.add_typer(context_app, name="context")
 app.add_typer(workflow_app, name="workflow")
+app.add_typer(sources_app, name="sources")
 app.add_typer(config_app, name="config")
 app.add_typer(image_app, name="image")
 app.add_typer(shorts_app, name="shorts")

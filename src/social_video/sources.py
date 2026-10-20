@@ -97,3 +97,67 @@ def build_manifest(paths: list[str | Path], *, recursive: bool = True) -> Source
         sid = p.stem if stems[p.stem] == 1 else f"{p.parent.name}_{p.stem}"
         entries.append(describe_source(p, source_id=sid))
     return SourceManifest(sources=entries)
+
+
+def id_for_path(manifest: SourceManifest, path: str | Path) -> str | None:
+    """The id a manifest already gives this file, if any."""
+    wanted = Path(path).expanduser().resolve()
+    for entry in manifest.sources:
+        if Path(entry.path).expanduser().resolve() == wanted:
+            return entry.id
+    return None
+
+
+def merge_manifest(existing: SourceManifest, added: SourceManifest) -> SourceManifest:
+    """Every source of both, the added entry winning for a shared id or file."""
+    added_paths = {Path(e.path).resolve() for e in added.sources}
+    kept = [
+        e
+        for e in existing.sources
+        if e.id not in added.ids and Path(e.path).resolve() not in added_paths
+    ]
+    return SourceManifest(sources=[*kept, *added.sources])
+
+
+def add_source(
+    manifest: SourceManifest, path: str | Path, *, source_id: str | None = None
+) -> tuple[SourceManifest, SourceEntry, str]:
+    """Add one file to a manifest, or refresh its entry. Returns what happened.
+
+    An id already taken by a different file is refused rather than repointed:
+    the EDL and the transcripts name sources by id, so a silent swap would
+    cut picture from a recording nobody chose.
+    """
+    p = Path(path).expanduser().resolve()
+    if not p.is_file():
+        raise SocialVideoError(f"not found: {p}")
+    if not is_media(p):
+        raise SocialVideoError(
+            f"{p.name} is not a media file. Supported extensions: "
+            + ", ".join(sorted(MEDIA_EXTENSIONS))
+        )
+    known = id_for_path(manifest, p)
+    sid = source_id or known or p.stem
+    if not sid.strip() or "/" in sid or "\\" in sid:
+        raise SocialVideoError(f"invalid source id {sid!r}")
+    for entry in manifest.sources:
+        if entry.id == sid and Path(entry.path).resolve() != p:
+            raise SocialVideoError(
+                f"source id {sid!r} already names {entry.path}; choose another with --id"
+            )
+    if known is not None and known != sid:
+        raise SocialVideoError(
+            f"{p.name} is already in the manifest as {known!r}; transcripts and plans use "
+            "that id, so it is not renamed"
+        )
+    entry = describe_source(p, source_id=sid)
+    previous = next((e for e in manifest.sources if e.id == sid), None)
+    if previous is None:
+        status = "added"
+    elif previous.fingerprint != entry.fingerprint:
+        status = "updated"
+    else:
+        status = "unchanged"
+    sources = [e for e in manifest.sources if e.id != sid]
+    sources.append(entry)
+    return SourceManifest(sources=sources), entry, status

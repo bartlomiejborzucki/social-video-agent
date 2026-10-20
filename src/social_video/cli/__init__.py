@@ -45,6 +45,7 @@ from social_video.cli import media  # noqa: E402
 from social_video.cli import render  # noqa: E402
 from social_video.cli import delivery  # noqa: E402
 from social_video.cli import workflow  # noqa: E402
+from social_video.cli import sources  # noqa: E402
 from social_video.cli import config  # noqa: E402
 from social_video.cli import image  # noqa: E402
 from social_video.cli import shorts  # noqa: E402
@@ -77,6 +78,7 @@ __all__ = [
     "motion",
     "render",
     "shorts",
+    "sources",
     "style",
     "workflow",
 ]
