@@ -472,6 +472,13 @@ class EDL(Artifact):
         default_factory=list,
         description="Exact QA check names explicitly accepted by the supervising editor.",
     )
+    end_hold: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=10.0,
+        description="Seconds the last frame is held in silence after the last range, under "
+        "an end card with hold: true. Set from the motion plan, not by hand.",
+    )
 
     @model_validator(mode="after")
     def _check_canvas(self) -> EDL:
@@ -492,7 +499,7 @@ class EDL(Artifact):
     @property
     def total_duration(self) -> float:
         """Expected output duration. QA asserts the render matches this."""
-        return sum(r.output_duration for r in self.ranges)
+        return sum(r.output_duration for r in self.ranges) + self.end_hold
 
     def source_ids(self) -> list[str]:
         seen: list[str] = []

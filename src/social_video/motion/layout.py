@@ -15,7 +15,12 @@ from itertools import pairwise
 from social_video.captions.fit import BOX_PADDING_BOTTOM, BOX_PADDING_TOP, LINE_HEIGHT
 from social_video.schemas.brand import CaptionPosition, CaptionStyle
 from social_video.schemas.edl import EDL
-from social_video.schemas.motion import ElementPosition, MotionElement, MotionElementType
+from social_video.schemas.motion import (
+    ElementPosition,
+    MotionElement,
+    MotionElementType,
+    MotionPlan,
+)
 
 #: Two labels this close are one scene continuing: the frame stays and the
 #: title flips instead of the frame leaving and coming back.
@@ -221,3 +226,40 @@ def pin_labels(elements: list[MotionElement], edl: EDL) -> tuple[list[MotionElem
             )
         result.append(element.model_copy(update={"start": start, "end": end}))
     return result, notes
+
+
+def held_end_card(plan: MotionPlan, edl: EDL) -> tuple[EDL, MotionPlan, str | None]:
+    """Extend the edit for an end card held after the last word, and place it there.
+
+    The card keeps its length (end - start) and starts where the last range
+    ends; the EDL holds that long in silence, so the card never covers the
+    last spoken seconds and lasts to the final frame. Returns what moved.
+    """
+    from social_video.edl.timeline import Timeline
+
+    held = [e for e in plan.elements if e.type is MotionElementType.END_CARD and e.hold]
+    if len(held) > 1:
+        raise ValueError("only one end_card can be held after the last word")
+    if not held:
+        if edl.end_hold == 0:
+            return edl, plan, None
+        return edl.model_copy(update={"end_hold": 0.0}), plan, "end hold removed: no held end_card"
+    card = held[0]
+    length = round(card.end - card.start, 3)
+    content_end = round(Timeline(edl).content_end, 3)
+    if abs(edl.end_hold - length) < 1e-3 and abs(card.start - content_end) < 1e-3:
+        return edl, plan, None
+    moved = card.model_copy(update={"start": content_end, "end": round(content_end + length, 3)})
+    elements = [moved if e is card else e for e in plan.elements]
+    new_plan = MotionPlan.model_validate(
+        plan.model_copy(update={"elements": sorted(elements, key=lambda e: e.start)}).model_dump()
+    )
+    new_edl = EDL.model_validate(edl.model_copy(update={"end_hold": length}).model_dump())
+    return (
+        new_edl,
+        new_plan,
+        (
+            f"end_card held {length:.2f}s after the last word, "
+            f"{content_end:.2f}-{content_end + length:.2f}s"
+        ),
+    )

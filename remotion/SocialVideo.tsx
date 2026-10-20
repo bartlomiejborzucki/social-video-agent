@@ -18,6 +18,8 @@ import type {
   CaptionLayout,
   CaptionStyle,
   CaptionWord,
+  FittedBlock,
+  FittedCard,
   MotionElement,
   PunchIn,
   SocialVideoProps,
@@ -208,16 +210,21 @@ const MotionGraphic: React.FC<{
   background: string;
   font: string;
   durationInFrames: number;
-}> = ({element, accent, text, background, font, durationInFrames}) => {
+  holdToEnd?: boolean;
+}> = ({element, accent, text, background, font, durationInFrames, holdToEnd = false}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const entrance = spring({frame, fps, config: {damping: 20, stiffness: 170}});
-  const exit = interpolate(
-    frame,
-    [Math.max(0, durationInFrames - Math.round(fps * 0.2)), durationInFrames],
-    [1, 0],
-    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
-  );
+  // An element that runs to the last frame of the video stays on it: fading
+  // out there would end the video on whatever is underneath.
+  const exit = holdToEnd
+    ? 1
+    : interpolate(
+        frame,
+        [Math.max(0, durationInFrames - Math.round(fps * 0.2)), durationInFrames],
+        [1, 0],
+        {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
+      );
   const opacity = interpolate(entrance, [0, 1], [0, 1]) * exit;
   const y = interpolate(entrance, [0, 1], [32, 0]);
   const isEnd = element.type === 'end_card';
@@ -225,6 +232,23 @@ const MotionGraphic: React.FC<{
   const dim = Math.min(90, Math.max(0, element.image_dim_pct ?? 45)) / 100;
   const isLower = element.type === 'lower_third';
   const isCallout = element.type === 'callout';
+
+  if (isEnd && element.fitted) {
+    return (
+      <EndCard
+        element={element}
+        fitted={element.fitted}
+        plate={plate}
+        dim={dim}
+        accent={accent}
+        text={text}
+        background={background}
+        font={font}
+        opacity={opacity}
+        y={y}
+      />
+    );
+  }
 
   return (
     <AbsoluteFill
@@ -286,6 +310,94 @@ const MotionGraphic: React.FC<{
   );
 };
 
+/**
+ * The end card, drawn from lines measured in Python: no wrapping here, so a
+ * link is never split, and the sizes are the ones that were checked to fit.
+ * ``image_top`` puts the whole image (a book cover) above the text instead of
+ * dimming it behind the words.
+ */
+const EndCard: React.FC<{
+  element: MotionElement;
+  fitted: FittedCard;
+  plate: string | null;
+  dim: number;
+  accent: string;
+  text: string;
+  background: string;
+  font: string;
+  opacity: number;
+  y: number;
+}> = ({element, fitted, plate, dim, accent, text, background, font, opacity, y}) => {
+  const {height} = useVideoConfig();
+  const u = height / 1920;
+  const imageTop = element.layout === 'image_top' && plate !== null;
+  const lines = (block: FittedBlock, weight: number, lineHeight: number) =>
+    block.lines.map((line, index) => (
+      <div
+        key={index}
+        style={{fontSize: block.font_px, fontWeight: weight, lineHeight, whiteSpace: 'nowrap'}}
+      >
+        {line === '' ? '\u00a0' : line}
+      </div>
+    ));
+  const words = (
+    <div style={{position: 'relative', color: text, textAlign: 'center', maxWidth: fitted.max_width}}>
+      {lines(fitted.title, 800, 1.08)}
+      {fitted.secondary ? (
+        <div style={{marginTop: 22 * u}}>{lines(fitted.secondary, 500, 1.25)}</div>
+      ) : null}
+    </div>
+  );
+  return (
+    <AbsoluteFill
+      style={{
+        fontFamily: font,
+        opacity,
+        transform: `translateY(${y}px)`,
+        background: imageTop || !plate
+          ? `radial-gradient(circle at 50% 35%, ${accent}26 0%, ${background} 58%)`
+          : 'transparent',
+        alignItems: 'center',
+        justifyContent: imageTop ? 'flex-start' : 'center',
+        padding: 90 * u,
+      }}
+    >
+      {plate && !imageTop ? (
+        <>
+          <img
+            src={staticFile(plate)}
+            style={{position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover'}}
+          />
+          <AbsoluteFill style={{backgroundColor: background, opacity: dim}} />
+        </>
+      ) : null}
+      {imageTop && plate ? (
+        <img
+          src={staticFile(plate)}
+          style={{
+            width: '100%',
+            height: '50%',
+            marginTop: 60 * u,
+            objectFit: 'contain',
+            flexShrink: 0,
+          }}
+        />
+      ) : null}
+      <div
+        style={{
+          display: 'flex',
+          flex: imageTop ? 1 : undefined,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginTop: imageTop ? 40 * u : 0,
+        }}
+      >
+        {words}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 const EXTENDED = new Set(['quote', 'stat', 'list', 'chapter', 'cta', 'progress', 'logo_reveal', 'label']);
 
 /** Split "73,5%" into prefix, number, suffix so the number can count up. */
@@ -323,19 +435,24 @@ const ExtendedGraphic: React.FC<{
   safeMargins: SocialVideoProps['safeMargins'];
   secondary: string;
   captionBackground: string | null;
-}> = ({element, accent, text, background, font, durationInFrames, logoSource, safeMargins, secondary, captionBackground}) => {
+  holdToEnd?: boolean;
+}> = ({element, accent, text, background, font, durationInFrames, logoSource, safeMargins, secondary, captionBackground, holdToEnd = false}) => {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
   // One pixel of a 1920-high frame: new placements scale with the output, so
   // a 720x1280 preview is the final, smaller.
   const u = height / 1920;
   const entrance = spring({frame, fps, config: {damping: 20, stiffness: 170}});
-  const exit = interpolate(
-    frame,
-    [Math.max(0, durationInFrames - Math.round(fps * 0.2)), durationInFrames],
-    [1, 0],
-    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
-  );
+  // An element that runs to the last frame of the video stays on it: fading
+  // out there would end the video on whatever is underneath.
+  const exit = holdToEnd
+    ? 1
+    : interpolate(
+        frame,
+        [Math.max(0, durationInFrames - Math.round(fps * 0.2)), durationInFrames],
+        [1, 0],
+        {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
+      );
   const opacity = interpolate(entrance, [0, 1], [0, 1]) * exit;
   const rise = interpolate(entrance, [0, 1], [28, 0]);
   const pad = {
@@ -682,6 +799,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
       {props.elements.map((element, index) => {
         const from = Math.round(element.start * props.fps);
         const duration = Math.max(1, Math.round((element.end - element.start) * props.fps));
+        const holdToEnd = from + duration >= props.durationInFrames - 1;
         return (
           <Sequence key={`${element.type}-${index}`} from={from} durationInFrames={duration}>
             {element.type === 'label' && props.labelStyle === 'scene_frame' && props.sceneFrame ? (
@@ -704,6 +822,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
                 safeMargins={props.safeMargins}
                 pack={pack}
                 secondary={props.secondaryColor}
+                holdToEnd={holdToEnd}
               />
             ) : EXTENDED.has(element.type) ? (
               <ExtendedGraphic
@@ -717,6 +836,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
                 safeMargins={props.safeMargins}
                 secondary={props.secondaryColor}
                 captionBackground={props.captionStyle?.background_style !== 'none' ? props.captionStyle?.background_colour ?? null : null}
+                holdToEnd={holdToEnd}
               />
             ) : (
               <MotionGraphic
@@ -726,6 +846,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
                 background={props.backgroundColor}
                 font={props.fontFamily}
                 durationInFrames={duration}
+                holdToEnd={holdToEnd}
               />
             )}
           </Sequence>

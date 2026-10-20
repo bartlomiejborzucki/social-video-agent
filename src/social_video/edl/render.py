@@ -110,6 +110,15 @@ def allocate_range_frames(edl: EDL, fps: str) -> list[int]:
     return frames
 
 
+def end_hold_frames(edl: EDL, fps: str) -> int:
+    """Frames of held last picture after the last range, for a held end card."""
+    if edl.end_hold <= 0:
+        return 0
+    rate = float(Fraction(fps))
+    ranges = sum(allocate_range_frames(edl, fps))
+    return max(0, round(edl.total_duration * rate) - ranges)
+
+
 def _canvas_for(edl: EDL, quality: Quality) -> tuple[int, int]:
     """Output canvas, scaled down for the cheaper qualities.
 
@@ -439,8 +448,13 @@ def build_filtergraph(
     mix: AudioMix | None = None,
     cleanup: str | None = None,
     caption_fonts_dir: Path | None = None,
+    hold_frames: int = 0,
 ) -> tuple[str, str, str]:
-    """Build the whole filter graph. Returns (graph, video_label, audio_label)."""
+    """Build the whole filter graph. Returns (graph, video_label, audio_label).
+
+    ``hold_frames`` holds the last picture after the last range, in silence,
+    for an end card drawn over it.
+    """
     video_labels: list[str] = []
     audio_labels: list[str] = []
     parts: list[str] = []
@@ -518,9 +532,12 @@ def build_filtergraph(
 
     pairs = "".join(v + a for v, a in zip(video_labels, audio_labels, strict=True))
     parts.append(f"{pairs}concat=n={len(edl.ranges)}:v=1:a=1[cv][ca]")
-    total_frames = sum(media.target_frames for media in ranges)
-    total_duration = sum(media.target_duration for media in ranges)
-    parts.append(f"[cv]trim=end_frame={total_frames},setpts=N/({fps}*TB)[cvm]")
+    total_frames = sum(media.target_frames for media in ranges) + hold_frames
+    total_duration = sum(media.target_duration for media in ranges) + hold_frames / float(
+        Fraction(fps)
+    )
+    hold = f"tpad=stop_mode=clone:stop={hold_frames}," if hold_frames else ""
+    parts.append(f"[cv]{hold}trim=end_frame={total_frames},setpts=N/({fps}*TB)[cvm]")
     parts.append(f"[ca]{_final_audio_chain(total_duration)}[cam]")
 
     vlabel = "[cvm]"
@@ -636,6 +653,7 @@ def render_edl(
     fps = resolve_output_fps(video_infos, edl.output_fps)
     source_fps = resolve_output_fps(video_infos, None)
     frame_counts = allocate_range_frames(edl, fps)
+    hold_frames = end_hold_frames(edl, fps)
     rate = float(Fraction(fps))
 
     if caption_file is not None and not has_libass():
@@ -647,7 +665,7 @@ def render_edl(
     inputs, render_ranges, next_input = _collect_inputs(
         edl, manifest, video_infos, frame_counts, rate
     )
-    total_output_duration = sum(frames / rate for frames in frame_counts)
+    total_output_duration = sum(frames / rate for frames in frame_counts) + hold_frames / rate
     mix, mix_inputs = _music_inputs(edl, next_input, total_output_duration)
     inputs += mix_inputs
 
@@ -666,6 +684,7 @@ def render_edl(
         mix=mix,
         cleanup=cleanup.chain,
         caption_fonts_dir=caption_fonts_dir,
+        hold_frames=hold_frames,
     )
 
     output = output.resolve()
@@ -677,7 +696,7 @@ def render_edl(
         (vlabel, alabel),
         quality=quality,
         fps=fps,
-        total_frames=sum(frame_counts),
+        total_frames=sum(frame_counts) + hold_frames,
         staged=staged,
     )
     log.info(

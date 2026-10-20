@@ -14,6 +14,8 @@ type Props = {
   pack: StylePack;
   /** The brand's second colour, for steps placed at the top. */
   secondary?: string;
+  /** Runs to the last frame of the video, so it does not fade out. */
+  holdToEnd?: boolean;
 };
 
 export const DATA_GRAPHICS = new Set(['hook_card', 'chart', 'compare', 'steps']);
@@ -46,16 +48,21 @@ export const DataGraphic: React.FC<Props> = ({
   safeMargins,
   pack,
   secondary,
+  holdToEnd = false,
 }) => {
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
   const entrance = spring({frame, fps, config: {damping: 18, stiffness: 160}});
-  const exit = interpolate(
-    frame,
-    [Math.max(0, durationInFrames - Math.round(fps * 0.2)), durationInFrames],
-    [1, 0],
-    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
-  );
+  // An element that runs to the last frame of the video stays on it: fading
+  // out there would end the video on whatever is underneath.
+  const exit = holdToEnd
+    ? 1
+    : interpolate(
+        frame,
+        [Math.max(0, durationInFrames - Math.round(fps * 0.2)), durationInFrames],
+        [1, 0],
+        {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
+      );
   const cardFill = pack.card === 'accent' ? accent : pack.card;
   const cardText = pack.card === 'accent' ? background : text;
   const side = {

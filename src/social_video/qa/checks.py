@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-from social_video.edl.render import allocate_range_frames
+from social_video.edl.render import allocate_range_frames, end_hold_frames
 from social_video.edl.timeline import Timeline
 from social_video.errors import FFmpegError
 from social_video.ffmpeg.filters import LOUDNORM_I
@@ -193,7 +193,8 @@ def _check_duration(report: QAReport, info, edl: EDL | None) -> None:
         return
     if info.video is not None:
         rate = info.video.nominal_frame_rate
-        expected = sum(allocate_range_frames(edl, rate)) / float(Fraction(rate))
+        frames = sum(allocate_range_frames(edl, rate)) + end_hold_frames(edl, rate)
+        expected = frames / float(Fraction(rate))
     else:
         expected = Timeline(edl).duration
     drift = abs(info.duration - expected)
@@ -482,6 +483,9 @@ def _static_span_is_approved(edl: EDL | None, start: float, end: float) -> bool:
     if edl is None:
         return False
     timeline = Timeline(edl)
+    if edl.end_hold > 0 and start >= timeline.content_end - 0.3:
+        # The held end card: still on purpose, and the plan says how long.
+        return True
     for item in timeline.slices:
         rng = item.range
         approved_duration = 0.0

@@ -46,6 +46,15 @@ class MotionElementType(str, Enum):
     LABEL = "label"
 
 
+class EndCardLayout(str, Enum):
+    """How an end card shares the frame with its image."""
+
+    #: Text over the image, which fills the frame and is dimmed.
+    OVERLAY = "overlay"
+    #: The image whole in the upper part (a book cover), the text below it.
+    IMAGE_TOP = "image_top"
+
+
 class ElementPosition(str, Enum):
     """Where an element that may move sits on the frame."""
 
@@ -96,6 +105,12 @@ class MotionElement(Artifact):
     #: Placement of a ``cta`` (above_captions or top) or a ``list``/``steps``
     #: (center or top). Empty means the type's 1.0 placement.
     position: ElementPosition | None = None
+    #: An end card after the last word: the edit's timeline is extended by
+    #: the card's length (end - start), held in silence, instead of the card
+    #: covering the last spoken seconds. Its start is set to the edit's end.
+    hold: bool = False
+    #: An end card's composition with its image_asset.
+    layout: EndCardLayout = EndCardLayout.OVERLAY
 
     @property
     def placement(self) -> ElementPosition | None:
@@ -157,6 +172,12 @@ class MotionElement(Artifact):
                 )
         if self.type is MotionElementType.STAT and len(self.text) > 12:
             raise ValueError("a stat is one figure of at most 12 characters, e.g. '73%' or '3x'")
+        if self.type is not MotionElementType.END_CARD and (
+            self.hold or self.layout is not EndCardLayout.OVERLAY
+        ):
+            raise ValueError("hold and layout are only used by an end_card")
+        if self.layout is EndCardLayout.IMAGE_TOP and self.image_asset is None:
+            raise ValueError("layout image_top needs an image_asset to put above the text")
         if self.image_asset is not None:
             if self.type is not MotionElementType.END_CARD:
                 raise ValueError(

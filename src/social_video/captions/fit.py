@@ -397,6 +397,11 @@ class _Measurer:
         return len(text) * size_px * ESTIMATED_ADVANCE_EM
 
 
+def text_measurer(font_file: str | Path | None) -> _Measurer:
+    """Width of text in pixels, from the font file when it can be loaded."""
+    return _measurer(font_file)
+
+
 def _measurer(font_file: str | Path | None) -> _Measurer:
     path = Path(font_file).expanduser() if font_file else None
     return _Measurer(path if path is not None and path.is_file() else None)

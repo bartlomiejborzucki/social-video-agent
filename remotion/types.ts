@@ -29,7 +29,17 @@ export type MotionElement = {
   position?: 'top' | 'center' | 'above_captions' | null;
   /** For a label: the text of the label it takes over from without a break. */
   continues?: string | null;
+  /** End card: held after the last word (the timeline was extended for it). */
+  hold?: boolean;
+  /** End card: text over a dimmed image, or the image above the text. */
+  layout?: 'overlay' | 'image_top';
+  /** End card: lines and sizes measured in Python; links are never split. */
+  fitted?: FittedCard | null;
 };
+
+export type FittedBlock = {font_px: number; lines: string[]};
+
+export type FittedCard = {title: FittedBlock; secondary?: FittedBlock; max_width: number};
 
 /** The scene frame in output pixels, computed in Python (motion/layout.py). */
 export type SceneFrameGeometry = {

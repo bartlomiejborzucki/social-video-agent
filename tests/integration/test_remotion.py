@@ -217,3 +217,74 @@ def test_remotion_render_keeps_the_base_audio_in_sync(tmp_path: Path) -> None:
     assert check is not None
     assert check.passed, check.message
     assert abs(check.measured or 0.0) <= 0.020
+
+
+def test_a_held_end_card_lasts_to_the_final_frame(tmp_path: Path) -> None:
+    import numpy as np
+
+    from social_video.pipeline import stage_qa
+    from social_video.schemas.base import save_artifact
+
+    source = make_video(tmp_path / "kamera.mp4", width=360, height=640, fps=30, duration=2.0,
+                        audio_channels=2)  # fmt: skip
+    font = default_caption_font()
+    assert font is not None
+    plan = MotionPlan(
+        style="editorial_clean",
+        rationale="A link card after the last word.",
+        font_family=font.family,
+        font_path=str(font.path),
+        background_color="#101114",
+        elements=[
+            MotionElement(
+                type=MotionElementType.END_CARD,
+                start=0.0,
+                end=1.5,
+                hold=True,
+                text="Nowy poradnik\nprzyklad-marki.example/strona-z-zapisami/",
+                secondary_text="link także w bio",
+                reason="The waiting-list link, after the last word.",
+            )
+        ],
+    )
+    manifest = build_manifest([source])
+    ws = Workspace.at(tmp_path / "edit")
+    ws.ensure()
+    edl = EDL(
+        output_width=360,
+        output_height=640,
+        output_fps="30/1",
+        normalize_audio=False,
+        ranges=[EDLRange(source=manifest.ids[0], start=0, end=2)],
+    )
+    save_artifact(edl, ws.edl)
+    save_artifact(plan, ws.motion_plan)
+    output = ws.final / "final.mp4"
+    stage_render(
+        edl,
+        manifest,
+        ws,
+        quality="final",
+        renderer=Renderer.REMOTION,
+        motion_plan=plan,
+        remotion_license_attestation=RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE,
+    )
+    info = probe(output)
+    assert info.video is not None and info.video.nb_frames == 105
+    last = subprocess.run(
+        ["ffmpeg", "-v", "error", "-sseof", "-0.04", "-i", str(output), "-frames:v", "1",
+         "-vf", "scale=36:64,format=gray", "-f", "rawvideo", "-"],
+        check=True, capture_output=True,
+    ).stdout  # fmt: skip
+    pixels = np.frombuffer(last, dtype=np.uint8).astype(float)
+    # The card's dark ground, not the colour bars underneath.
+    assert pixels.mean() < 60
+    from social_video.schemas.base import load_artifact
+
+    saved = load_artifact(EDL, ws.edl)
+    assert saved.end_hold == pytest.approx(1.5)
+    report = stage_qa(output, saved, ws, sheets=False)
+    names = {c.name: c for c in report.checks}
+    assert names["duration matches EDL"].passed
+    assert names["ending visual continuity"].passed
+    assert names["audio/video sync against base"].passed

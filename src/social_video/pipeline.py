@@ -43,7 +43,7 @@ from social_video.schemas.brand import BrandProfile, OutputProfile
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.config import BrandContract
 from social_video.schemas.edl import EDL, ReframeMode
-from social_video.schemas.motion import MotionPlan
+from social_video.schemas.motion import MotionElementType, MotionPlan
 from social_video.schemas.plan import EditPlan
 from social_video.schemas.qa import QACheck, QAReport, QASeverity, RenderManifest
 from social_video.schemas.source import SourceManifest
@@ -226,6 +226,7 @@ def stage_compile(
         edl = apply_contract_to_edl(edl, contract)
     save_artifact(edl, workspace.edl)
     pin_workspace_labels(workspace, edl)
+    edl = sync_end_hold(workspace, edl)
     record_stage(workspace, "compile", {"ranges": len(edl.ranges)})
     return edl
 
@@ -305,6 +306,23 @@ def plan_transcripts(
             )
         found[source_id] = load_artifact(Transcript, path)
     return found
+
+
+def sync_end_hold(workspace: Workspace, edl: EDL) -> EDL:
+    """Hold the edit for a held end card, and place the card after the last word."""
+    from social_video.motion.layout import held_end_card
+
+    if not workspace.motion_plan.is_file():
+        return edl
+    plan = load_artifact(MotionPlan, workspace.motion_plan)
+    updated, placed, note = held_end_card(plan, edl)
+    if note is None:
+        return edl
+    from social_video.schemas.base import save_artifacts_atomically
+
+    save_artifacts_atomically({workspace.edl: updated, workspace.motion_plan: placed})
+    log.info("%s", note)
+    return updated
 
 
 def pin_workspace_labels(workspace: Workspace, edl: EDL) -> list[str]:
@@ -435,6 +453,17 @@ def stage_render(
     audio_cleanup: bool = True,
 ) -> Path:
     started = time.monotonic()
+    if motion_plan is not None and workspace.edl.is_file():
+        # A held end card lengthens the edit; keep both artifacts agreeing.
+        from social_video.motion.layout import held_end_card
+
+        held_edl, held_plan, note = held_end_card(motion_plan, edl)
+        if note is not None:
+            edl, motion_plan = held_edl, held_plan
+            from social_video.schemas.base import save_artifacts_atomically
+
+            save_artifacts_atomically({workspace.edl: edl, workspace.motion_plan: motion_plan})
+            log.info("%s", note)
     contract: BrandContract | None = None
     if workspace.brand_contract.is_file():
         contract = load_artifact(BrandContract, workspace.brand_contract)
@@ -479,6 +508,12 @@ def stage_render(
             "label_style: scene_frame is drawn on the FFmpeg route only around rounded-box "
             "captions; this render draws no labels. Use background_style: rounded_box or "
             "render with Remotion."
+        )
+    if renderer is Renderer.FFMPEG and edl.end_hold > 0:
+        log.warning(
+            "the edit holds its last frame %.2fs for an end card, which only the Remotion "
+            "route draws; this render shows the held frame in silence",
+            edl.end_hold,
         )
     q: Quality = QUALITIES[quality]
     out_dir = workspace.previews if quality != "final" else workspace.final
@@ -946,6 +981,12 @@ def _sync_against_base(output: Path, workspace: Workspace) -> QACheck | None:
         plan = load_artifact(MotionPlan, workspace.motion_plan)
         busy += [(p.start, p.end) for p in plan.punch_ins]
         busy += [(t.at - t.duration / 2, t.at + t.duration / 2) for t in plan.transitions]
+        # A full-frame card hides the picture there is to compare.
+        busy += [
+            (e.start, e.end)
+            for e in plan.elements
+            if e.type in (MotionElementType.END_CARD, MotionElementType.HOOK_CARD)
+        ]
     return sync_check(measure_sync(base, output, fps=manifest.frame_rate, busy=busy))
 
 

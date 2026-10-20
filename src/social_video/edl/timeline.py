@@ -52,7 +52,9 @@ class Timeline:
         for index, rng in enumerate(edl.ranges):
             self.slices.append(TimelineSlice(index=index, range=rng, output_start=cursor))
             cursor += rng.output_duration
-        self.duration = cursor
+        #: Where the last range ends; an end card held after it starts here.
+        self.content_end = cursor
+        self.duration = cursor + edl.end_hold
 
     def slices_for_source(self, source_id: str) -> list[TimelineSlice]:
         return [s for s in self.slices if s.range.effective_audio_source == source_id]

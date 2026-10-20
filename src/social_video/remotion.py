@@ -170,7 +170,10 @@ def render_motion_design(
             "backgroundColor": plan.background_color,
             "fontFamily": plan.font_family,
             "fontSource": font_source,
-            "elements": [_element_payload(item, plan, plate_sources) for item in plan.elements],
+            "elements": [
+                _element_payload(item, plan, plate_sources, width=width, height=height, font=font)
+                for item in plan.elements
+            ],
             "captions": caption_payload,
             "captionStyle": (
                 caption_style.model_dump(mode="json", exclude={"schema_version"})
@@ -235,7 +238,15 @@ def render_motion_design(
     return output, features, layout
 
 
-def _element_payload(item, plan: MotionPlan, plate_sources: dict[str, str]) -> dict:
+def _element_payload(
+    item,
+    plan: MotionPlan,
+    plate_sources: dict[str, str],
+    *,
+    width: int = 1080,
+    height: int = 1920,
+    font: Path | None = None,
+) -> dict:
     """One element as the compositor reads it, its placement resolved."""
     payload = item.model_dump(mode="json", exclude={"schema_version", "image_asset"})
     payload["image_source"] = plate_sources.get(item.image_asset or "")
@@ -243,7 +254,29 @@ def _element_payload(item, plan: MotionPlan, plate_sources: dict[str, str]) -> d
     if item.type is MotionElementType.LABEL:
         previous = continues(item, plan.elements)
         payload["continues"] = previous.text if previous is not None else None
+    if item.type is MotionElementType.END_CARD:
+        payload["fitted"] = end_card_text(item, width=width, height=height, font=font)
     return payload
+
+
+def end_card_text(item, *, width: int, height: int, font: Path | None) -> dict:
+    """The end card's lines and sizes, measured, with links kept whole."""
+    from social_video.motion.text_fit import fit_text
+
+    u = height / 1920
+    max_width = min(900 * u, width - 180 * u)
+    title = fit_text(
+        item.text, max_width=max_width, base_px=round(72 * u), min_px=round(30 * u),
+        font_file=font, max_lines=4,
+    )  # fmt: skip
+    fitted = {"title": title.payload(), "max_width": round(max_width, 1)}
+    if item.secondary_text:
+        secondary = fit_text(
+            item.secondary_text, max_width=max_width, base_px=round(34 * u),
+            min_px=round(20 * u), font_file=font, max_lines=6,
+        )  # fmt: skip
+        fitted["secondary"] = secondary.payload()
+    return fitted
 
 
 def _caption_payload(
