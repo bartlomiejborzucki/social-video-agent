@@ -228,6 +228,13 @@ Allowed element types:
   frame's width: a long title is drawn smaller, down to 60 %, and refused
   beyond that (80 characters at most in any case).
 
+- `sticker` — `emoji` (in `sticker_allowlist`) or `image_asset` (PNG, WebP,
+  SVG), 0.6–1.5 s, from 0.3 s, optional `at_word` + `occurrence`, `animation`
+  (`pop`, `shake`, `pulse`, `drop`), `size_pct`, `x_pct`, `y_pct`.
+
+`shakes` lists moments the picture shakes: `start`, `end` (0.15–2 s),
+`amplitude_pct`, `frequency_hz`, optional `at_word` + `occurrence`, `reason`.
+
 `position` is only accepted by `cta`, `list` and `steps`. The plan's colours,
 font and style are replaced by the brand contract's at render; the render logs
 each value it replaced.

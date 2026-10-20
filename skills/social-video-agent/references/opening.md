@@ -109,6 +109,19 @@ It gives:
 - **Labels:** "Jak postawić teraz granicę?", "Częsty odruch", "Spróbuj tak" and "Jasna decyzja + miejsce na emocje".
 - **Cover:** "NIE POBAWIĘ SIĘ TERAZ" with the subtitle "Bez kar, czyli jak? / Granice w praktyce".
 
+## A stronger opening without a card
+
+- **Open on movement.** `motion suggest` proposes an `opening` accent when the
+  first shot starts on a still frame: the in-point where its picture starts
+  moving (the largest change in its first 2 s), only where no word is cut --
+  under a separate voice the picture is free, over its own sound only before
+  the first word. `motion accept` moves the plan item and the EDL range.
+- **Punch the hook word.** `motion suggest --hook-punch` adds a push-in of 1.16
+  (capped by the energy) on the first key word 1.0-1.5 s in; a `sticker` on
+  that word is the other option. Never on frame 0, never a card.
+- **Judge it.** `hook check WORKSPACE` and hook variants:
+  [short-form.md](short-form.md).
+
 ## Checking the opening
 
 ```bash

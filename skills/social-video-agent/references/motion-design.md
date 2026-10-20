@@ -60,8 +60,9 @@ else's video to use as a reference.
 4. Optionally `motion sfx LIBRARY -w WORKSPACE --licensed`: a whoosh under each
    transition, a pop under each graphic, a hit under the hook card, from the
    user's own licensed effects.
-5. Optionally `broll suggest SOURCE --library DIR -w WORKSPACE`, then
-   `broll accept`: the user's own clips cut in where their subject is said.
+5. Optionally `broll suggest SOURCE -w WORKSPACE` (the library is
+   `broll_library` in the config, or `--library DIR`), then `broll accept`:
+   the user's own clips cut in where their subject is said. See below.
 6. Optionally, on a Claude host with the Motion type, author full-frame
    graphics (hook card, chapter, CTA, quote, end card) as a Claude Motion film:
    [motion-film.md](motion-film.md).
@@ -87,7 +88,13 @@ already carries the hook. See [opening.md](opening.md).
 | `cta` | the one action at the end | `text`; `position` `above_captions` or `top` |
 | `lower_third` | who is speaking | `text`, `secondary_text` role |
 | `label` | names the scene ("Spróbuj tak"), drawn per `label_style` | `text` that fits the frame tab |
+| `sticker` | a reaction on one word: an allowlisted emoji or a project PNG/WebP/SVG | `emoji` or `image_asset`, `at_word`, 0.6–1.5 s |
 | `progress`, `logo_reveal`, `end_card`, `hook` | as named | see artifacts.md |
+
+`shakes` (in the plan, beside `punch_ins`) shake the whole picture for a
+moment: `{start, end, amplitude_pct, frequency_hz}`, 0.15–2 s, or anchored
+with `at_word`. Both renderers draw them, so the "trzęsący" scene of a script
+needs no derivative file; for a whole range use `grade: shake`.
 
 `transitions` (`zoom`, `slide`, `flash`) sit on cuts only. Never put one on a
 cut inside one take while the speaker keeps talking: a zoom or blur over a
@@ -166,6 +173,34 @@ that reaches the final frame never fades out over it.
  "reason": "The waiting-list link after the last word."}
 ```
 
+## Stickers and the shake on a word
+
+The script says "w 0:07, na „Zgodziłeś!”, emotikona wstrząsu i obraz się
+trzęsie". That is one sticker and one shake, both on the word:
+
+```json
+"elements": [{"type": "sticker", "start": 0, "end": 0.9, "emoji": "😳",
+  "at_word": "Zgodziłeś!", "occurrence": 1, "animation": "shake",
+  "size_pct": 11, "x_pct": 0.8, "y_pct": 0.3, "reason": "Shock at the promise."}],
+"shakes": [{"start": 0, "end": 0.4, "amplitude_pct": 1.2, "frequency_hz": 9,
+  "at_word": "Zgodziłeś!", "reason": "The parent's promise hits."}]
+```
+
+- `at_word` with `occurrence` (1 = the first time it is said) places it on the
+  caption word; `compile` and the render move it there and print the move. A
+  word the captions do not hold is an error.
+- `animation`: `pop`, `shake`, `pulse` or `drop`; 0.6–1.5 s on screen;
+  `size_pct` is the height as a share of the frame; `x_pct`/`y_pct` its centre.
+- The brand decides what may appear: an emoji only from `sticker_allowlist` in
+  the project config, drawn only from Noto Color Emoji (SIL OFL, commercial use
+  allowed; the font, licence and source are recorded in the render manifest as
+  `stickers_applied`); or a small image from the project. At most 0 (`calm`),
+  1 (`lively`) or 2 (`bold`) per reel; never in the opening frame (from 0.3 s),
+  never on the end card or a hook card.
+- Place it in the safe zone off the face, the caption band and the scene frame:
+  `motion qa` measures each sticker against faces (box overlap), the captions
+  while one is up, and the frame, plus its time on screen.
+
 ## Colours and font come from the brand
 
 The motion plan's `accent_color`, `text_color`, `background_color`,
@@ -173,6 +208,32 @@ The motion plan's `accent_color`, `text_color`, `background_color`,
 them with the contract's values and logs one INFO line per value it replaced,
 so brand QA vouches for what was drawn. Change the brand in the project config,
 not in the plan. There is no per-element colour override, for the same reason.
+
+## The project's b-roll library
+
+Keep short clips (2–6 s, vertical 9:16, no child's face) in one project folder,
+set `broll_library: assets/broll` and `broll_density` (the largest share of
+the edit b-roll may cover, e.g. 0.2), and describe every clip in
+`broll.yaml` beside them:
+
+```yaml
+clips:
+  - file: hustawka.mp4
+    description: pusta huśtawka w ruchu, park jesienią
+    keywords: [park, huśtawka, wyjście]
+    child_face_visible: false
+    rights: własne nagranie 2026-10, bez osób
+```
+
+`broll suggest` matches the transcript's words against the keywords, file
+names and `broll_synonyms` from the config (`{park: [huśtawka, ławka]}`),
+with Polish endings handled ("parku" finds `park`). A clip with
+`child_face_visible: true` is never proposed and is listed as skipped. Over a
+speaker talking to the camera a clip stays at most 2 s, so the mouth is not
+hidden for long; clips keep at least 3 s apart, so the picture changes every
+3–5 s. To ask for b-roll in a reel's brief, name the subject in "Ujęcie"
+("wstawka: dłonie rodzica i dziecka przy wyjściu") and add the clip with those
+keywords to the library.
 
 ## Style
 

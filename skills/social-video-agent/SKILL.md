@@ -155,6 +155,12 @@ Never work around the tool by hand; each of these is a feature:
 - An end card after the last word is `hold: true`, never a clip in the plan.
 - `deliver --max-size-mb 30` when the file must stay small; the audio is
   copied untouched, and QA holds A/V to the base render within 20 ms.
+- A reaction on a word is a `sticker` (allowlisted emoji or project image) and
+  a `shake`, both `at_word`; never in frame 0, never on the end card.
+- Judge the opening with `hook check` and test lines with `motion variants
+  --from-brief`; open on movement and `--hook-punch`, never with a card.
+- B-roll comes from the project library described in `broll.yaml`; a clip with
+  a child's face is never proposed.
 
 ## What helps a reel travel
 
