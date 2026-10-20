@@ -282,3 +282,21 @@ def test_a_word_cut_by_the_span_edge_is_kept(tmp_path: Path, fake: FakeBackend) 
     assert [t.text for t in result.removed] == ["Dzień"]
     words = [w.text for w in load_artifact(Transcript, ws.transcript_for("kamera")).words]
     assert "dobry" in words
+
+
+def test_a_stage_keeps_the_workspace_transcript_whatever_its_model(
+    tmp_path: Path, fake: FakeBackend
+) -> None:
+    from social_video.pipeline import stage_transcribe
+
+    source = make_video(tmp_path / "kamera.mp4", duration=1.5)
+    ws = Workspace.at(tmp_path / "edit")
+    medium = TranscriptionOptions(model="medium", language="pl")
+    service.transcribe_source(source, ws, options=medium, backend_name="fake")
+    again = stage_transcribe(source, ws, options=TranscriptionOptions(), backend="fake")
+    assert again.provider_model == "medium"
+    assert len(fake.calls) == 1
+    forced = stage_transcribe(
+        source, ws, options=TranscriptionOptions(), backend="fake", force=True
+    )
+    assert forced.provider_model == "small"

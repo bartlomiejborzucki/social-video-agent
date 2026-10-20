@@ -105,7 +105,14 @@ def stage_transcribe(
     backend: str | None = None,
     force: bool = False,
 ) -> Transcript:
-    transcript = transcribe_source(
+    """The source's transcript for a stage that needs one.
+
+    A stage reading words -- plan, cuts, motion, b-roll -- uses the workspace
+    transcript whatever model made it, so its default model never replaces a
+    medium or corrected transcript; `transcribe` and --force choose again.
+    """
+    current = None if force else _existing_transcript(source, workspace, options.audio_track)
+    transcript = current or transcribe_source(
         source, workspace, options=options, backend_name=backend, force=force
     )
     # Pack every transcript in the workspace, not just this one: a project with
@@ -131,6 +138,15 @@ def stage_transcribe(
         },
     )
     return transcript
+
+
+def _existing_transcript(source: Path, workspace: Workspace, track: int) -> Transcript | None:
+    from social_video.transcribe.service import workspace_transcript
+
+    try:
+        return workspace_transcript(source, workspace, audio_track=track)
+    except FileNotFoundError:
+        return None
 
 
 def repack_workspace(workspace: Workspace) -> None:
