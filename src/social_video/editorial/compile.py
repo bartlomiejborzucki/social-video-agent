@@ -11,7 +11,7 @@ from social_video.editorial.acoustic import AcousticEdges
 from social_video.editorial.boundaries import snap_range, text_in
 from social_video.schemas.brand import OutputProfile
 from social_video.schemas.edl import EDL, EDLRange, ReframeMode
-from social_video.schemas.plan import EditPlan, PlanAction
+from social_video.schemas.plan import EditPlan, PlanAction, PlanItem
 from social_video.schemas.transcript import Transcript
 
 
@@ -84,6 +84,7 @@ def compile_plan(
     intervals = keep_intervals(plan, duration)
     # A kept item's beat names its scene; labels are pinned to scenes by it.
     beats = {(item.start, item.end): item.beat for item in plan.kept if item.beat}
+    looks = {(item.start, item.end): _look(item) for item in plan.kept}
     cuts = sorted(
         (item.start, item.end, item.cut)
         for item in plan.items
@@ -124,6 +125,7 @@ def compile_plan(
                     quote=quote[:300],
                     reason=because + (f"; then {', '.join(removed)} removed" if removed else ""),
                     beat=beats.get((start, end), ""),
+                    **looks.get((start, end), {}),
                 )
             )
 
@@ -212,6 +214,7 @@ def _compile_items(
                     beat=item.beat,
                     reframe=item.reframe,
                     quote=quote,
+                    **_look(item),
                 )
             )
             continue
@@ -229,6 +232,7 @@ def _compile_items(
                     beat=item.beat,
                     reframe=item.reframe,
                     quote=text_in(transcript, piece_start, piece_end)[:300],
+                    **_look(item),
                 )
             )
     if not ranges:
@@ -269,6 +273,11 @@ def _subtract(
     if cursor < end:
         pieces.append((cursor, end, pending))
     return pieces
+
+
+def _look(item: PlanItem) -> dict:
+    """The framing and pace an item asks of every range it becomes."""
+    return {"zoom": item.zoom, "speed": item.speed, "grade": item.grade}
 
 
 def _edge_note(start: float, end: float, low: float, high: float) -> str:

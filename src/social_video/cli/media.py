@@ -439,6 +439,15 @@ def compile_edl(
     edl, edges = _guard(run)
     shifts = [shift.describe() for shift in edges.shifts] if edges else []
     warnings = list(edges.warnings) if edges else []
+    if ws.editorial_qa.is_file():
+        from social_video.editorial.review import lost_editorial_fixes
+        from social_video.schemas.editorial_qa import EditorialQA
+
+        review = _guard(lambda: load_artifact(EditorialQA, ws.editorial_qa))
+        warnings += [
+            f"qa-editorial fix not in the compiled EDL: {line}"
+            for line in lost_editorial_fixes(edl, review)
+        ]
     if acoustic_edges and edges is None:
         warnings.append(
             "edges were left on the words: a recording is missing from the source manifest"

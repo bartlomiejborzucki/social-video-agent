@@ -106,3 +106,49 @@ def _set_path(payload: dict[str, Any], path: str, value: Any) -> None:
             sequence[index] = value
         else:
             current = sequence[index]
+
+
+def _get_path(payload: dict[str, Any], path: str) -> Any:
+    current: Any = payload
+    for raw in path.split("."):
+        match = _PATH_PART.fullmatch(raw)
+        if match is None:
+            raise KeyError(path)
+        key, index_text = match.groups()
+        if not isinstance(current, dict) or key not in current:
+            raise KeyError(path)
+        current = current[key]
+        if index_text is not None:
+            index = int(index_text)
+            if not isinstance(current, list) or index >= len(current):
+                raise KeyError(path)
+            current = current[index]
+    return current
+
+
+def lost_editorial_fixes(edl: EDL, review: EditorialQA) -> list[str]:
+    """Approved EDL fixes a freshly compiled EDL no longer carries.
+
+    `compile --force` rebuilds edl.json from the plan, so a fix applied to the
+    old EDL is gone unless the plan says the same thing. Each line says which
+    fix, and that the plan item's own field is where it lasts.
+    """
+    payload = edl.model_dump(mode="json")
+    lost: list[str] = []
+    for fix in review.fixes:
+        if fix.artifact is not EditorialArtifact.EDL:
+            continue
+        try:
+            current = _get_path(payload, fix.path)
+        except KeyError:
+            lost.append(f"{fix.path} = {fix.value!r}: that range no longer exists")
+            continue
+        if current != fix.value:
+            field = fix.path.rsplit(".", 1)[-1]
+            hint = (
+                f"; set {field} on its edit-plan.json item so it survives compile"
+                if field in {"zoom", "speed", "grade"}
+                else "; re-run apply-editorial-qa or move it into the plan"
+            )
+            lost.append(f"{fix.path} = {fix.value!r} (compiled: {current!r}){hint}")
+    return lost

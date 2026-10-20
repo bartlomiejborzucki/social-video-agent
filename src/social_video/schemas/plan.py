@@ -50,6 +50,18 @@ class PlanItem(Artifact):
     #: A fixed framing for this item, in source pixels as displayed (after any
     #: rotation the file declares). Ranges with one are left alone by `reframe`.
     reframe: ReframePlan | None = None
+    #: Carried onto every range this item compiles to, so they survive a
+    #: recompile instead of living only in a hand edit of edl.json.
+    zoom: float = Field(
+        default=1.0, ge=1.0, le=2.0, description="Fixed punch-in for the whole item, e.g. 1.1."
+    )
+    speed: float = Field(
+        default=1.0,
+        gt=0.0,
+        le=4.0,
+        description="Playback rate. Under an audio_source only the picture is retimed.",
+    )
+    grade: str = Field(default="", description="Named look, e.g. mono or mono_contrast.")
 
     @model_validator(mode="after")
     def _check_interval(self) -> PlanItem:

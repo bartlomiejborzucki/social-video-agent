@@ -255,3 +255,41 @@ def test_compile_without_any_transcribed_sound_says_what_is_missing(tmp_path: Pa
     result = CliRunner().invoke(app, ["compile", "-w", str(ws.root), "--no-captions"])
     assert result.exit_code == 1
     assert "no transcript in" in result.output
+
+
+def test_zoom_speed_and_grade_on_a_plan_item_survive_compile() -> None:
+    plan = EditPlan(
+        goal="sharp jump",
+        items=[
+            _keep("odruch", 1.9, 3.9, order=1),
+            _keep("sprobuj", 0.9, 3.0, order=2, zoom=1.1, grade="mono"),
+        ],
+    )
+    edl = compile_plan(plan, ODRUCH, PROFILE, transcripts={"sprobuj": SPROBUJ})
+    assert [(r.zoom, r.grade) for r in edl.ranges] == [(1.0, ""), (1.1, "mono")]
+
+
+def test_a_recompile_names_the_editorial_fixes_it_dropped() -> None:
+    from social_video.editorial.review import lost_editorial_fixes
+    from social_video.schemas.editorial_qa import EditorialQA
+
+    review = EditorialQA.model_validate(
+        {
+            "status": "changes_requested",
+            "fixes": [
+                {"artifact": "edl", "path": "ranges[1].zoom", "value": 1.1},
+                {"artifact": "edl", "path": "ranges[7].zoom", "value": 1.1},
+            ],
+        }
+    )
+    plan = EditPlan(
+        goal="x", items=[_keep("odruch", 1.9, 3.9, order=1), _keep("sprobuj", 0.9, 3.0, order=2)]
+    )
+    edl = compile_plan(plan, ODRUCH, PROFILE, transcripts={"sprobuj": SPROBUJ})
+    lost = lost_editorial_fixes(edl, review)
+    assert len(lost) == 2
+    assert "set zoom on its edit-plan.json item" in lost[0]
+    assert "no longer exists" in lost[1]
+    plan.items[1].zoom = 1.1
+    edl = compile_plan(plan, ODRUCH, PROFILE, transcripts={"sprobuj": SPROBUJ})
+    assert len(lost_editorial_fixes(edl, review)) == 1
