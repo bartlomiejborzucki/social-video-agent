@@ -61,3 +61,11 @@ def test_sources_add_leaves_transcripts_and_state_alone(tmp_path: Path) -> None:
     # Re-running ingest for the main file keeps the added one.
     stage_ingest(main, ws)
     assert load_artifact(SourceManifest, ws.source_manifest).ids == ["plener", "main"]
+
+
+def test_ingest_can_name_the_first_source(tmp_path: Path) -> None:
+    main = make_video(tmp_path / "ujecie do kamery.mp4", duration=1.0)
+    ws = Workspace.at(tmp_path / "edit")
+    stage_ingest(main, ws, source_id="kamera")
+    assert load_artifact(SourceManifest, ws.source_manifest).ids == ["kamera"]
+    assert source_id_for(main, ws) == "kamera"

@@ -75,10 +75,20 @@ def record_stage(workspace: Workspace, stage: str, detail: dict | None = None) -
     workspace.state.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def stage_ingest(source: Path, workspace: Workspace) -> SourceManifest:
-    """Probe the sources and write the manifest, keeping sources added before."""
+def stage_ingest(
+    source: Path, workspace: Workspace, *, source_id: str | None = None
+) -> SourceManifest:
+    """Probe the sources and write the manifest, keeping sources added before.
+
+    ``source_id`` names a single source file the way the plan will.
+    """
     workspace.ensure()
-    manifest = build_manifest([source])
+    if source_id is not None:
+        from social_video.sources import add_source
+
+        manifest, _entry, _status = add_source(SourceManifest(), source, source_id=source_id)
+    else:
+        manifest = build_manifest([source])
     if workspace.source_manifest.is_file():
         existing = load_artifact(SourceManifest, workspace.source_manifest)
         manifest = merge_manifest(existing, manifest)

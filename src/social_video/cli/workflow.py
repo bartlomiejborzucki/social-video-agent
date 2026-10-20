@@ -64,9 +64,15 @@ def workflow_init(
     quick: bool = typer.Option(False, "--quick", help="Continuous workflow on current model."),
     refresh_context: bool = typer.Option(False, "--refresh-context"),
     language: str = typer.Option("en", "--language"),
+    source_id: str | None = typer.Option(
+        None, "--id", help="Id plans use for this source file. Default: its file stem."
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Create Stage 0/1 state and context. Never renders video."""
+    """Create Stage 0/1 state and context. Never renders video.
+
+    Add more recordings to the same edit later with `sources add`.
+    """
     from social_video.paths import normalize_user_path
     from social_video.pipeline import stage_ingest
     from social_video.schemas.workflow import (
@@ -100,7 +106,7 @@ def workflow_init(
             refresh_context=refresh_context,
         )
     )
-    _guard(lambda: stage_ingest(normalized_source, workspace))
+    _guard(lambda: stage_ingest(normalized_source, workspace, source_id=source_id))
     payload = workflow_status(state, language=language)
     _print_workflow(payload, as_json=as_json)
 
