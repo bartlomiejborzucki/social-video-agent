@@ -25,6 +25,7 @@ from social_video.schemas.plan import EditPlan, PlanAction, PlanItem
 from social_video.schemas.transcript import TokenType, Transcript, TranscriptToken
 from social_video.transcribe.normalize import synthesize_spacing
 from social_video.workspace.layout import Workspace
+from tests.conftest import make_video, requires_ffmpeg
 
 PROFILE = load_profile("talking-head")
 
@@ -203,3 +204,54 @@ def test_the_cli_rewrites_every_caption_file(tmp_path: Path) -> None:
     assert load_artifact(CaptionTrack, base.with_suffix(".json")).cues[0].text.endswith("już.")
     for suffix in (".srt", ".vtt", ".ass"):
         assert "już." in base.with_suffix(suffix).read_text(encoding="utf-8")
+
+
+def _voice_only_workspace(tmp_path: Path) -> tuple[Workspace, Path]:
+    """A picture-only playground clip whose voice is a separate, transcribed file."""
+    from social_video.pipeline import stage_ingest
+
+    picture = make_video(tmp_path / "plener.mp4", duration=3.0, audio=False)
+    ws = Workspace.at(tmp_path / "edit")
+    stage_ingest(picture, ws)
+    save_artifact(CHILD.model_copy(update={"source_id": "glos"}), ws.transcript_for("glos"))
+    save_artifact(
+        EditPlan(
+            goal="voice over the playground",
+            items=[
+                _keep(
+                    "plener",
+                    0.0,
+                    2.5,
+                    order=1,
+                    audio_source="glos",
+                    audio_start=0.4,
+                    audio_end=1.9,
+                ),
+            ],
+        ),
+        ws.edit_plan,
+    )
+    return ws, picture
+
+
+@requires_ffmpeg
+@pytest.mark.parametrize("with_source", [False, True])
+def test_compile_needs_no_sound_on_the_primary(tmp_path: Path, with_source: bool) -> None:
+    ws, picture = _voice_only_workspace(tmp_path)
+    args = ["compile", "-w", str(ws.root), "--no-captions", "--word-edges"]
+    if with_source:
+        args.insert(1, str(picture))
+    result = CliRunner().invoke(app, args)
+    assert result.exit_code == 0, result.output
+    edl = load_artifact(EDL, ws.edl)
+    assert edl.ranges[0].source == "plener"
+    assert edl.ranges[0].audio_source == "glos"
+
+
+def test_compile_without_any_transcribed_sound_says_what_is_missing(tmp_path: Path) -> None:
+    ws = Workspace.at(tmp_path / "edit")
+    ws.ensure()
+    save_artifact(EditPlan(goal="x", items=[_keep("plener", 0.0, 2.0, order=1)]), ws.edit_plan)
+    result = CliRunner().invoke(app, ["compile", "-w", str(ws.root), "--no-captions"])
+    assert result.exit_code == 1
+    assert "no transcript in" in result.output

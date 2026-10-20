@@ -215,8 +215,47 @@ def speech_edges(workspace: Workspace, transcripts: list[Transcript]) -> Acousti
     return AcousticEdges(file_loader(paths))
 
 
+def compile_transcripts(
+    plan: EditPlan,
+    workspace: Workspace,
+    source: Path | None,
+    *,
+    options: TranscriptionOptions,
+    backend: str | None = None,
+) -> tuple[Transcript, dict[str, Transcript]]:
+    """The primary transcript and every other one the plan keeps words from.
+
+    The workspace transcript is the source of truth for every recording, the
+    primary included, so a correction made there reaches the edit. A primary
+    without sound -- a picture whose voice the plan takes from elsewhere -- or
+    no primary at all is fine when the plan's sound is transcribed.
+    """
+    from social_video.paths import normalize_user_path
+    from social_video.transcribe.service import workspace_transcript
+
+    primary: Transcript | None = None
+    if source is not None:
+        path = normalize_user_path(source)
+        silent = path.is_file() and not probe(path).has_audio
+        if not silent:
+            if path.is_file():
+                primary = workspace_transcript(path, workspace, audio_track=options.audio_track)
+            if primary is None:
+                primary = stage_transcribe(path, workspace, options=options, backend=backend)
+    others = plan_transcripts(plan, workspace, primary=primary.source_id if primary else None)
+    if primary is not None:
+        return primary, others
+    for item in sorted(plan.kept, key=lambda i: i.order if i.order is not None else 0):
+        if item.sound_source in others:
+            return others.pop(item.sound_source), others
+    raise ValidationError(
+        "the plan keeps no words from a transcribed recording; transcribe the sound it uses "
+        "into this workspace, or pass a source video with sound"
+    )
+
+
 def plan_transcripts(
-    plan: EditPlan, workspace: Workspace, *, primary: str
+    plan: EditPlan, workspace: Workspace, *, primary: str | None
 ) -> dict[str, Transcript]:
     """The transcripts of every recording a plan keeps words from, but the primary."""
     wanted = {item.sound_source for item in plan.kept} - {primary}

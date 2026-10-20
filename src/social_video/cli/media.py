@@ -291,7 +291,11 @@ def plan(
 
 @app.command("compile")
 def compile_edl(
-    source: Path = typer.Argument(..., help="Source video the plan covers."),
+    source: Path | None = typer.Argument(
+        None,
+        help="Source video the plan covers. Optional with --workspace: every recording the "
+        "plan keeps words from is then read from the workspace transcripts.",
+    ),
     workspace_dir: Path | None = typer.Option(None, "--workspace", "-w"),
     profile: str = typer.Option("talking-head", "--profile", "-p"),
     reframe: str | None = typer.Option(
@@ -325,27 +329,35 @@ def compile_edl(
     workspace. Captions are built from all of them as one track, and the motion
     plan's labels are pinned to the scenes the edit made.
 
+    The source argument may be left out, or be a picture-only recording: what
+    is heard comes from the transcribed recordings the plan names.
+
     Refuses to replace an existing edl.json without --force: it may hold
     hand-made decisions the plan does not.
     """
     from social_video.errors import ValidationError
     from social_video.pipeline import (
+        compile_transcripts,
         load_workspace_brand,
-        plan_transcripts,
         speech_edges,
         stage_captions,
         stage_compile,
-        stage_transcribe,
     )
     from social_video.profiles import load_profile
     from social_video.schemas.base import load_artifact
     from social_video.schemas.edl import ReframeMode
     from social_video.schemas.plan import EditPlan
     from social_video.transcribe.base import TranscriptionOptions
-    from social_video.transcribe.service import workspace_transcript
     from social_video.workspace.layout import Workspace
 
-    ws = Workspace.at(workspace_dir) if workspace_dir else Workspace.for_source(source)
+    if source is None and workspace_dir is None:
+        err_console.print("[red]error:[/red] pass the source video or --workspace")
+        raise typer.Exit(1)
+    if workspace_dir is not None:
+        ws = Workspace.at(workspace_dir)
+    else:
+        assert source is not None
+        ws = Workspace.for_source(source)
 
     def run():
         if not ws.edit_plan.is_file():
@@ -364,13 +376,8 @@ def compile_edl(
             ) from None
         prof = load_profile(profile)
         options = TranscriptionOptions(model=model, language=language, audio_track=audio_track)
-        # The workspace transcript is the source of truth for every recording,
-        # the primary included: a correction made there must reach the edit.
-        transcript = workspace_transcript(source, ws, audio_track=audio_track)
-        if transcript is None:
-            transcript = stage_transcribe(source, ws, options=options, backend=backend)
         plan = load_artifact(EditPlan, ws.edit_plan)
-        others = plan_transcripts(plan, ws, primary=transcript.source_id)
+        transcript, others = compile_transcripts(plan, ws, source, options=options, backend=backend)
         edges = speech_edges(ws, [transcript, *others.values()]) if acoustic_edges else None
         edl = stage_compile(
             plan, transcript, ws, prof, reframe=mode, transcripts=others, edges=edges
