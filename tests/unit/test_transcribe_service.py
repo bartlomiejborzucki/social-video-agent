@@ -284,6 +284,7 @@ def test_a_word_cut_by_the_span_edge_is_kept(tmp_path: Path, fake: FakeBackend) 
     assert "dobry" in words
 
 
+@requires_ffmpeg
 def test_a_stage_keeps_the_workspace_transcript_whatever_its_model(
     tmp_path: Path, fake: FakeBackend
 ) -> None:
