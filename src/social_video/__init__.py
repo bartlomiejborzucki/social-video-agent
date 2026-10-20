@@ -4,4 +4,4 @@ The agent makes editorial decisions and writes them down as inspectable
 artifacts. This package performs the deterministic media work.
 """
 
-__version__ = "2.4.0"
+__version__ = "2.5.0"

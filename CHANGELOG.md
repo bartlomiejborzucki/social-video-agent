@@ -4,6 +4,47 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-10-20
+
+A stronger, livelier opening without breaking the brand: no card at frame 0,
+no recognisable children's faces, colours and font from the contract.
+
+### Added
+
+- `sticker` motion element: an emoji from `sticker_allowlist` (drawn only from
+  Noto Color Emoji, SIL OFL; recorded in the render manifest) or a project
+  PNG/WebP/SVG, anchored to a spoken word (`at_word`, `occurrence`), animated
+  with `pop`, `shake`, `pulse` or `drop` for 0.6-1.5 s; at most 0/1/2 per reel
+  by `motion_energy`, never in the opening frame or on a full-frame card.
+- `shakes` in the motion plan shake the picture on a word, in both renderers.
+- `motion qa` measures stickers against faces, captions and the scene frame.
+- `hook check WORKSPACE`: a Polish heuristic for the first caption and first
+  second (situation with a child, viewer or tension, length, first word, first
+  movement, no greeting, no title or book) with concrete fixes; word lists in
+  `qa/data/hook_pl.yaml`; results in `analysis/hook-check.json` and the
+  delivery manifest.
+- `motion suggest` proposes starting the first shot where it moves, and with
+  `--hook-punch` a 1.16 push-in on the first key word at 1.0-1.5 s.
+- `motion variants --from-brief [--seconds N]` renders the brief's on-screen
+  text, first sentence and a question as alternative first captions;
+  `deliver --hook-variants` delivers them by name.
+- A project b-roll library: `broll_library`, `broll_synonyms` and
+  `broll.yaml` (description, keywords, `child_face_visible`, rights).
+
+### Changed
+
+- `broll suggest` never proposes a clip with a child's face, matches Polish
+  endings and synonyms across every transcript, keeps a clip over speech to
+  the camera to 2 s, spaces clips 3 s apart and honours `broll_density`.
+- `image_generation_policy` defaults to the new `ask`: each image needs the
+  user's yes. The docs describe the native image-tool route and the Remotion
+  fallback when a session has no Claude Motion type.
+
+### Fixed
+
+- The consent message named a `--consent user-request` flag that does not
+  exist; it is `--user-request`.
+
 ## [2.4.0] - 2026-10-20
 
 What reels cut on 2.3.0 had to work around by hand, fixed in the tool.
