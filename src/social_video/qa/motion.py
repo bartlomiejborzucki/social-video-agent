@@ -23,7 +23,13 @@ from pathlib import Path
 
 from social_video.edl.timeline import Timeline
 from social_video.motion.energy import EnergyPreset, energy_preset
-from social_video.motion.layout import SceneFrameGeometry, element_band, scene_frame_geometry
+from social_video.motion.layout import (
+    SceneFrameGeometry,
+    element_band,
+    labels,
+    scene_frame_geometry,
+    tab_font_px,
+)
 from social_video.schemas.brand import CaptionPosition, CaptionStyle
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.config import BrandContract
@@ -112,10 +118,34 @@ def check_motion(
                 message=f"not measured: {faces_note or 'no frame to detect faces on'}",
             )
         )
+    if place.frame is not None and plan is not None:
+        _titles_fit_tab(report, plan, place.frame, contract)
     _transitions_clear_of_speech(report, plan, captions, faces)
     _budget(report, edl, plan, shown, energy)
     _rhythm(report, edl, plan, shown)
     return report
+
+
+def _titles_fit_tab(
+    report: QAReport, plan: MotionPlan, frame: SceneFrameGeometry, contract: BrandContract | None
+) -> None:
+    """Every scene title fits the frame's tab, shrunk at most to a readable size."""
+    font = contract.resolved_font_file if contract else None
+    for label in labels(plan.elements):
+        try:
+            size = tab_font_px(label.text, frame, font)
+        except ValueError as exc:
+            _add(report, f"title {label.text!r} fits the scene frame", False, str(exc))
+            continue
+        shrunk = size < frame.tab_font_px - 0.05
+        _add(
+            report,
+            f"title {label.text!r} fits the scene frame",
+            True,
+            f"drawn at {size:.0f}px instead of {frame.tab_font_px:.0f}px to fit the tab"
+            if shrunk
+            else f"fits at {size:.0f}px",
+        )
 
 
 def _transitions_clear_of_speech(

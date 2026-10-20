@@ -237,8 +237,8 @@ def test_the_cli_imports_the_brief_as_overrides_and_labels(tmp_path: Path) -> No
 
 
 def test_a_label_is_short() -> None:
-    with pytest.raises(ValueError, match="at most 48 characters"):
-        MotionElement(type="label", start=0, end=2, text="x" * 49, reason="r")
+    with pytest.raises(ValueError, match="at most 80 characters"):
+        MotionElement(type="label", start=0, end=2, text="x" * 81, reason="r")
 
 
 # -- cards in the timeline ------------------------------------------------------------

@@ -106,6 +106,52 @@ def scene_frame_geometry(
     )
 
 
+#: A title may shrink this far before it has to be shortened instead.
+TAB_MIN_SCALE = 0.6
+#: The tab's text is bold; the brand font file measured is usually regular.
+BOLD_ALLOWANCE = 1.06
+#: Share of the frame's width the tab may take.
+TAB_WIDTH_SHARE = 0.94
+
+
+def tab_width(text: str, font_px: float, g: SceneFrameGeometry, measure) -> float:
+    """Width of the title tab drawing ``text`` at ``font_px``, padding included."""
+    upper = text.upper()
+    spacing = font_px * 0.07
+    text_w = measure.width(upper, round(font_px)) * BOLD_ALLOWANCE
+    text_w += spacing * max(0, len(upper) - 1)
+    return text_w + 2 * g.tab_dot + 2 * g.tab_pad_x + 2 * g.tab_border
+
+
+def tab_font_px(text: str, g: SceneFrameGeometry, font_file=None) -> float:
+    """The tab's font size for this title: the frame's own, or smaller to fit.
+
+    The limit is the frame's width, not a number of characters: "Przykład
+    reakcji: na hasło przerywam zabawę" has 43 characters and did not fit. A
+    title that would have to shrink below TAB_MIN_SCALE is refused with the
+    length that fits, since unreadably small type is worse than a shorter title.
+    """
+    from social_video.captions.fit import text_measurer
+
+    measure = text_measurer(font_file)
+    limit = g.width * TAB_WIDTH_SHARE
+    size = g.tab_font_px
+    if tab_width(text, size, g, measure) <= limit:
+        return size
+    floor = g.tab_font_px * TAB_MIN_SCALE
+    while size > floor and tab_width(text, size, g, measure) > limit:
+        size -= 0.5
+    if tab_width(text, size, g, measure) > limit:
+        per_char = tab_width(text, floor, g, measure) / max(1, len(text))
+        fits = int((limit - 2 * g.tab_dot - 2 * g.tab_pad_x) / per_char)
+        raise ValueError(
+            f"label {text!r} does not fit the scene frame's title tab "
+            f"({g.width * TAB_WIDTH_SHARE:.0f}px) even at {TAB_MIN_SCALE:.0%} size; "
+            f"shorten it to about {fits} characters"
+        )
+    return round(size, 1)
+
+
 def labels(elements: list[MotionElement]) -> list[MotionElement]:
     return sorted((e for e in elements if e.type is MotionElementType.LABEL), key=lambda e: e.start)
 

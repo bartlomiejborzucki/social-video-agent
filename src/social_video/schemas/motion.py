@@ -40,7 +40,8 @@ class MotionElementType(str, Enum):
     #: Numbered steps of a process, two to five `items`, revealed in order.
     STEPS = "steps"
     #: A short text naming the scene ("Spróbuj tak"), never a card of its own
-    #: and never drawn like a caption. At most 48 characters. The contract's
+    #: and never drawn like a caption. It must fit the frame's title tab, which
+    #: is measured against the frame's width at render time. The contract's
     #: ``label_style`` draws it as a chip in the top safe zone or as the title
     #: of a frame around the scene's captions.
     LABEL = "label"
@@ -159,8 +160,8 @@ class MotionElement(Artifact):
             if self.position not in allowed:
                 names = ", ".join(p.value for p in allowed) or "none (it has a fixed place)"
                 raise ValueError(f"a {kind} accepts position: {names}")
-        if self.type is MotionElementType.LABEL and len(self.text) > 48:
-            raise ValueError("a label is a short text over the shot: at most 48 characters")
+        if self.type is MotionElementType.LABEL and len(self.text) > 80:
+            raise ValueError("a label is a short text over the shot: at most 80 characters")
         if self.type is MotionElementType.HOOK_CARD:
             if self.start > 0.5:
                 raise ValueError(

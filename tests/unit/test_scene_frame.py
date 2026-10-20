@@ -258,3 +258,26 @@ def test_ass_type_is_sized_like_the_browser_draws_it() -> None:
     document = render_boxed_ass(track, styled, layout, width=1080, height=1920)
     drawn = layout.cues[0].font_size_px
     assert f"\\fs{round(drawn * ratio)}" in document
+
+
+def test_a_long_title_shrinks_to_fit_the_tab_and_a_longer_one_is_refused() -> None:
+    from social_video.captions.fit import text_measurer
+    from social_video.ffmpeg.fonts import default_caption_font
+    from social_video.motion.layout import TAB_WIDTH_SHARE, tab_font_px, tab_width
+
+    font = default_caption_font()
+    path = font.path if font else None
+    g = scene_frame_geometry(
+        CaptionStyle(font_size_pct=3.6, max_lines=2, margin_pct=22),
+        width=1080,
+        height=1920,
+        safe_margins={"top": 10, "bottom": 22, "left": 8, "right": 8},
+    )
+    assert tab_font_px("Spróbuj tak", g, path) == g.tab_font_px
+    # 43 characters: the 2.3.0 tab drew it past the frame.
+    title = "Przykład reakcji: na hasło przerywam zabawę"
+    size = tab_font_px(title, g, path)
+    assert size < g.tab_font_px
+    assert tab_width(title, size, g, text_measurer(path)) <= g.width * TAB_WIDTH_SHARE
+    with pytest.raises(ValueError, match="shorten it to about"):
+        tab_font_px(title + " i czekamy razem aż minie", g, path)

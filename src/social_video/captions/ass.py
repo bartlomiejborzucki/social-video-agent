@@ -371,18 +371,16 @@ def _scene_frame_events(scene: SceneFrameDrawing, family: str) -> list[str]:
     tab's centre), and flashes the frame's rim in the accent colour.
     """
     from social_video.captions.fit import _measurer
-    from social_video.motion.layout import FLIP_S, continues
+    from social_video.motion.layout import BOLD_ALLOWANCE, FLIP_S, continues, tab_font_px
 
     g = scene.geometry
     white = hex_to_ass_colour("#FFFFFF")
     accent = hex_to_ass_colour(scene.accent)
     secondary = hex_to_ass_colour(scene.secondary)
     measure = _measurer(scene.font_file)
-    font_px = round(g.tab_font_px)
     # libass sizes a font by its full line height, a browser by its em: the
     # same number draws smaller type in ASS. Scale so both draw the same.
-    ass_px = round(g.tab_font_px * _line_height_per_em(scene.font_file))
-    spacing = g.tab_font_px * 0.07
+    per_em = _line_height_per_em(scene.font_file)
     centre_x = g.left + g.width / 2
     tab_y = g.tab_top + g.tab_height / 2
     flip = _ms(FLIP_S)
@@ -406,7 +404,10 @@ def _scene_frame_events(scene: SceneFrameDrawing, family: str) -> list[str]:
             titles = [(previous.text, 0, half), (label.text, half, None)]
         for text, begin, until in titles:
             upper = text.upper()
-            text_w = measure.width(upper, font_px) + spacing * max(0, len(upper) - 1)
+            size = tab_font_px(text, g, scene.font_file)
+            font_px, ass_px, spacing = round(size), round(size * per_em), size * 0.07
+            text_w = measure.width(upper, font_px) * BOLD_ALLOWANCE
+            text_w += spacing * max(0, len(upper) - 1)
             tab_w = text_w + g.tab_dot + g.tab_dot + 2 * g.tab_pad_x + 2 * g.tab_border
             tab_h = g.tab_height - g.tab_border
             # Times inside the tags count from each event's own start.

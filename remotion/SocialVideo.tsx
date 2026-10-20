@@ -810,6 +810,8 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
                 accent={props.accentColor}
                 secondary={props.secondaryColor}
                 font={props.fontFamily}
+                fontPx={element.tab_font_px}
+                previousFontPx={element.continues_font_px}
               />
             ) : DATA_GRAPHICS.has(element.type) ? (
               <DataGraphic

@@ -23,7 +23,13 @@ from social_video.ffmpeg.probe import probe
 from social_video.ffmpeg.run import run_ffmpeg
 from social_video.fsutil import atomic_copy
 from social_video.imaging import load_image
-from social_video.motion.layout import continues, framing_label, labels, scene_frame_geometry
+from social_video.motion.layout import (
+    continues,
+    framing_label,
+    labels,
+    scene_frame_geometry,
+    tab_font_px,
+)
 from social_video.remotion_runtime import locate_runtime
 from social_video.schemas.brand import CaptionCase, CaptionStyle
 from social_video.schemas.captions import CaptionTrack
@@ -142,6 +148,13 @@ def render_motion_design(
     if frame is not None:
         for item in caption_payload:
             item["framed"] = framing_label(item["start"], item["end"], plan.elements) is not None
+    # Each title gets the size that fits the tab; a title that cannot fit at a
+    # readable size stops the render here, before the toolchain starts.
+    tab_sizes = (
+        {e.text: tab_font_px(e.text, frame, font) for e in labels(plan.elements)}
+        if frame is not None
+        else {}
+    )
     # Node runs with the compositor as its working directory, so every path it
     # is handed must be absolute.
     work = staging_root.resolve() / f"remotion-{uuid4().hex}"
@@ -171,7 +184,15 @@ def render_motion_design(
             "fontFamily": plan.font_family,
             "fontSource": font_source,
             "elements": [
-                _element_payload(item, plan, plate_sources, width=width, height=height, font=font)
+                _element_payload(
+                    item,
+                    plan,
+                    plate_sources,
+                    width=width,
+                    height=height,
+                    font=font,
+                    tab_sizes=tab_sizes,
+                )
                 for item in plan.elements
             ],
             "captions": caption_payload,
@@ -246,6 +267,7 @@ def _element_payload(
     width: int = 1080,
     height: int = 1920,
     font: Path | None = None,
+    tab_sizes: dict[str, float] | None = None,
 ) -> dict:
     """One element as the compositor reads it, its placement resolved."""
     payload = item.model_dump(mode="json", exclude={"schema_version", "image_asset"})
@@ -254,6 +276,9 @@ def _element_payload(
     if item.type is MotionElementType.LABEL:
         previous = continues(item, plan.elements)
         payload["continues"] = previous.text if previous is not None else None
+        sizes = tab_sizes or {}
+        payload["tab_font_px"] = sizes.get(item.text)
+        payload["continues_font_px"] = sizes.get(previous.text) if previous is not None else None
     if item.type is MotionElementType.END_CARD:
         payload["fitted"] = end_card_text(item, width=width, height=height, font=font)
     return payload

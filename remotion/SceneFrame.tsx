@@ -31,7 +31,10 @@ export const SceneFrame: React.FC<{
   accent: string;
   secondary: string;
   font: string;
-}> = ({text, previous, geometry: g, accent, secondary, font}) => {
+  /** This title's size, fitted to the tab in Python; the frame's own if unset. */
+  fontPx?: number | null;
+  previousFontPx?: number | null;
+}> = ({text, previous, geometry: g, accent, secondary, font, fontPx, previousFontPx}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const flip = Math.max(2, Math.round(fps * FLIP_S));
@@ -55,6 +58,7 @@ export const SceneFrame: React.FC<{
       })
     : 0;
   const shown = showOld ? previous : text;
+  const size = (showOld ? previousFontPx : fontPx) ?? g.tab_font_px;
   return (
     <AbsoluteFill>
       <div
@@ -96,9 +100,9 @@ export const SceneFrame: React.FC<{
             height: g.tab_height,
             gap: g.tab_dot,
             fontFamily: font,
-            fontSize: g.tab_font_px,
+            fontSize: size,
             fontWeight: 800,
-            letterSpacing: g.tab_font_px * 0.07,
+            letterSpacing: size * 0.07,
             textTransform: 'uppercase',
             lineHeight: 1.15,
             color: '#FFFFFF',

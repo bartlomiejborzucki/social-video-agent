@@ -29,6 +29,9 @@ export type MotionElement = {
   position?: 'top' | 'center' | 'above_captions' | null;
   /** For a label: the text of the label it takes over from without a break. */
   continues?: string | null;
+  /** For a label in a scene frame: its title size, and the previous title's. */
+  tab_font_px?: number | null;
+  continues_font_px?: number | null;
   /** End card: held after the last word (the timeline was extended for it). */
   hold?: boolean;
   /** End card: text over a dimmed image, or the image above the text. */
