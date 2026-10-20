@@ -96,7 +96,8 @@ def test_broll_suggest_finds_clips_by_name_and_sidecar_tags(
     assert by_file["ekran.mov"].at == pytest.approx(1.25)
     assert by_file["napisy.mp4"].at == pytest.approx(7.55)
     assert all(c.confidence == "high" for c in found.candidates)
-    assert all(c.duration == pytest.approx(3.5) for c in found.candidates)  # MAX_SHOT
+    # Over the speaker talking to the camera a clip hides the mouth: 2 s at most.
+    assert all(c.duration == pytest.approx(2.0) for c in found.candidates)
     assert [c.id for c in found.candidates] == ["br-001", "br-002"]
 
 
