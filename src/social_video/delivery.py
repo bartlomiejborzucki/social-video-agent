@@ -44,6 +44,7 @@ def deliver_workspace(
     allow_temporary: bool = False,
     first_frame_note: str = "",
     max_size_mb: float | None = None,
+    hook_variants: bool = False,
 ) -> DeliveryManifest:
     manifest, edl = load_workspace_artifacts(workspace)
     contract = (
@@ -62,8 +63,11 @@ def deliver_workspace(
         raise ValidationError("Stage 5 destination must be durable and cannot be under /tmp")
     destination.mkdir(parents=True, exist_ok=True)
     if not any(
-        (with_captions, no_captions, srt, vtt, poster, cover, publish, resolutions, languages)
-    ):
+        (
+            with_captions, no_captions, srt, vtt, poster, cover, publish, resolutions, languages,
+            hook_variants,
+        )
+    ):  # fmt: skip
         raise ValidationError("select at least one delivery variant")
     # An unnamed platform falls back to whatever the project config targets, so
     # a configured project gets its safe-zone checks without repeating itself.
@@ -128,6 +132,8 @@ def deliver_workspace(
         items.append(
             _video_item(target, variant_edl, caption_track, destination, specs, contract, limit)
         )
+    if hook_variants:
+        items += _hook_variant_items(workspace, edl, destination, specs, contract, limit)
     for language in languages or []:
         from social_video.captions.translate import check_language, translated_paths
 
@@ -233,6 +239,36 @@ def deliver_workspace(
             + f". Report: {workspace.analysis / 'opening-qa.md'}"
         )
     return result
+
+
+def _hook_variant_items(
+    workspace: Workspace, edl, destination: Path, specs, contract, limit: int | None
+) -> list[DeliveryItem]:
+    """Full-length hook variants rendered by `motion variants`, under their names."""
+    from social_video.motion.hook_variants import HookVariantSet
+
+    registry = workspace.analysis / "hook-variants.json"
+    found = load_artifact(HookVariantSet, registry).variants if registry.is_file() else []
+    whole = [v for v in found if v.seconds is None and Path(v.file).is_file()]
+    if not whole:
+        raise ValidationError(
+            "no full-length hook variants to deliver; render them with "
+            "`motion variants --from-brief` (without --seconds)"
+        )
+    items = []
+    for variant in whole:
+        target = destination / f"final-hook-{variant.name}.mp4"
+        _copy_atomic(Path(variant.file), target)
+        track = (
+            load_artifact(CaptionTrack, workspace.captions / f"hook-{variant.name}.json")
+            if (workspace.captions / f"hook-{variant.name}.json").is_file()
+            else None
+        )
+        item = _video_item(target, edl, track, destination, specs, contract, limit)
+        items.append(
+            item.model_copy(update={"variant": variant.name, "variant_text": variant.text})
+        )
+    return items
 
 
 def _hook_check(

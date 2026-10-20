@@ -247,6 +247,9 @@ def deliver(
         "--first-frame-note",
         help="One sentence on what frame 0 shows, written after looking at it.",
     ),
+    hook_variants: bool = typer.Option(
+        False, "--hook-variants", help="Also deliver the full-length `motion variants` renders."
+    ),
     max_size_mb: float | None = typer.Option(
         None,
         "--max-size-mb",
@@ -277,6 +280,7 @@ def deliver(
             languages=language or None,
             first_frame_note=first_frame_note,
             max_size_mb=max_size_mb,
+            hook_variants=hook_variants,
         )
     )
     if as_json:

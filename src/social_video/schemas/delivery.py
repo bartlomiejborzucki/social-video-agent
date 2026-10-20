@@ -18,6 +18,9 @@ class DeliveryItem(Artifact):
     qa_report_sha256: str | None = None
     #: Set when the delivery had a size limit: the limit, and the video
     #: bitrate of the two-pass encode that met it (None: it already fitted).
+    #: A hook variant's name ("napis", "zdanie", "pytanie") and opening line.
+    variant: str | None = None
+    variant_text: str | None = None
     size_limit_bytes: int | None = None
     video_bitrate_kbps: int | None = None
     av_error_ms: float | None = None
