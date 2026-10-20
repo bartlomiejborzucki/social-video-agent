@@ -16,25 +16,20 @@ word, and every move is reported, so a compile says what it changed.
 
 from __future__ import annotations
 
-import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
-from social_video.ffmpeg.run import find_binary
+from social_video.analysis.speech import FRAME, MIN_RUN, decode_mono, envelope_db, speech_mask
 from social_video.schemas.transcript import Transcript, TranscriptToken
 
-RATE = 16000
-FRAME = 0.01
 #: How far from the word edge the speech boundary is looked for.
 SEARCH = 0.4
 #: The breath kept outside the speech, clamped to this range.
 MIN_MARGIN = 0.08
 MAX_MARGIN = 0.12
-#: Frames in a row that count as speech, so a click is not a syllable.
-MIN_RUN = 3
 #: Context decoded either side of an edge to measure the noise floor.
 CONTEXT = 1.5
 #: Moves smaller than this are not worth reporting.
@@ -64,45 +59,6 @@ class EdgeShift:
             f"{self.source} {self.edge} {self.word_time:.2f}s -> {self.new_time:.2f}s "
             f"({self.delta:+.2f}s, {self.word!r}): {self.reason}"
         )
-
-
-def envelope_db(signal: np.ndarray, rate: int = RATE) -> np.ndarray:
-    """RMS level in dBFS on a 10 ms grid."""
-    hop = int(rate * FRAME)
-    frames = len(signal) // hop
-    if frames == 0:
-        return np.zeros(0)
-    blocks = signal[: frames * hop].reshape(frames, hop).astype(np.float64)
-    rms = np.sqrt(np.mean(np.square(blocks), axis=1))
-    return 20.0 * np.log10(rms + 1e-9)
-
-
-def speech_mask(db: np.ndarray) -> np.ndarray:
-    """Frames loud enough above the local floor to be voice, runs of MIN_RUN+.
-
-    The threshold sits a fifth of the way from the noise floor to the speech
-    peaks, and at least 8 dB above the floor: low enough to keep a decaying
-    final syllable, high enough to ignore room tone.
-    """
-    if db.size == 0:
-        return np.zeros(0, dtype=bool)
-    floor = float(np.percentile(db, 10))
-    peak = float(np.percentile(db, 95))
-    threshold = floor + max(8.0, 0.2 * (peak - floor))
-    loud = db > threshold
-    if peak - floor < 10.0:
-        # Nothing stands out from the floor: no speech can be located here.
-        return np.zeros_like(loud)
-    mask = np.zeros_like(loud)
-    run_start = None
-    for index, value in enumerate([*loud.tolist(), False]):
-        if value and run_start is None:
-            run_start = index
-        elif not value and run_start is not None:
-            if index - run_start >= MIN_RUN:
-                mask[run_start:index] = True
-            run_start = None
-    return mask
 
 
 @dataclass
@@ -260,31 +216,6 @@ def file_loader(paths: dict[str, tuple[Path, int]]) -> Loader:
 
     def load(source_id: str, start: float, end: float) -> np.ndarray:
         path, track = paths[source_id]
-        proc = subprocess.run(
-            [
-                find_binary("ffmpeg"),
-                "-v",
-                "error",
-                "-nostdin",
-                "-ss",
-                f"{max(0.0, start):.3f}",
-                "-t",
-                f"{max(FRAME, end - start):.3f}",
-                "-i",
-                str(path),
-                "-map",
-                f"0:a:{track}",
-                "-ac",
-                "1",
-                "-ar",
-                str(RATE),
-                "-f",
-                "f32le",
-                "-",
-            ],
-            capture_output=True,
-            check=True,
-        )
-        return np.frombuffer(proc.stdout, dtype=np.float32)
+        return decode_mono(path, track=track, start=max(0.0, start), end=end)
 
     return load

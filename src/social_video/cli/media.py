@@ -101,12 +101,25 @@ def transcribe(
     ),
     speakers: int | None = typer.Option(None, "--speakers", help="Known number of speakers."),
     force: bool = typer.Option(False, "--force", help="Re-transcribe even if cached."),
+    refine: list[str] | None = typer.Option(
+        None,
+        "--refine",
+        help="Re-transcribe only START-END seconds (repeatable), usually with --model "
+        "large-v3, and splice those words into the workspace transcript.",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
-    """Transcribe a source locally. Cached on source content plus options."""
+    """Transcribe a source locally. Cached on source content plus options.
+
+    Words the sound contradicts -- longer than 1.2 s, or with silence inside --
+    are listed with a ready --refine span for each passage.
+    """
+    from social_video.analysis.speech import recording_quiet_spans
+    from social_video.paths import normalize_user_path
+    from social_video.pipeline import repack_workspace
     from social_video.transcribe.base import TranscriptionOptions
     from social_video.transcribe.quality import assess_transcript
-    from social_video.transcribe.service import transcribe_source
+    from social_video.transcribe.service import parse_span, refine_transcript, transcribe_source
     from social_video.workspace.layout import Workspace
 
     ws = Workspace.at(workspace_dir) if workspace_dir else Workspace.for_source(source)
@@ -118,11 +131,28 @@ def transcribe(
         diarize=diarize,
         num_speakers=speakers,
     )
-    transcript = _guard(
-        lambda: transcribe_source(source, ws, options=options, backend_name=backend, force=force)
-    )
+    refined = []
+    if refine:
+        spans = [_guard(lambda text=text: parse_span(text)) for text in refine]
+        for start, end in spans:
+            refined.append(
+                _guard(
+                    lambda start=start, end=end: refine_transcript(
+                        source, ws, start, end, options=options, backend_name=backend
+                    )
+                )
+            )
+        transcript = refined[-1].transcript
+        _guard(lambda: repack_workspace(ws))
+    else:
+        transcript = _guard(
+            lambda: transcribe_source(
+                source, ws, options=options, backend_name=backend, force=force
+            )
+        )
     path = ws.transcript_for(transcript.source_id, audio_track)
-    quality = assess_transcript(transcript, requested_language=language)
+    quiet = recording_quiet_spans(normalize_user_path(source), track=audio_track)
+    quality = assess_transcript(transcript, requested_language=language, quiet=quiet)
 
     if as_json:
         console.print_json(
@@ -137,11 +167,28 @@ def transcribe(
                     "word_timestamps_reliable": transcript.has_word_timestamps,
                     "speakers": transcript.speakers,
                     "quality": quality.to_dict(),
-                }
+                    "refined": [
+                        {
+                            "removed": " ".join(t.text for t in r.removed),
+                            "added": " ".join(t.text for t in r.added),
+                        }
+                        for r in refined
+                    ],
+                },
+                ensure_ascii=False,
             )
         )
         return
 
+    for result in refined:
+        console.print(f"[green]refined[/green] {transcript.source_id}")
+        console.print(f"  was        {escape(' '.join(t.text for t in result.removed))}")
+        console.print(f"  now        {escape(' '.join(t.text for t in result.added))}")
+    if refined:
+        console.print(f"  written    {path}", soft_wrap=True)
+        for warning in quality.warnings:
+            console.print(f"  [yellow]warning[/yellow]    {escape(warning)}")
+        return
     console.print(f"[green]transcribed[/green] {transcript.source_id}")
     console.print(f"  backend    {transcript.provider} / {transcript.provider_model}")
     console.print(f"  language   {transcript.language}")

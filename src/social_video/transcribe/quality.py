@@ -38,9 +38,34 @@ LOOP_MIN_REPEATS = 4
 #: Detected-language confidence below which the language should be named.
 LANGUAGE_CONFIDENCE_LIMIT = 0.5
 
+#: A word longer than this is usually a false start and a pause glued on.
+LONG_WORD = 1.2
+#: Silence this long inside one word means the word is not one word.
+INNER_SILENCE = 0.3
+#: Context kept either side of a suspect word in the suggested --refine span.
+REFINE_CONTEXT = 0.5
+
 _JUNK_CHARS = ("♪", "♫", "♬", "�")
 _ANNOTATION = re.compile(r"^[\[(*].*[\])*]$")
 _HAS_WORD_CHAR = re.compile(r"\w")
+
+
+@dataclass(frozen=True)
+class SuspectWord:
+    """A word whose timing the sound contradicts: worth re-transcribing."""
+
+    text: str
+    start: float
+    end: float
+    reason: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "text": self.text,
+            "start": round(self.start, 2),
+            "end": round(self.end, 2),
+            "reason": self.reason,
+        }
 
 
 @dataclass(frozen=True)
@@ -56,6 +81,10 @@ class TranscriptQuality:
     warnings: tuple[str, ...] = field(default_factory=tuple)
     #: The model to re-transcribe with, when a larger or multilingual one would help.
     suggested_model: str | None = None
+    #: Words stretched over a pause or a false start, and the passages
+    #: (start, end) to re-transcribe with `transcribe --refine`.
+    suspects: tuple[SuspectWord, ...] = ()
+    refine_spans: tuple[tuple[float, float], ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -75,6 +104,8 @@ class TranscriptQuality:
             "language_confidence": self.language_confidence,
             "warnings": list(self.warnings),
             "suggested_model": self.suggested_model,
+            "suspect_words": [word.to_dict() for word in self.suspects],
+            "refine": [f"{start:.2f}-{end:.2f}" for start, end in self.refine_spans],
         }
 
 
@@ -115,8 +146,49 @@ def find_loops(words: list[TranscriptToken]) -> list[float]:
     return loops
 
 
+def suspect_words(
+    transcript: Transcript, quiet: list[tuple[float, float]] | None = None
+) -> list[SuspectWord]:
+    """Words too long to be one word, or with the sound stopping inside them.
+
+    Whisper folds a false start and the pause after it into the next word
+    ("zawsze" over 51.4-55.3 s), or slides a run of words by seconds. Both
+    leave words that last too long or hold silence; ``quiet`` is the
+    recording's measured quiet stretches.
+    """
+    found: list[SuspectWord] = []
+    for word in transcript.words:
+        reasons = []
+        if word.duration > LONG_WORD:
+            reasons.append(f"lasts {word.duration:.1f}s")
+        silent = sum(
+            max(0.0, min(end, word.end) - max(start, word.start)) for start, end in quiet or []
+        )
+        if silent >= INNER_SILENCE:
+            reasons.append(f"holds {silent:.1f}s of silence")
+        if reasons:
+            found.append(SuspectWord(word.text, word.start, word.end, " and ".join(reasons)))
+    return found
+
+
+def refine_spans(suspects: list[SuspectWord], duration: float) -> list[tuple[float, float]]:
+    """Passages around suspect words, merged where they touch."""
+    spans: list[tuple[float, float]] = []
+    for word in sorted(suspects, key=lambda w: w.start):
+        start = max(0.0, word.start - REFINE_CONTEXT)
+        end = min(duration or word.end + REFINE_CONTEXT, word.end + REFINE_CONTEXT)
+        if spans and start <= spans[-1][1]:
+            spans[-1] = (spans[-1][0], max(spans[-1][1], end))
+        else:
+            spans.append((start, end))
+    return [(round(s, 2), round(e, 2)) for s, e in spans]
+
+
 def assess_transcript(
-    transcript: Transcript, *, requested_language: str | None = None
+    transcript: Transcript,
+    *,
+    requested_language: str | None = None,
+    quiet: list[tuple[float, float]] | None = None,
 ) -> TranscriptQuality:
     words = transcript.words
     model = transcript.provider_model
@@ -170,6 +242,18 @@ def assess_transcript(
             f"{transcript.language_confidence:.0%} confidence; pass --language"
         )
 
+    suspects = suspect_words(transcript, quiet)
+    spans = refine_spans(suspects, transcript.duration)
+    if suspects:
+        shown = "; ".join(f"{w.text!r} {w.start:.2f}-{w.end:.2f}s {w.reason}" for w in suspects[:3])
+        more = f" (+{len(suspects) - 3} more)" if len(suspects) > 3 else ""
+        first = spans[0]
+        warnings.append(
+            f"{len(suspects)} word(s) look stretched over a pause or a false start: "
+            f"{shown}{more}; re-transcribe just those passages, e.g. "
+            f"--refine {first[0]:.2f}-{first[1]:.2f} --model large-v3"
+        )
+
     if needs_larger and suggested is None:
         suggested = _next_model(model)
         if suggested is None:
@@ -188,6 +272,8 @@ def assess_transcript(
         language_confidence=transcript.language_confidence,
         warnings=tuple(warnings),
         suggested_model=suggested,
+        suspects=tuple(suspects),
+        refine_spans=tuple(spans),
     )
 
 

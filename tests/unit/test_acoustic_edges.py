@@ -5,7 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from social_video.editorial.acoustic import RATE, AcousticEdges
+from social_video.analysis.speech import RATE
+from social_video.editorial.acoustic import AcousticEdges
 from social_video.editorial.compile import compile_plan
 from social_video.profiles import load_profile
 from social_video.schemas.plan import EditPlan, PlanAction, PlanItem

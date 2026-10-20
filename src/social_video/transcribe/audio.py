@@ -14,8 +14,18 @@ from social_video.ffmpeg.run import run_ffmpeg
 SILENCE_PEAK_DBFS = -60.0
 
 
-def extract_audio(source: Path, dest: Path, *, audio_track: int = 0) -> Path:
-    """Extract one audio track as mono 16 kHz PCM, which is what ASR wants."""
+def extract_audio(
+    source: Path,
+    dest: Path,
+    *,
+    audio_track: int = 0,
+    start: float | None = None,
+    end: float | None = None,
+) -> Path:
+    """Extract one audio track as mono 16 kHz PCM, which is what ASR wants.
+
+    ``start``/``end`` cut out one passage, for re-transcribing just that.
+    """
     info = probe(source)
     if not info.audio:
         raise SocialVideoError(f"{source.name} has no audio track, so it cannot be transcribed.")
@@ -26,9 +36,15 @@ def extract_audio(source: Path, dest: Path, *, audio_track: int = 0) -> Path:
         )
 
     dest.parent.mkdir(parents=True, exist_ok=True)
+    span: list[str] = []
+    if start is not None:
+        span += ["-ss", f"{start:.3f}"]
+    if end is not None:
+        span += ["-t", f"{end - (start or 0.0):.3f}"]
     run_ffmpeg(
         [
             "-y",
+            *span,
             "-i",
             str(source),
             "-map",

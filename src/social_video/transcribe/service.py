@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import tempfile
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from social_video.errors import ValidationError
@@ -11,7 +12,7 @@ from social_video.ffmpeg.probe import probe
 from social_video.fingerprint import file_fingerprint, options_fingerprint
 from social_video.paths import normalize_user_path
 from social_video.schemas.base import load_artifact, save_artifact
-from social_video.schemas.transcript import Transcript
+from social_video.schemas.transcript import TokenType, Transcript, TranscriptToken
 from social_video.transcribe.audio import extract_audio, guard_not_silent
 from social_video.transcribe.base import (
     DEFAULT_BACKEND,
@@ -20,6 +21,7 @@ from social_video.transcribe.base import (
     get_backend,
 )
 from social_video.transcribe.diarize import diarize, label_speakers, validate_diarization
+from social_video.transcribe.normalize import synthesize_spacing
 from social_video.transcribe.quality import assess_transcript
 from social_video.workspace.layout import Workspace
 
@@ -162,6 +164,151 @@ def workspace_transcript(
         log.warning("%s was made from a different version of %s", path.name, src.name)
         return None
     return transcript
+
+
+@dataclass(frozen=True)
+class Refinement:
+    transcript: Transcript
+    path: Path
+    removed: list[TranscriptToken]
+    added: list[TranscriptToken]
+
+
+def parse_span(text: str) -> tuple[float, float]:
+    """``"51.0-56.5"`` as seconds."""
+    try:
+        start_text, end_text = text.split("-", 1)
+        start, end = float(start_text), float(end_text)
+    except ValueError:
+        raise ValidationError(
+            f"expected START-END in seconds, e.g. 51.0-56.5; got {text!r}"
+        ) from None
+    if start < 0 or end <= start:
+        raise ValidationError(f"the span {text!r} must run forward from 0 or later")
+    return start, end
+
+
+def refine_transcript(
+    source: str | Path,
+    workspace: Workspace,
+    start: float,
+    end: float,
+    *,
+    options: TranscriptionOptions,
+    backend_name: str | None = None,
+) -> Refinement:
+    """Re-transcribe one passage, usually with a larger model, and splice it in.
+
+    The words whose middle falls inside ``[start, end]`` are replaced by the
+    passage's own words, shifted onto the recording's clock; gaps are then
+    re-synthesised over the whole stream, so the result is the same shape a
+    full transcription would have. Only the workspace transcript changes: it is
+    the copy every later stage reads.
+    """
+    src = normalize_user_path(source, must_exist=True)
+    current = workspace_transcript(src, workspace, audio_track=options.audio_track)
+    if current is None:
+        raise ValidationError(
+            f"{src.name} has no transcript in {workspace.transcripts} to refine; "
+            "transcribe it first"
+        )
+    end = min(end, current.duration or end)
+    if end - start < 0.2:
+        raise ValidationError(f"the span {start:.2f}-{end:.2f}s is too short to transcribe")
+    backend = get_backend(backend_name)
+    ok, reason = backend.validate_setup()
+    if not ok:
+        raise BackendNotAvailableError(f"transcription backend {backend.name!r}: {reason}")
+    opts = replace(options, language=options.language or current.language)
+    with tempfile.TemporaryDirectory(dir=workspace.ensure().cache) as tmp:
+        audio = extract_audio(
+            src, Path(tmp) / "passage.wav", audio_track=opts.audio_track, start=start, end=end
+        )
+        log.info(
+            "refining %s %.2f-%.2fs with %s/%s", src.name, start, end, backend.name, opts.model
+        )
+        passage = backend.transcribe(
+            audio,
+            options=opts,
+            source_id=current.source_id,
+            source_fingerprint=current.source_fingerprint,
+            duration=end - start,
+        )
+
+    def inside(token: TranscriptToken) -> bool:
+        # Only words wholly inside are replaced: a word the span's edge cuts
+        # through is heard only in part by the passage, so it is kept as it was.
+        return start - 1e-6 <= token.start and token.end <= end + 1e-6
+
+    added = [
+        token.model_copy(
+            update={
+                "start": round(min(end, token.start + start), 3),
+                "end": round(min(end, token.end + start), 3),
+            }
+        )
+        for token in passage.tokens
+        if token.type is not TokenType.SPACING
+    ]
+    kept = [t for t in current.tokens if t.type is not TokenType.SPACING and not inside(t)]
+    added = [t for t in added if inside(t) and not any(_overlaps(t, k) for k in kept)]
+    added = _join_sentence(added, kept, end)
+    removed = [t for t in current.tokens if t.type is not TokenType.SPACING and inside(t)]
+    segments = [
+        segment
+        for segment in current.segments
+        if not (start <= segment.start and segment.end <= end)
+    ]
+    segments += [
+        segment.model_copy(
+            update={
+                "start": round(segment.start + start, 3),
+                "end": round(min(end, segment.end + start), 3),
+                "tokens": [],
+            }
+        )
+        for segment in passage.segments
+    ]
+    note = dict(current.provider_options)
+    note[f"refined {start:.2f}-{end:.2f}"] = (
+        f"{passage.provider}/{passage.provider_model or opts.model}"
+    )
+    refined = current.model_copy(
+        update={
+            "tokens": synthesize_spacing([*kept, *added]),
+            "segments": sorted(segments, key=lambda seg: seg.start),
+            "provider_options": note,
+        }
+    )
+    refined = Transcript.model_validate(refined.model_dump())
+    path = workspace.transcript_for(current.source_id, current.audio_track)
+    save_artifact(refined, path)
+    return Refinement(transcript=refined, path=path, removed=removed, added=added)
+
+
+def _overlaps(token: TranscriptToken, other: TranscriptToken) -> bool:
+    """More than half of ``token`` lies under ``other``."""
+    shared = min(token.end, other.end) - max(token.start, other.start)
+    return shared > 0.5 * max(token.duration, 1e-3)
+
+
+def _join_sentence(
+    added: list[TranscriptToken], kept: list[TranscriptToken], end: float
+) -> list[TranscriptToken]:
+    """Drop the full stop a passage puts on its last word when the sentence goes on.
+
+    A passage cut mid-sentence is transcribed as if it ended there; the word
+    after it, starting lower case, says it did not.
+    """
+    words = [t for t in added if t.type is TokenType.WORD]
+    following = [t for t in kept if t.type is TokenType.WORD and t.start >= end - 1e-6]
+    if not words or not following or not following[0].text[:1].islower():
+        return added
+    last = words[-1]
+    trimmed = last.text.rstrip(".!?…")
+    if trimmed == last.text or not trimmed:
+        return added
+    return [t.model_copy(update={"text": trimmed}) if t is last else t for t in added]
 
 
 def _publish(transcript: Transcript, out_path: Path) -> None:

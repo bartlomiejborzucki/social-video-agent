@@ -125,3 +125,26 @@ def test_largest_model_explains_the_next_step():
     quality = assess_transcript(_transcript(["♪"] * 8, model="large-v3"))
     assert quality.suggested_model is None
     assert any("--audio-track" in w for w in quality.warnings)
+
+
+def test_a_false_start_glued_into_one_word_is_flagged_with_a_refine_span() -> None:
+    from social_video.schemas.transcript import TokenType, Transcript, TranscriptToken
+    from social_video.transcribe.normalize import synthesize_spacing
+    from social_video.transcribe.quality import suspect_words
+
+    words = [("To", 50.8, 51.1), ("zawsze", 51.4, 55.3), ("być", 55.4, 55.7), ("tak.", 56.0, 56.3)]
+    tokens = [TranscriptToken(type=TokenType.WORD, text=t, start=s, end=e) for t, s, e in words]
+    transcript = Transcript(
+        source_id="kamera", source_fingerprint="x", duration=120.0, provider="faster-whisper",
+        provider_model="medium", tokens=synthesize_spacing(tokens),
+    )  # fmt: skip
+    # The sound stops for a pause inside "być", which is short enough not to
+    # be flagged for its length.
+    quiet = [(55.45, 55.65)]
+    assert [w.text for w in suspect_words(transcript, quiet)] == ["zawsze"]
+    quality = assess_transcript(transcript, requested_language="pl", quiet=[(52.0, 54.5)])
+    assert [w.text for w in quality.suspects] == ["zawsze"]
+    assert "holds 2.5s of silence" in quality.suspects[0].reason
+    assert quality.refine_spans == ((50.9, 55.8),)
+    assert any("--refine 50.90-55.80 --model large-v3" in w for w in quality.warnings)
+    assert quality.to_dict()["refine"] == ["50.90-55.80"]

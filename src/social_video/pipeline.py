@@ -102,7 +102,10 @@ def stage_transcribe(
     # several sources would otherwise lose the others from the agent's view
     # each time a new source was transcribed.
     _repack(workspace)
-    quality = assess_transcript(transcript, requested_language=options.language)
+    from social_video.analysis.speech import recording_quiet_spans
+
+    quiet = recording_quiet_spans(source, track=options.audio_track)
+    quality = assess_transcript(transcript, requested_language=options.language, quiet=quiet)
     workspace.analysis.mkdir(parents=True, exist_ok=True)
     (workspace.analysis / f"{transcript.source_id}.transcript-quality.json").write_text(
         json.dumps(quality.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
@@ -118,6 +121,11 @@ def stage_transcribe(
         },
     )
     return transcript
+
+
+def repack_workspace(workspace: Workspace) -> None:
+    """Rebuild the packed transcript after a transcript changed in place."""
+    _repack(workspace)
 
 
 def _repack(workspace: Workspace) -> None:

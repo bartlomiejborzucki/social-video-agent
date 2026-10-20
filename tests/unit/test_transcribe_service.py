@@ -221,3 +221,64 @@ def test_a_workspace_transcript_of_another_file_is_not_used(
     service.transcribe_source(source, ws, backend_name="fake")
     make_video(tmp_path / "kamera.mp4", duration=2.0)
     assert service.workspace_transcript(source, ws) is None
+
+
+@requires_ffmpeg
+def test_refine_replaces_only_the_passage_and_keeps_the_stream_shape(
+    tmp_path: Path, fake: FakeBackend
+) -> None:
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.transcript import TokenType
+
+    source = make_video(tmp_path / "kamera.mp4", duration=3.0)
+    ws = Workspace.at(tmp_path / "edit")
+    service.transcribe_source(source, ws, backend_name="fake")
+    result = service.refine_transcript(
+        source, ws, 0.45, 2.0, options=TranscriptionOptions(model="large-v3"), backend_name="fake"
+    )
+    assert [t.text for t in result.removed] == ["dobry"]
+    assert [(t.text, t.start) for t in result.added] == [("Dzień", 0.55), ("dobry", 0.95)]
+    saved = load_artifact(Transcript, ws.transcript_for("kamera"))
+    assert [w.text for w in saved.words] == ["Dzień", "Dzień", "dobry"]
+    gaps = [t for t in saved.tokens if t.type is TokenType.SPACING]
+    assert gaps and all(g.end > g.start for g in gaps)
+    assert saved.provider_options["refined 0.45-2.00"] == "fake/large-v3"
+    assert fake.calls[-1].language == "pl"
+
+
+def test_refine_spans_must_run_forward() -> None:
+    from social_video.errors import ValidationError
+
+    assert service.parse_span("51-56.5") == (51.0, 56.5)
+    with pytest.raises(ValidationError):
+        service.parse_span("56-51")
+    with pytest.raises(ValidationError):
+        service.parse_span("abc")
+
+
+def test_a_passage_cut_mid_sentence_loses_its_closing_full_stop() -> None:
+    added = [
+        TranscriptToken(text="Rano", start=131.0, end=131.4),
+        TranscriptToken(text="śniadaniem.", start=133.0, end=133.5),
+    ]
+    later = [TranscriptToken(text="potem", start=133.55, end=133.8)]
+    joined = service._join_sentence(added, later, 133.53)
+    assert [t.text for t in joined] == ["Rano", "śniadaniem"]
+    capital = [TranscriptToken(text="Dzieci", start=133.55, end=133.8)]
+    assert service._join_sentence(added, capital, 133.53)[-1].text == "śniadaniem."
+
+
+@requires_ffmpeg
+def test_a_word_cut_by_the_span_edge_is_kept(tmp_path: Path, fake: FakeBackend) -> None:
+    from social_video.schemas.base import load_artifact
+
+    source = make_video(tmp_path / "kamera.mp4", duration=3.0)
+    ws = Workspace.at(tmp_path / "edit")
+    service.transcribe_source(source, ws, backend_name="fake")
+    # "dobry" (0.50-1.01) straddles the span's end; the passage cannot hear it whole.
+    result = service.refine_transcript(
+        source, ws, 0.05, 0.8, options=TranscriptionOptions(model="large-v3"), backend_name="fake"
+    )
+    assert [t.text for t in result.removed] == ["Dzień"]
+    words = [w.text for w in load_artifact(Transcript, ws.transcript_for("kamera")).words]
+    assert "dobry" in words
