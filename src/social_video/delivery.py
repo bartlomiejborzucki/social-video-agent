@@ -22,6 +22,7 @@ from social_video.schemas.motion import MotionPlan
 from social_video.schemas.platform import PlatformSpec
 from social_video.schemas.publish import PublishMetadata
 from social_video.schemas.workflow import Renderer
+from social_video.size_fit import fit_to_size
 from social_video.workflow import load_workflow
 from social_video.workspace.layout import Workspace
 
@@ -42,6 +43,7 @@ def deliver_workspace(
     languages: list[str] | None = None,
     allow_temporary: bool = False,
     first_frame_note: str = "",
+    max_size_mb: float | None = None,
 ) -> DeliveryManifest:
     manifest, edl = load_workspace_artifacts(workspace)
     contract = (
@@ -70,6 +72,9 @@ def deliver_workspace(
         for name in (platforms or (contract.target_platforms if contract else []))
     ]
 
+    if max_size_mb is not None and max_size_mb <= 0:
+        raise ValidationError("--max-size-mb must be positive")
+    limit = round(max_size_mb * 1_000_000) if max_size_mb else None
     before = _sha256(workspace.edl)
     caption_track, _caption_path = _captions(edl)
     items: list[DeliveryItem] = []
@@ -86,7 +91,7 @@ def deliver_workspace(
             raise ValidationError(f"approved final with captions does not exist: {source}")
         target = destination / "final.mp4"
         _copy_atomic(source, target)
-        items.append(_video_item(target, edl, caption_track, destination, specs, contract))
+        items.append(_video_item(target, edl, caption_track, destination, specs, contract, limit))
     if no_captions:
         target = destination / "final-no-captions.mp4"
         clean_edl = edl.model_copy(deep=True)
@@ -102,7 +107,7 @@ def deliver_workspace(
             motion_plan=motion_plan,
             remotion_license_attestation=attestation,
         )
-        items.append(_video_item(target, clean_edl, None, destination, specs, contract))
+        items.append(_video_item(target, clean_edl, None, destination, specs, contract, limit))
     for resolution in resolutions or []:
         width, height = _parse_resolution(resolution)
         variant_edl = edl.model_copy(deep=True)
@@ -120,7 +125,9 @@ def deliver_workspace(
             motion_plan=motion_plan,
             remotion_license_attestation=attestation,
         )
-        items.append(_video_item(target, variant_edl, caption_track, destination, specs, contract))
+        items.append(
+            _video_item(target, variant_edl, caption_track, destination, specs, contract, limit)
+        )
     for language in languages or []:
         from social_video.captions.translate import check_language, translated_paths
 
@@ -143,7 +150,7 @@ def deliver_workspace(
             motion_plan=motion_plan,
             remotion_license_attestation=attestation,
         )
-        items.append(_video_item(target, edl, translated, destination, specs, contract))
+        items.append(_video_item(target, edl, translated, destination, specs, contract, limit))
         if srt:
             written = write_srt(translated, destination / f"captions.{language}.srt")
             items.append(_file_item("captions", written, "srt"))
@@ -352,7 +359,9 @@ def _video_item(
     destination: Path,
     specs: list[PlatformSpec] | None = None,
     contract: BrandContract | None = None,
+    limit_bytes: int | None = None,
 ) -> DeliveryItem:
+    fit = fit_to_size(path, limit_bytes) if limit_bytes else None
     report = check_render(path, edl, captions=captions)
     info = probe(path) if specs else None
     for spec in specs or []:
@@ -379,6 +388,11 @@ def _video_item(
         qa_status=str(report.status),
         qa_report=str(report_path),
         qa_report_sha256=_sha256(report_path),
+        size_limit_bytes=limit_bytes,
+        video_bitrate_kbps=fit.video_kbps if fit else None,
+        av_error_ms=(
+            round(fit.av_error_s * 1000, 1) if fit and fit.av_error_s is not None else None
+        ),
     )
 
 

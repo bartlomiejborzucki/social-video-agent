@@ -247,6 +247,12 @@ def deliver(
         "--first-frame-note",
         help="One sentence on what frame 0 shows, written after looking at it.",
     ),
+    max_size_mb: float | None = typer.Option(
+        None,
+        "--max-size-mb",
+        help="Keep every delivered video under this many MB (e.g. 30): a larger one is "
+        "re-encoded in two passes, its audio copied untouched.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Create immutable Stage 5 variants and a verified delivery manifest."""
@@ -270,6 +276,7 @@ def deliver(
             resolutions=resolution,
             languages=language or None,
             first_frame_note=first_frame_note,
+            max_size_mb=max_size_mb,
         )
     )
     if as_json:
