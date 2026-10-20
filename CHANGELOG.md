@@ -4,6 +4,67 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-20
+
+What reels cut on 2.3.0 had to work around by hand, fixed in the tool.
+
+### Added
+
+- `compile` moves each range's outer edges from whisper's word times to where
+  the speech is heard to start and stop (RMS against the local floor, within
+  0.4 s of the word), keeps a 0.08-0.12 s breath, never crosses a neighbouring
+  word, prints every move and warns when speech carries on past the final
+  out-point. `--word-edges` keeps the transcript's edges.
+- Transcript quality lists `suspect_words` (longer than 1.2 s, or holding
+  0.3 s of measured silence) with a ready span per passage, and
+  `transcribe --refine START-END --model large-v3` re-transcribes only that
+  passage and splices its words into the workspace transcript.
+- `sources add FILE -w WS [--id ID]` and `sources list` manage the recordings
+  of an existing workspace without touching transcripts or state;
+  `workflow init --id` names the first one.
+- Plan items carry `zoom`, `speed` and `grade` onto their ranges, so a fix
+  survives `compile --force`; `compile` lists `qa-editorial.json` EDL fixes
+  the rebuilt EDL no longer carries.
+- Named grades `mono`, `mono_contrast` and `shake` (combinable with `+`) on a
+  range or the whole EDL, drawn in the base render both renderers share.
+- `motion suggest` proposes a `jump` -- a sharp 1.1 range zoom -- instead of a
+  transition on a cut inside one take with speech on both sides; `motion
+  accept` writes it to the plan item and the EDL. `motion qa` warns when a
+  transition runs over speech with a face on screen.
+- `end_card` with `hold: true` is placed after the last word and extends the
+  edit by its length in silence (`end_hold` in the EDL); `layout: image_top`
+  puts a cover image above the text.
+- `brief import posts.docx --match TITLE` reads a reel from the month's Word
+  document, with tracked deletions left out and insertions kept.
+- `deliver --max-size-mb 30` re-encodes a larger video in two passes with the
+  audio stream copied, checks A/V against the file it replaces and records the
+  limit and bitrate per item.
+- Technical QA measures `audio/video sync against base` for composited
+  renders and fails beyond 20 ms.
+
+### Changed
+
+- `transcripts/<id>.json` is the source of truth for every recording; the
+  cache only fills it, and stages no longer re-transcribe over it with their
+  own default model.
+- `compile` takes the source argument as optional with `--workspace` and
+  accepts a picture-only source when the plan's sound is transcribed.
+- A scene title is fitted to its tab by width (shrinking to 60 % at most) on
+  both routes, replacing the fixed 48-character label limit; a title that
+  still does not fit is refused with the length that would.
+- End card text is measured in Python: links and addresses are never split
+  and the font shrinks to fit the width.
+
+### Fixed
+
+- Remotion finals played their audio 40-45 ms late: the compositor re-encoded
+  the base AAC without trimming encoder priming. It now renders pictures only
+  and the base audio stream is muxed back unchanged.
+- `speed` under an `audio_source` slowed the voice with the picture; only the
+  picture is retimed now.
+- An element that runs to the final frame (an end card) no longer fades out on
+  it.
+
 ## [2.3.0] - 2026-10-14
 
 What the 13.10.2026 reel needed a local patch and hand-written scripts for,
