@@ -64,6 +64,12 @@ What reels cut on 2.3.0 had to work around by hand, fixed in the tool.
   picture is retimed now.
 - An element that runs to the final frame (an end card) no longer fades out on
   it.
+- A graded range (`shake`) no longer breaks concatenation with ungraded ones.
+- A brief whose first row narrates the situation before a quote opens on the
+  situation, not on the quote; abbreviations such as "np." no longer end the
+  first sentence.
+- `--refine` keeps a word the span's edge cuts through, and a word heard twice
+  across the edge only once.
 
 ## [2.3.0] - 2026-10-14
 
