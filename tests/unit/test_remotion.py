@@ -140,6 +140,10 @@ def test_an_end_card_plate_is_staged_under_a_neutral_name(
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setattr("social_video.remotion._verify_staged_output", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "social_video.remotion.mux_base_audio",
+        lambda picture, base, output: output.write_bytes(picture.read_bytes()) and output,
+    )
     render_motion_design(
         source,
         tmp_path / "output.mp4",

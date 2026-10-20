@@ -197,6 +197,10 @@ def test_the_compositor_gets_the_frame_and_the_framed_cues(
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setattr("social_video.remotion._verify_staged_output", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "social_video.remotion.mux_base_audio",
+        lambda picture, base, output: output.write_bytes(picture.read_bytes()) and output,
+    )
     _out, features, _layout = render_motion_design(
         source, tmp_path / "out.mp4", plan, duration_in_frames=240, fps=30, width=1080,
         height=1920, staging_root=tmp_path / "cache", captions=track, caption_style=STYLE,

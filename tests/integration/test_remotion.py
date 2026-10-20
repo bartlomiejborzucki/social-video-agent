@@ -137,3 +137,83 @@ def test_remotion_renders_social_mp4_with_unicode_motion_graphics(
         check=True,
         capture_output=True,
     )
+
+
+def test_remotion_render_keeps_the_base_audio_in_sync(tmp_path: Path) -> None:
+    """The motion layer must not move the sound against the picture."""
+    source = tmp_path / "pulses.mp4"
+    # A flash and a click on the same irregular beat, so both the picture and
+    # the sound have something to correlate.
+    beat = "lt(mod({t}*7.3,1.9),0.25)"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-nostdin",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=360x640:rate=30:duration=12,format=yuv420p,"
+            f"geq=lum='lum(X,Y)*(0.4+0.6*{beat.format(t='T')})'"
+            ":cb='cb(X,Y)':cr='cr(X,Y)'",
+            "-f",
+            "lavfi",
+            "-i",
+            f"aevalsrc='0.5*sin(2*PI*660*t)*{beat.format(t='t')}':s=48000:d=12",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-ac",
+            "2",
+            str(source),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    font = default_caption_font()
+    assert font is not None
+    plan = MotionPlan(
+        style="editorial_clean",
+        rationale="A label over the whole edit, so the compositor draws something.",
+        font_family=font.family,
+        font_path=str(font.path),
+        elements=[
+            MotionElement(
+                type=MotionElementType.LABEL,
+                start=0.0,
+                end=12.0,
+                text="Synchronizacja",
+                reason="Exercise the compositor across the full timeline.",
+            )
+        ],
+    )
+    manifest = build_manifest([source])
+    edl = EDL(
+        output_width=360,
+        output_height=640,
+        output_fps="30/1",
+        normalize_audio=False,
+        ranges=[EDLRange(source=manifest.ids[0], start=0, end=12)],
+    )
+    ws = Workspace.at(tmp_path / "edit")
+    output = tmp_path / "final.mp4"
+    stage_render(
+        edl,
+        manifest,
+        ws,
+        quality="final",
+        output=output,
+        renderer=Renderer.REMOTION,
+        motion_plan=plan,
+        remotion_license_attestation=RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE,
+    )
+    from social_video.pipeline import _sync_against_base
+
+    check = _sync_against_base(output, ws)
+    assert check is not None
+    assert check.passed, check.message
+    assert abs(check.measured or 0.0) <= 0.020

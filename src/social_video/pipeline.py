@@ -490,6 +490,7 @@ def stage_render(
 
         runtime = locate_runtime()
         manifest_obj.tool_versions["remotion"] = runtime.locked_version if runtime else "unknown"
+        manifest_obj.base_render = str(render_target)
     else:
         # libass draws the ASS track; it honours the same contracted features.
         # A plain track wraps inside libass, so there is no measured layout to
@@ -698,6 +699,9 @@ def stage_qa(
     if captions is None and edl.captions:
         captions, caption_problem = resolve_caption_track(Path(edl.captions))
     report = check_render(output, edl, captions=captions, attempt=attempt)
+    sync = _sync_against_base(output, workspace)
+    if sync is not None:
+        report.checks.append(sync)
     if caption_problem:
         report.checks.append(
             QACheck(
@@ -817,6 +821,32 @@ def stage_qa(
         {"passed": report.passed, "status": report.status, "attempt": attempt},
     )
     return report
+
+
+def _sync_against_base(output: Path, workspace: Workspace) -> QACheck | None:
+    """Hold a composited render's A/V sync to the base render it was drawn over."""
+    from social_video.qa.av_sync import measure_sync, sync_check
+
+    manifest_path = workspace.renders / f"{output.stem}.manifest.json"
+    if not manifest_path.is_file():
+        return None
+    manifest = load_artifact(RenderManifest, manifest_path)
+    if not manifest.base_render or Path(manifest.output).resolve() != output.resolve():
+        return None
+    base = Path(manifest.base_render)
+    if not base.is_file():
+        return QACheck(
+            name="audio/video sync against base",
+            severity=QASeverity.WARNING,
+            passed=False,
+            message=f"the base render {base} is gone, so sync cannot be measured; re-render",
+        )
+    busy: list[tuple[float, float]] = []
+    if workspace.motion_plan.is_file():
+        plan = load_artifact(MotionPlan, workspace.motion_plan)
+        busy += [(p.start, p.end) for p in plan.punch_ins]
+        busy += [(t.at - t.duration / 2, t.at + t.duration / 2) for t in plan.transitions]
+    return sync_check(measure_sync(base, output, fps=manifest.frame_rate, busy=busy))
 
 
 def resolve_caption_track(caption_source: Path) -> tuple[CaptionTrack | None, str | None]:

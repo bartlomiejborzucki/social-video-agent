@@ -135,3 +135,6 @@ class RenderManifest(Artifact):
     #: when the film was specified and imported. Brand QA checks these, not
     #: the registry's own claims.
     motion_film_segments: list[dict] = Field(default_factory=list)
+    #: The technical base a compositor drew over. Its audio is the edit's
+    #: audio, so QA measures the delivered sync against it.
+    base_render: str | None = None

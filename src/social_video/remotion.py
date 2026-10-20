@@ -220,14 +220,16 @@ def render_motion_design(
         if proc.returncode != 0 or not staged.is_file():
             detail = "\n".join((proc.stderr or proc.stdout).strip().splitlines()[-30:])
             raise RemotionError(f"Remotion render failed (exit {proc.returncode}):\n{detail}")
+        muxed = work / "muxed.mp4"
+        mux_base_audio(staged, base_video, muxed)
         _verify_staged_output(
-            staged,
+            muxed,
             duration_in_frames=duration_in_frames,
             fps=fps,
             width=width,
             height=height,
         )
-        _publish(staged, output)
+        _publish(muxed, output)
     finally:
         shutil.rmtree(work, ignore_errors=True)
     return output, features, layout
@@ -300,6 +302,39 @@ def _caption_payload(
         item["lines"] = lines
         payload.append(item)
     return payload
+
+
+def mux_base_audio(picture: Path, base_video: Path, output: Path) -> Path:
+    """Put the base render's audio, untouched, under the compositor's picture.
+
+    The compositor only draws. Letting it carry the sound re-encoded the base
+    AAC without trimming the encoder priming, so every Remotion render played
+    its audio ~45 ms late. Copying the stream keeps the audio bit-identical to
+    the base render, whose sync is already checked against the sources.
+    """
+    run_ffmpeg(
+        [
+            "-y",
+            "-v",
+            "error",
+            "-i",
+            str(picture),
+            "-i",
+            str(base_video),
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c",
+            "copy",
+            "-movflags",
+            "+faststart",
+            str(output),
+        ],
+        desc="mux the base audio under the motion layer",
+        timeout=3600,
+    )
+    return output
 
 
 def _verify_staged_output(

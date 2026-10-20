@@ -661,7 +661,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
           filter: cut.blur > 0.05 ? `blur(${cut.blur}px)` : undefined,
         }}
       >
-        <Video src={staticFile(props.source)} style={{width: '100%', height: '100%'}} />
+        <Video src={staticFile(props.source)} muted style={{width: '100%', height: '100%'}} />
       </AbsoluteFill>
       {cut.flash > 0.01 ? (
         <AbsoluteFill style={{backgroundColor: props.accentColor, opacity: cut.flash}} />

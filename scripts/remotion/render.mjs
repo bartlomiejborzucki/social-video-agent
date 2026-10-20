@@ -24,14 +24,14 @@ try {
     composition,
     serveUrl,
     codec: 'h264',
-    audioCodec: 'aac',
-    audioBitrate: '192K',
-    sampleRate: 48000,
+    // The compositor draws pictures only. Its audio path re-encodes the base
+    // render's AAC without trimming encoder priming, which lands the sound
+    // ~45 ms after the picture; the caller muxes the base audio back instead.
+    muted: true,
     pixelFormat: 'yuv420p',
     colorSpace: 'bt709',
     crf: 18,
     x264Preset: 'medium',
-    enforceAudioTrack: true,
     ffmpegOverride: ({type, args}) => {
       if (type !== 'stitcher') {
         return args;
