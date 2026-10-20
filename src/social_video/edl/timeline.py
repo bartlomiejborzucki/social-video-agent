@@ -29,14 +29,16 @@ class TimelineSlice:
         if not (self.range.effective_audio_start <= source_time <= self.range.effective_audio_end):
             return None
         return (
-            self.output_start + (source_time - self.range.effective_audio_start) / self.range.speed
+            self.output_start
+            + (source_time - self.range.effective_audio_start) / self.range.voice_speed
         )
 
     def to_source(self, output_time: float) -> float | None:
         if not (self.output_start <= output_time <= self.output_end):
             return None
         return (
-            self.range.effective_audio_start + (output_time - self.output_start) * self.range.speed
+            self.range.effective_audio_start
+            + (output_time - self.output_start) * self.range.voice_speed
         )
 
 

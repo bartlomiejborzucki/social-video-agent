@@ -162,7 +162,13 @@ class EDLRange(Artifact):
 
     reframe: ReframePlan | None = None
     zoom: float = Field(default=1.0, ge=1.0, le=2.0, description="Punch-in factor.")
-    speed: float = Field(default=1.0, gt=0.0, le=4.0)
+    speed: float = Field(
+        default=1.0,
+        gt=0.0,
+        le=4.0,
+        description="Playback rate. Retimes the range's own sound with its picture; a voice "
+        "from another recording (audio_source) keeps its natural pace under it.",
+    )
     audio_gain_db: float = Field(default=0.0, ge=-30.0, le=30.0)
     grade: str = ""
     transition_in: str = "cut"
@@ -287,6 +293,17 @@ class EDLRange(Artifact):
             raise ValueError(f"{label} strategy requires a written reason")
 
     @property
+    def voice_speed(self) -> float:
+        """The rate the sound plays at: a separate voice is never retimed.
+
+        Slowing a playground clip to fit a sentence recorded elsewhere must not
+        slow the sentence; a range's own sound follows its picture.
+        """
+        if self.audio_source is not None and self.audio_source != self.effective_video_source:
+            return 1.0
+        return self.speed
+
+    @property
     def effective_video_source(self) -> str:
         return self.video_source or self.source
 
@@ -337,7 +354,7 @@ class EDLRange(Artifact):
     @property
     def unfilled_visual_duration(self) -> float:
         target = max(
-            self.audio_duration / self.speed,
+            self.audio_duration / self.voice_speed,
             self.hold_last_frame_until or 0.0,
         )
         return max(0.0, target - self.primary_visual_output_duration)
@@ -360,7 +377,7 @@ class EDLRange(Artifact):
     def output_duration(self) -> float:
         """Duration this range occupies in the output."""
         visual = self.primary_visual_output_duration + self.declared_visual_fill_duration
-        natural = max(visual, self.audio_duration / self.speed)
+        natural = max(visual, self.audio_duration / self.voice_speed)
         return max(natural, self.hold_last_frame_until or 0.0)
 
 

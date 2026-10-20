@@ -293,3 +293,33 @@ def test_a_recompile_names_the_editorial_fixes_it_dropped() -> None:
     plan.items[1].zoom = 1.1
     edl = compile_plan(plan, ODRUCH, PROFILE, transcripts={"sprobuj": SPROBUJ})
     assert len(lost_editorial_fixes(edl, review)) == 1
+
+
+def test_a_slowed_picture_keeps_the_voice_at_its_own_pace() -> None:
+    plan = EditPlan(
+        goal="playground under the child's voice",
+        items=[
+            _keep("plac", 0.0, 1.5, order=1, audio_source="dziecko", audio_start=0.45,
+                  audio_end=1.85, speed=0.88),
+        ],
+    )  # fmt: skip
+    edl = compile_plan(plan, CHILD, PROFILE, source_id="plac", transcripts={"dziecko": CHILD})
+    rng = edl.ranges[0]
+    voice = rng.audio_end - rng.audio_start
+    assert rng.voice_speed == 1.0
+    assert rng.end == pytest.approx(voice * 0.88, abs=1e-3)
+    assert rng.output_duration == pytest.approx(voice, abs=1e-3)
+    timeline = Timeline(edl)
+    assert timeline.slices[0].to_output(rng.audio_start + 1.0) == pytest.approx(1.0)
+
+
+def test_a_voice_longer_than_the_slowed_picture_says_which_speed_fits() -> None:
+    plan = EditPlan(
+        goal="x",
+        items=[
+            _keep("plac", 0.0, 1.0, order=1, audio_source="dziecko", audio_start=0.45,
+                  audio_end=1.85),
+        ],
+    )  # fmt: skip
+    with pytest.raises(ValueError, match=r"set speed to 0\.\d+ or less"):
+        compile_plan(plan, CHILD, PROFILE, source_id="plac", transcripts={"dziecko": CHILD})

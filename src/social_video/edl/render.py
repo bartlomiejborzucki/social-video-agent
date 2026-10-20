@@ -376,8 +376,8 @@ def _audio_chain(index: int, rng: EDLRange, media: RenderRange) -> str:
         "asettb=1/48000",
         "asetpts=N/SR/TB",
     ]
-    if rng.speed != 1.0:
-        chain.extend(_atempo_chain(rng.speed))
+    if rng.voice_speed != 1.0:
+        chain.extend(_atempo_chain(rng.voice_speed))
     if rng.audio_gain_db:
         chain.append(f"volume={rng.audio_gain_db:.2f}dB")
     # Short fades at both edges prevent the click that a hard splice makes.

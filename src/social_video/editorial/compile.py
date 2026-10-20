@@ -186,7 +186,7 @@ def _compile_items(
         if edges is not None:
             limit = None
             if item.audio_source is not None:
-                limit = low + (item.end - item.start)
+                limit = low + (item.end - item.start) / item.speed
             low, high = edges.refine(
                 transcript, low, high, padding=profile.cut_padding, limit_end=limit
             )
@@ -194,18 +194,21 @@ def _compile_items(
         quote = text_in(transcript, low, high)[:300]
         if item.audio_source is not None:
             voice = high - low
-            picture = item.end - item.start
+            picture = (item.end - item.start) / item.speed
             if voice > picture + 0.001:
+                slower = (item.end - item.start) / voice
                 raise ValueError(
                     f"plan item {number}: the voice from {item.audio_source!r} lasts "
-                    f"{voice:.2f}s but its picture from {item.source!r} only {picture:.2f}s; "
-                    f"extend end to at least {item.start + voice:.2f}"
+                    f"{voice:.2f}s but its picture from {item.source!r} only {picture:.2f}s"
+                    + (f" at speed {item.speed:g}" if item.speed != 1.0 else "")
+                    + f"; extend end to at least {item.start + voice * item.speed:.2f}"
+                    + (f" or set speed to {slower:.3f} or less" if slower >= 0.25 else "")
                 )
             ranges.append(
                 EDLRange(
                     source=item.source,
                     start=item.start,
-                    end=round(item.start + voice, 4),
+                    end=round(item.start + voice * item.speed, 4),
                     audio_source=item.audio_source,
                     audio_start=round(low, 4),
                     audio_end=round(high, 4),
