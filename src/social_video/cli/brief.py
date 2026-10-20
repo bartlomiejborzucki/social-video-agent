@@ -7,7 +7,7 @@ from pathlib import Path
 import typer
 from rich.markup import escape
 
-from social_video.cli._apps import app, brief_app
+from social_video.cli._apps import app, brief_app, hook_app
 from social_video.cli._common import _guard, console
 
 
@@ -149,6 +149,40 @@ def opening_qa(
         console.print(f"[green]written[/green] {ws.opening_qa}", soft_wrap=True)
     if not report.ready:
         raise typer.Exit(1)
+
+
+@hook_app.command("check")
+def hook_check(
+    workspace_dir: Path = typer.Argument(..., help="Edit workspace."),
+    video: Path | None = typer.Option(None, "--video", help="Default: final, else the preview."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Ocena otwarcia: pierwszy napis i pierwsza sekunda. Heurystyka, nie blokuje."""
+    from social_video.pipeline import load_workspace_artifacts, resolve_caption_track
+    from social_video.qa.hook import check_hook
+    from social_video.workspace.layout import Workspace
+
+    ws = Workspace.at(workspace_dir)
+
+    def run():
+        _sources, edl = load_workspace_artifacts(ws)
+        target = video or next(
+            (p for p in (ws.final / "final.mp4", ws.previews / "preview.mp4") if p.is_file()), None
+        )
+        track = resolve_caption_track(Path(edl.captions))[0] if edl.captions else None
+        return check_hook(track, target, analysis_dir=ws.analysis)
+
+    report = _guard(run)
+    if as_json:
+        console.print_json(data=report.to_dict())
+        return
+    console.print(f"hook check {report.score}: {escape(report.text)}")
+    for finding in report.findings:
+        mark = "[green]ok[/green]  " if finding.ok else "[yellow]popraw[/yellow]"
+        console.print(f"  {mark} {escape(finding.name)}: {escape(finding.detail)}")
+        if not finding.ok and finding.fix:
+            console.print(f"         -> {escape(finding.fix)}", soft_wrap=True)
+    console.print(f"[green]written[/green] {ws.analysis / 'hook-check.json'}", soft_wrap=True)
 
 
 @app.command("reel-check")

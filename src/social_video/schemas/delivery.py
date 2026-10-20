@@ -34,6 +34,9 @@ class DeliveryManifest(Artifact):
     #: The cover, delivered as its own file and set at publication on each
     #: platform; it is never in the timeline.
     cover_path: str | None = None
+    #: The hook check of the delivered video: score and the fixes it suggests.
+    hook_check: str | None = None
+    hook_check_fixes: list[str] = Field(default_factory=list)
     #: Opening QA of the delivered video (`analysis/opening-qa.json`). All
     #: optional, so manifests written before 2.1 still load.
     first_frame_is_content: bool | None = None

@@ -44,6 +44,8 @@ style_app = typer.Typer(
 )
 app.add_typer(style_app, name="style")
 brief_app = typer.Typer(help="Import a montage brief as this edit's override.")
+hook_app = typer.Typer(help="Judge the opening: first caption and first second, in Polish.")
+app.add_typer(hook_app, name="hook")
 app.add_typer(brief_app, name="brief")
 captions_app = typer.Typer(
     help="Translate captions: the agent writes the translation, the CLI checks and burns it."

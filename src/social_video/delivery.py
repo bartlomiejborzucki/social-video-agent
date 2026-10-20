@@ -208,6 +208,7 @@ def deliver_workspace(
         first_frame_note,
     )  # fmt: skip
     opening |= _reel_check(workspace, destination, items, edl, caption_track, motion_plan, specs)
+    opening |= _hook_check(workspace, destination, items, caption_track)
     after = _sha256(workspace.edl)
     if before != after:
         raise ValidationError("Stage 5 changed edl.json; delivery was aborted")
@@ -232,6 +233,19 @@ def deliver_workspace(
             + f". Report: {workspace.analysis / 'opening-qa.md'}"
         )
     return result
+
+
+def _hook_check(
+    workspace: Workspace, destination: Path, items: list[DeliveryItem], captions
+) -> dict:
+    """Advisory hook findings for the delivered video; never blocking."""
+    from social_video.qa.hook import check_hook
+
+    video = destination / "final.mp4"
+    if not any(Path(i.path) == video for i in items):
+        return {}
+    report = check_hook(captions, video, analysis_dir=workspace.analysis)
+    return {"hook_check": report.score, "hook_check_fixes": report.fixes}
 
 
 def _reel_check(
