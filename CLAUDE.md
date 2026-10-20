@@ -12,6 +12,7 @@ Match the existing history in this repository (`git log`):
 - No attribution, no `Co-Authored-By`, no `Generated with Claude Code`, no emoji, no tool footers in commit messages.
 - Author identity comes from this repository's local git config; do not pass `--author`, do not hard-code a name or address here, and do not change the global config.
 - Commit only when asked, and keep each commit focused.
+- The repository is public: never commit anything from the user's own projects (brand, links, names, script lines, file names, measurements of their recordings); use invented examples. See AGENTS.md.
 
 Examples from this history:
 
