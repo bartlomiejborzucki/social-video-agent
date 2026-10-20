@@ -32,6 +32,7 @@ from social_video.schemas.motion import (
     MotionElementType,
     MotionPlan,
     PunchIn,
+    RangeStart,
     RangeZoom,
     Transition,
     TransitionStyle,
@@ -67,6 +68,8 @@ def find_accents(
     beats: list[float] | None = None,
     content_first: bool = False,
     transcripts: dict[str, Transcript] | None = None,
+    opening: RangeStart | None = None,
+    hook_punch: bool = False,
 ) -> AccentCandidateSet:
     """Accents found in what is said.
 
@@ -90,6 +93,16 @@ def find_accents(
     found += _contrasts(words, energy, duration)
     heard = {transcript.source_id: transcript, **(transcripts or {})}
     found += _transitions(edl, energy, heard)
+    if opening is not None:
+        found.append(
+            _candidate(
+                AccentKind.OPENING, "medium", 0.0,
+                f"start the first shot where it moves: {opening.reason}",
+                range_start=opening,
+            )
+        )  # fmt: skip
+    if hook_punch:
+        found += _hook_punch(words, energy)
     kept = _space(found, energy, duration)
     if beats:
         kept = [_on_beat(candidate, beats) for candidate in kept]
@@ -185,6 +198,39 @@ def apply_range_zooms(
         items[owners[0]] = items[owners[0]].model_copy(update={"zoom": move.zoom})
         notes.append(f"{candidate.id}: zoom {move.zoom:g} on plan item {owners[0]} and EDL range "
                      f"{move.range_index}")  # fmt: skip
+    updated = EDL.model_validate(edl.model_copy(update={"ranges": ranges}).model_dump())
+    new_plan = (
+        EditPlan.model_validate(plan.model_copy(update={"items": items}).model_dump())
+        if plan
+        else None
+    )
+    return updated, new_plan, notes
+
+
+def apply_range_starts(
+    edl: EDL, plan: EditPlan | None, candidates: list[AccentCandidate]
+) -> tuple[EDL, EditPlan | None, list[str]]:
+    """Start the ranges at their accepted in-points, in the EDL and in the plan."""
+    ranges = [r.model_copy() for r in edl.ranges]
+    items = [i.model_copy() for i in plan.items] if plan else []
+    notes: list[str] = []
+    for candidate in candidates:
+        move = candidate.range_start
+        if move is None or move.range_index >= len(ranges):
+            continue
+        rng = ranges[move.range_index]
+        owners = [n for n, item in enumerate(items) if _owns(item, rng)]
+        delta = move.video_start - rng.effective_video_start
+        separate = rng.audio_source is not None and rng.audio_source != rng.source
+        update = {"start": move.video_start}
+        if separate:
+            update["end"] = round(rng.end + delta, 4)
+        ranges[move.range_index] = rng.model_copy(update=update)
+        for owner in owners:
+            items[owner] = items[owner].model_copy(update={"start": move.video_start})
+        where = f"plan item {owners[0]} and " if len(owners) == 1 else ""
+        notes.append(f"{candidate.id}: {where}EDL range {move.range_index} start at "
+                     f"{move.video_start:.2f}s ({delta:+.2f}s)")  # fmt: skip
     updated = EDL.model_validate(edl.model_copy(update={"ranges": ranges}).model_dump())
     new_plan = (
         EditPlan.model_validate(plan.model_copy(update={"items": items}).model_dump())
@@ -433,6 +479,32 @@ def talking_across(before: EDLRange, after: EDLRange, transcripts: dict[str, Tra
     return out_point - ending[-1].end <= TALKING_GAP and starting[0].start - in_point <= TALKING_GAP
 
 
+#: Where the hook's key word may land: after the opening, before the viewer decides.
+HOOK_WINDOW = (1.0, 1.5)
+HOOK_SCALE = 1.16
+
+
+def _hook_punch(words: list[Word], energy: EnergyPreset) -> list[AccentCandidate]:
+    """A strong push-in on the first key word 1.0-1.5 s in; never on frame 0."""
+    low, high = HOOK_WINDOW
+    for word in words:
+        if low <= word.start <= high and len(normalise(word.text)) >= 5:
+            start = round(word.start, 3)
+            return [
+                _candidate(
+                    AccentKind.HOOK_PUNCH, "medium", start,
+                    f"a hook punch on '{word.text}', the first key word after the opening",
+                    quote=word.text,
+                    punch_in=PunchIn(
+                        start=start, end=round(start + 1.2, 3),
+                        scale=min(HOOK_SCALE, energy.punch_in_max), focus_y=0.4,
+                        reason=f"Hook punch on '{word.text}'.",
+                    ),
+                )
+            ]  # fmt: skip
+    return []
+
+
 def _transitions(
     edl: EDL, energy: EnergyPreset, transcripts: dict[str, Transcript] | None = None
 ) -> list[AccentCandidate]:
@@ -499,12 +571,20 @@ def _space(
         AccentKind.TRANSITION: 6,
     }
     rank[AccentKind.JUMP] = -1
+    rank[AccentKind.OPENING] = -1
+    # The hook punch is the opening's one move: ahead of the content graphics.
+    rank[AccentKind.HOOK_PUNCH] = 0
     order = sorted(found, key=lambda c: (rank[c.kind], c.confidence != "high", c.at))
     kept: list[AccentCandidate] = []
     transitions = 0
     for candidate in order:
-        if candidate.range_zoom is not None:
-            # A correction to a cut, not an accent: never budgeted away.
+        if (
+            candidate.range_zoom is not None
+            or candidate.range_start is not None
+            or candidate.kind is AccentKind.HOOK_PUNCH
+        ):
+            # A correction to a cut, or the hook punch asked for by name:
+            # never budgeted away.
             kept.append(candidate)
             continue
         if candidate.transition is not None:
@@ -529,7 +609,11 @@ def _on_beat(candidate: AccentCandidate, beats: list[float]) -> AccentCandidate:
             update={"start": round(start, 3), "end": round(candidate.punch_in.end + shift, 3)}
         )
         return candidate.model_copy(update={"punch_in": moved, "at": round(start, 3)})
-    if candidate.transition is not None or candidate.range_zoom is not None:
+    if (
+        candidate.transition is not None
+        or candidate.range_zoom is not None
+        or candidate.range_start is not None
+    ):
         # A cut stays where it is; only a punch-in may move to the beat.
         return candidate
     return candidate

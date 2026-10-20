@@ -39,6 +39,11 @@ def motion_suggest(
     ),
     model: str = typer.Option("small", "--model"),
     language: str | None = typer.Option(None, "--language"),
+    hook_punch: bool = typer.Option(
+        False,
+        "--hook-punch",
+        help="Also propose a 1.16 push-in on the first key word at 1.0-1.5 s.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """List where the edit should move -- hook card, figures, steps, punch-ins, transitions.
@@ -79,9 +84,18 @@ def motion_suggest(
             for t in (load_artifact(Transcript, p) for p in sorted(ws.transcripts.glob("*.json")))
             if t.source_id != transcript.source_id
         }
+        opening = None
+        if ws.source_manifest.is_file():
+            from social_video.motion.opening import opening_in_point
+            from social_video.schemas.source import SourceManifest
+
+            heard = {transcript.source_id: transcript, **others}
+            opening = opening_in_point(
+                edl, load_artifact(SourceManifest, ws.source_manifest), heard
+            )
         found = find_accents(
             transcript, edl, preset, beats=beats, content_first=_content_first(ws),
-            transcripts=others,
+            transcripts=others, opening=opening, hook_punch=hook_punch,
         )  # fmt: skip
         save_artifact(found, ws.accent_candidates)
         return found
@@ -99,6 +113,8 @@ def motion_suggest(
             if c.punch_in
             else "framing"
             if c.range_zoom
+            else "in-point"
+            if c.range_start
             else "transition"
         )
         what = c.element.type.value if c.element else move
@@ -120,7 +136,7 @@ def motion_accept(
 ) -> None:
     """Add the chosen accents to motion-plan.json."""
     from social_video.errors import ValidationError
-    from social_video.motion.suggest import accept_accents, apply_range_zooms
+    from social_video.motion.suggest import accept_accents, apply_range_starts, apply_range_zooms
     from social_video.schemas.base import load_artifact, save_artifact, save_artifacts_atomically
     from social_video.schemas.edl import EDL
     from social_video.schemas.motion import AccentCandidateSet, MotionPlan
@@ -141,11 +157,14 @@ def motion_accept(
         if not chosen and kind and not ids:
             return None, []
         jumps = [c for c in found.candidates if c.id in chosen and c.range_zoom is not None]
+        starts = [c for c in found.candidates if c.id in chosen and c.range_start is not None]
         skipped: list[str] = []
-        if jumps:
+        if jumps or starts:
             edl = load_artifact(EDL, ws.edl)
             edit = load_artifact(EditPlan, ws.edit_plan) if ws.edit_plan.is_file() else None
             edl, edit, notes = apply_range_zooms(edl, edit, jumps)
+            edl, edit, more_notes = apply_range_starts(edl, edit, starts)
+            notes += more_notes
             writes = {ws.edl: edl, **({ws.edit_plan: edit} if edit is not None else {})}
             save_artifacts_atomically(writes)
             skipped += notes
@@ -174,7 +193,8 @@ def motion_accept(
         soft_wrap=True,
     )
     for line in skipped:
-        mark = "[green]framing[/green]" if " on plan item " in line else "[yellow]note[/yellow]"
+        applied = " on plan item " in line or " start at " in line
+        mark = "[green]applied[/green]" if applied else "[yellow]note[/yellow]"
         console.print(f"  {mark} {escape(line)}", soft_wrap=True)
 
 

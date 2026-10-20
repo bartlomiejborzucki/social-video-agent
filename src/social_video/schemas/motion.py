@@ -385,6 +385,18 @@ class AccentKind(str, Enum):
     #: A cut inside one take while the speaker keeps talking: a sharp change of
     #: framing, not a transition that blurs the mouth mid-word.
     JUMP = "jump"
+    #: The first range starting where the picture moves, not on a still frame.
+    OPENING = "opening"
+    #: A strong push-in on the first key word, 1.0-1.5 s in: never frame 0.
+    HOOK_PUNCH = "hook_punch"
+
+
+class RangeStart(Artifact):
+    """A new in-point for one EDL range's picture, in source seconds."""
+
+    range_index: int = Field(ge=0)
+    video_start: float = Field(ge=0.0)
+    reason: str = Field(min_length=1, max_length=300)
 
 
 class RangeZoom(Artifact):
@@ -413,14 +425,17 @@ class AccentCandidate(Artifact):
     punch_in: PunchIn | None = None
     transition: Transition | None = None
     range_zoom: RangeZoom | None = None
+    range_start: RangeStart | None = None
 
     @model_validator(mode="after")
     def _one_move(self) -> AccentCandidate:
         moves = [
             m
-            for m in (self.element, self.punch_in, self.transition, self.range_zoom)
+            for m in (
+                self.element, self.punch_in, self.transition, self.range_zoom, self.range_start
+            )
             if m is not None
-        ]
+        ]  # fmt: skip
         if len(moves) != 1:
             raise ValueError("an accent proposes exactly one move")
         return self
