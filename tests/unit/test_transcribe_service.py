@@ -186,3 +186,38 @@ def test_stage_one_records_transcript_quality(tmp_path: Path, fake: FakeBackend)
     state = json.loads(ws.state.read_text("utf-8"))
     assert state["transcribe"]["quality_ok"] is True
     assert state["transcribe"]["suggested_model"] is None
+
+
+@requires_ffmpeg
+def test_a_corrected_workspace_transcript_wins_over_the_cache(
+    tmp_path: Path, fake: FakeBackend
+) -> None:
+    from social_video.schemas.base import load_artifact, save_artifact
+
+    source = make_video(tmp_path / "kamera.mp4", duration=1.5)
+    ws = Workspace.at(tmp_path / "edit")
+    options = TranscriptionOptions(model="medium", language="pl")
+    service.transcribe_source(source, ws, options=options, backend_name="fake")
+    path = ws.transcript_for("kamera")
+    corrected = load_artifact(Transcript, path)
+    corrected.tokens[1].text = "dobranoc"
+    save_artifact(corrected, path)
+
+    again = service.transcribe_source(source, ws, options=options, backend_name="fake")
+    assert again.tokens[1].text == "dobranoc"
+    assert load_artifact(Transcript, path).tokens[1].text == "dobranoc"
+    assert len(fake.calls) == 1
+    # Whatever model a later command defaults to, the correction is what compiles.
+    found = service.workspace_transcript(source, ws)
+    assert found is not None and found.tokens[1].text == "dobranoc"
+
+
+@requires_ffmpeg
+def test_a_workspace_transcript_of_another_file_is_not_used(
+    tmp_path: Path, fake: FakeBackend
+) -> None:
+    source = make_video(tmp_path / "kamera.mp4", duration=1.5)
+    ws = Workspace.at(tmp_path / "edit")
+    service.transcribe_source(source, ws, backend_name="fake")
+    make_video(tmp_path / "kamera.mp4", duration=2.0)
+    assert service.workspace_transcript(source, ws) is None

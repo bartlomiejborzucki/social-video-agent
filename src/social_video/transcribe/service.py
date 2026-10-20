@@ -66,6 +66,13 @@ def transcribe_source(
     cache_path = workspace.cache / "transcripts" / f"{sid}.{fingerprint[:16]}.{key}{suffix}.json"
 
     if not force:
+        # The workspace copy is the one people correct (`captions fix`, a
+        # refined passage, a hand edit), so it wins over the cache whenever it
+        # still describes this file with these options.
+        current = _load_if_valid(out_path, fingerprint, opts, provider=backend.name)
+        if current is not None:
+            log.info("using the workspace transcript %s", out_path.name)
+            return current
         cached = _load_if_valid(cache_path, fingerprint, opts, provider=backend.name)
         if cached is not None:
             log.info("transcript cache hit: %s", cache_path.name)
@@ -114,6 +121,31 @@ def transcribe_source(
 
     save_artifact(transcript, cache_path)
     _publish(transcript, out_path)
+    return transcript
+
+
+def workspace_transcript(
+    source: str | Path, workspace: Workspace, *, audio_track: int = 0, source_id: str | None = None
+) -> Transcript | None:
+    """The workspace transcript of ``source``, if it still describes that file.
+
+    Whatever model made it: a corrected transcript is not worth less because
+    a later command asked for a different default model.
+    """
+    src = normalize_user_path(source, must_exist=True)
+    path = workspace.transcript_for(source_id or source_id_for(src), audio_track)
+    if not path.is_file():
+        return None
+    try:
+        transcript = load_artifact(Transcript, path)
+    except ValidationError as exc:
+        log.warning("ignoring unreadable workspace transcript %s: %s", path.name, exc)
+        return None
+    if transcript.audio_track != audio_track:
+        return None
+    if transcript.source_fingerprint != file_fingerprint(src):
+        log.warning("%s was made from a different version of %s", path.name, src.name)
+        return None
     return transcript
 
 

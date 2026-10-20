@@ -342,6 +342,7 @@ def compile_edl(
     from social_video.schemas.edl import ReframeMode
     from social_video.schemas.plan import EditPlan
     from social_video.transcribe.base import TranscriptionOptions
+    from social_video.transcribe.service import workspace_transcript
     from social_video.workspace.layout import Workspace
 
     ws = Workspace.at(workspace_dir) if workspace_dir else Workspace.for_source(source)
@@ -363,7 +364,11 @@ def compile_edl(
             ) from None
         prof = load_profile(profile)
         options = TranscriptionOptions(model=model, language=language, audio_track=audio_track)
-        transcript = stage_transcribe(source, ws, options=options, backend=backend)
+        # The workspace transcript is the source of truth for every recording,
+        # the primary included: a correction made there must reach the edit.
+        transcript = workspace_transcript(source, ws, audio_track=audio_track)
+        if transcript is None:
+            transcript = stage_transcribe(source, ws, options=options, backend=backend)
         plan = load_artifact(EditPlan, ws.edit_plan)
         others = plan_transcripts(plan, ws, primary=transcript.source_id)
         edges = speech_edges(ws, [transcript, *others.values()]) if acoustic_edges else None
