@@ -120,6 +120,8 @@ def build_export_timeline(edl: EDL, manifest: SourceManifest) -> ExportTimeline:
             timeline.notes.append(f"{where}: {mode.value} framing is not exported; reframe it")
         if rng.zoom > 1.0:
             timeline.notes.append(f"{where}: punch-in to {rng.zoom:g} is not exported")
+        if rng.grade:
+            timeline.notes.append(f"{where}: grade {rng.grade!r} is not exported; grade it")
         if rng.speed != 1.0:
             timeline.notes.append(
                 f"{where}: speed {rng.speed:g} is not exported; the clip plays at normal speed "

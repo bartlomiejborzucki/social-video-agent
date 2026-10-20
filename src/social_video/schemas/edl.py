@@ -10,6 +10,7 @@ from enum import Enum
 
 from pydantic import Field, model_validator
 
+from social_video.grades import grade_names
 from social_video.schemas.base import Artifact
 
 
@@ -170,7 +171,10 @@ class EDLRange(Artifact):
         "from another recording (audio_source) keeps its natural pace under it.",
     )
     audio_gain_db: float = Field(default=0.0, ge=-30.0, le=30.0)
-    grade: str = ""
+    grade: str = Field(
+        default="",
+        description="Named look: mono, mono_contrast, shake; combine with +, e.g. mono+shake.",
+    )
     transition_in: str = "cut"
 
     # Optional split A/V sources. Existing v1 EDLs keep using source/start/end.
@@ -220,6 +224,7 @@ class EDLRange(Artifact):
 
     @model_validator(mode="after")
     def _check_interval(self) -> EDLRange:
+        grade_names(self.grade)
         if self.end <= self.start:
             raise ValueError(
                 f"range on source {self.source!r} ends at {self.end} which is not after "
@@ -470,6 +475,7 @@ class EDL(Artifact):
 
     @model_validator(mode="after")
     def _check_canvas(self) -> EDL:
+        grade_names(self.grade)
         if self.output_width % 2 or self.output_height % 2:
             raise ValueError(
                 f"output dimensions must be even for yuv420p, got "

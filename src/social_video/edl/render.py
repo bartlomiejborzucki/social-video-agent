@@ -42,6 +42,7 @@ from social_video.ffmpeg.probe import (
 )
 from social_video.ffmpeg.run import has_libass, has_libzimg, run_ffmpeg
 from social_video.fsutil import atomic_copy, utc_timestamp
+from social_video.grades import grade_filter
 from social_video.paths import app_home
 from social_video.schemas.edl import (
     EDL,
@@ -456,6 +457,9 @@ def build_filtergraph(
         vchain.append(
             _reframe_filter(rng, media.video_info, canvas, edl.default_reframe, label=f"r{index}")
         )
+        look = "+".join(g for g in (edl.grade, rng.grade) if g)
+        if graded := grade_filter(look, canvas):
+            vchain.append(graded)
         if rng.speed != 1.0:
             vchain.append(f"setpts=PTS/{rng.speed:.6f}")
         vchain.append(f"fps={fps}")
