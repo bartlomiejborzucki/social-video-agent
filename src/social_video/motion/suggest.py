@@ -23,7 +23,7 @@ from social_video.captions.emphasis import normalise
 from social_video.edl.timeline import Timeline
 from social_video.errors import ValidationError
 from social_video.motion.energy import EnergyPreset
-from social_video.schemas.edl import EDL
+from social_video.schemas.edl import EDL, EDLRange
 from social_video.schemas.motion import (
     AccentCandidate,
     AccentCandidateSet,
@@ -32,9 +32,11 @@ from social_video.schemas.motion import (
     MotionElementType,
     MotionPlan,
     PunchIn,
+    RangeZoom,
     Transition,
     TransitionStyle,
 )
+from social_video.schemas.plan import EditPlan, PlanAction, PlanItem
 from social_video.schemas.transcript import Transcript
 
 CONTRAST = frozenset(
@@ -64,12 +66,16 @@ def find_accents(
     *,
     beats: list[float] | None = None,
     content_first: bool = False,
+    transcripts: dict[str, Transcript] | None = None,
 ) -> AccentCandidateSet:
     """Accents found in what is said.
 
     Under a content-first opening no hook card is proposed: the first caption
     already carries the situation from the first frame, and a card over the
     opening is what a scrolling viewer leaves on.
+
+    ``transcripts`` are the other recordings the EDL takes sound from, so a
+    cut can be judged by whether someone is talking across it.
     """
     words = _output_words(transcript, edl)
     duration = edl.total_duration
@@ -82,7 +88,8 @@ def find_accents(
     found += _questions(sentences, duration)
     found += _punchlines(sentences, energy)
     found += _contrasts(words, energy, duration)
-    found += _transitions(edl, energy)
+    heard = {transcript.source_id: transcript, **(transcripts or {})}
+    found += _transitions(edl, energy, heard)
     kept = _space(found, energy, duration)
     if beats:
         kept = [_on_beat(candidate, beats) for candidate in kept]
@@ -130,6 +137,9 @@ def accept_accents(
             if any(abs(t.at - candidate.transition.at) < 0.05 for t in transitions):
                 continue
             transitions.append(candidate.transition)
+        elif candidate.range_zoom is not None:
+            # A jump replaces any transition on its cut.
+            transitions = [t for t in transitions if abs(t.at - candidate.at) >= 0.05]
     updated = current.model_copy(
         update={
             "elements": sorted(elements, key=lambda e: e.start),
@@ -138,6 +148,62 @@ def accept_accents(
         }
     )
     return MotionPlan.model_validate(updated.model_dump()), skipped
+
+
+def apply_range_zooms(
+    edl: EDL, plan: EditPlan | None, candidates: list[AccentCandidate]
+) -> tuple[EDL, EditPlan | None, list[str]]:
+    """Put accepted framing jumps on their EDL ranges and on the plan items behind them.
+
+    The plan item is where the zoom lasts: `compile --force` rebuilds the EDL
+    from it. An item that compiled into several ranges cannot hold a zoom for
+    only one of them, so that case is applied to the EDL alone and said.
+    """
+    ranges = [r.model_copy() for r in edl.ranges]
+    items = [i.model_copy() for i in plan.items] if plan else []
+    notes: list[str] = []
+    for candidate in candidates:
+        move = candidate.range_zoom
+        if move is None:
+            continue
+        if move.range_index >= len(ranges):
+            notes.append(f"{candidate.id}: range {move.range_index} is not in this EDL")
+            continue
+        rng = ranges[move.range_index]
+        ranges[move.range_index] = rng.model_copy(update={"zoom": move.zoom})
+        owners = [n for n, item in enumerate(items) if _owns(item, rng)]
+        if len(owners) != 1:
+            notes.append(f"{candidate.id}: zoom {move.zoom:g} set on EDL range {move.range_index}; "
+                         "no single plan item holds it, so a recompile drops it")  # fmt: skip
+            continue
+        shared = [r for r in ranges if _owns(items[owners[0]], r)]
+        if len(shared) > 1:
+            notes.append(f"{candidate.id}: zoom {move.zoom:g} set on EDL range {move.range_index}; "
+                         f"plan item {owners[0]} spans {len(shared)} ranges, split it to keep "
+                         "the jump through a recompile")  # fmt: skip
+            continue
+        items[owners[0]] = items[owners[0]].model_copy(update={"zoom": move.zoom})
+        notes.append(f"{candidate.id}: zoom {move.zoom:g} on plan item {owners[0]} and EDL range "
+                     f"{move.range_index}")  # fmt: skip
+    updated = EDL.model_validate(edl.model_copy(update={"ranges": ranges}).model_dump())
+    new_plan = (
+        EditPlan.model_validate(plan.model_copy(update={"items": items}).model_dump())
+        if plan
+        else None
+    )
+    return updated, new_plan, notes
+
+
+def _owns(item: PlanItem, rng: EDLRange) -> bool:
+    """Whether a kept plan item is where this range came from (edges may have moved)."""
+    if item.action not in (PlanAction.KEEP, PlanAction.TIGHTEN) or item.source != rng.source:
+        return False
+    low, high = item.sound_span
+    return (
+        item.sound_source == rng.effective_audio_source
+        and rng.effective_audio_start >= low - 0.5
+        and rng.effective_audio_end <= high + 0.5
+    )
 
 
 # -- finding -----------------------------------------------------------------
@@ -344,9 +410,32 @@ def _contrasts(words: list[Word], energy: EnergyPreset, duration: float) -> list
     return found
 
 
-def _transitions(edl: EDL, energy: EnergyPreset) -> list[AccentCandidate]:
-    if energy.transitions_per_minute <= 0:
-        return []
+#: Silence at a cut up to this long still counts as talking through it.
+TALKING_GAP = 0.3
+#: The framing a sharp jump goes to, inside the 1.08-1.12 band that reads as a
+#: deliberate second camera without losing the face.
+JUMP_ZOOM = 1.1
+
+
+def talking_across(before: EDLRange, after: EDLRange, transcripts: dict[str, Transcript]) -> bool:
+    """Whether speech runs up to the cut and on from it, with no real pause."""
+    if before.effective_audio_source != after.effective_audio_source:
+        return False
+    transcript = transcripts.get(before.effective_audio_source)
+    if transcript is None:
+        return False
+    words = transcript.words
+    out_point, in_point = before.effective_audio_end, after.effective_audio_start
+    ending = [w for w in words if w.start < out_point and w.end > before.effective_audio_start]
+    starting = [w for w in words if w.end > in_point and w.start < after.effective_audio_end]
+    if not ending or not starting:
+        return False
+    return out_point - ending[-1].end <= TALKING_GAP and starting[0].start - in_point <= TALKING_GAP
+
+
+def _transitions(
+    edl: EDL, energy: EnergyPreset, transcripts: dict[str, Transcript] | None = None
+) -> list[AccentCandidate]:
     timeline = Timeline(edl)
     styles = [TransitionStyle.ZOOM, TransitionStyle.SLIDE, TransitionStyle.FLASH]
     found = []
@@ -357,6 +446,24 @@ def _transitions(edl: EDL, energy: EnergyPreset) -> list[AccentCandidate]:
         different = after.range.effective_video_source != before.range.effective_video_source
         if not different and abs(jump) < 1.0:
             continue  # a tight cut inside one take reads better as a plain cut
+        if not different and talking_across(before.range, after.range, transcripts or {}):
+            # A zoom or blur over a mouth that is still moving reads as audio
+            # out of sync. Jump the framing instead, on the cut, fully sharp.
+            zoom = JUMP_ZOOM if before.range.zoom < 1.05 else 1.0
+            found.append(
+                _candidate(
+                    AccentKind.JUMP, "high", after.output_start,
+                    "a cut inside one take while the speaker keeps talking; a sharp jump "
+                    f"in framing to {zoom:g} instead of a transition over the mouth",
+                    range_zoom=RangeZoom(
+                        range_index=index + 1, zoom=zoom,
+                        reason="Sharp framing jump on a mid-speech cut in one take.",
+                    ),
+                )
+            )  # fmt: skip
+            continue
+        if energy.transitions_per_minute <= 0:
+            continue
         found.append(
             _candidate(
                 AccentKind.TRANSITION, "medium", after.output_start,
@@ -391,10 +498,15 @@ def _space(
         AccentKind.CONTRAST: 5,
         AccentKind.TRANSITION: 6,
     }
+    rank[AccentKind.JUMP] = -1
     order = sorted(found, key=lambda c: (rank[c.kind], c.confidence != "high", c.at))
     kept: list[AccentCandidate] = []
     transitions = 0
     for candidate in order:
+        if candidate.range_zoom is not None:
+            # A correction to a cut, not an accent: never budgeted away.
+            kept.append(candidate)
+            continue
         if candidate.transition is not None:
             if transitions < transition_budget:
                 kept.append(candidate)
@@ -417,7 +529,7 @@ def _on_beat(candidate: AccentCandidate, beats: list[float]) -> AccentCandidate:
             update={"start": round(start, 3), "end": round(candidate.punch_in.end + shift, 3)}
         )
         return candidate.model_copy(update={"punch_in": moved, "at": round(start, 3)})
-    if candidate.transition is not None:
-        # A transition stays on its cut; only a punch-in may move to the beat.
+    if candidate.transition is not None or candidate.range_zoom is not None:
+        # A cut stays where it is; only a punch-in may move to the beat.
         return candidate
     return candidate

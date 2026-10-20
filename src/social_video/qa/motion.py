@@ -112,9 +112,60 @@ def check_motion(
                 message=f"not measured: {faces_note or 'no frame to detect faces on'}",
             )
         )
+    _transitions_clear_of_speech(report, plan, captions, faces)
     _budget(report, edl, plan, shown, energy)
     _rhythm(report, edl, plan, shown)
     return report
+
+
+def _transitions_clear_of_speech(
+    report: QAReport,
+    plan: MotionPlan | None,
+    captions: CaptionTrack | None,
+    faces: FaceProvider | None,
+) -> None:
+    """A transition that blurs or zooms a talking face reads as lips out of sync.
+
+    Each transition's span is compared with the caption words heard during it;
+    with a face on screen at that moment it is worth a warning, since the fix
+    is a plain cut or a sharp framing jump (`motion suggest` proposes one).
+    """
+    if plan is None or not plan.transitions or captions is None:
+        return
+    words: list[_CueWord] = [
+        _CueWord(w.start, w.end) for cue in captions.cues for w in cue.words
+    ] or [_CueWord(cue.start, cue.end) for cue in captions.cues]
+    for transition in plan.transitions:
+        low = transition.at - transition.duration / 2
+        high = transition.at + transition.duration / 2
+        talking = sum(max(0.0, min(high, w.end) - max(low, w.start)) for w in words)
+        if talking <= 0.05:
+            continue
+        on_screen = faces(transition.at) if faces is not None else None
+        if on_screen is not None and not on_screen:
+            continue
+        seen = "a face is on screen" if on_screen else "faces were not measured"
+        report.checks.append(
+            QACheck(
+                name=f"transition at {transition.at:.2f}s clear of speech",
+                severity=QASeverity.WARNING,
+                passed=False,
+                at=round(transition.at, 3),
+                measured=round(talking, 3),
+                expected=0.0,
+                message=(
+                    f"the {transition.style.value} transition runs over {talking:.2f}s of speech "
+                    f"and {seen}; a moving mouth under it reads as audio out of sync. "
+                    "Use a plain cut or a sharp framing jump (zoom on the range)."
+                ),
+            )
+        )
+
+
+@dataclass(frozen=True)
+class _CueWord:
+    start: float
+    end: float
 
 
 def graphic_band(kind: MotionElementType, margins: dict[str, float]) -> tuple[float, float] | None:

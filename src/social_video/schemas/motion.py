@@ -279,13 +279,25 @@ class AccentKind(str, Enum):
     PUNCHLINE = "punchline"
     STEPS = "steps"
     TRANSITION = "transition"
+    #: A cut inside one take while the speaker keeps talking: a sharp change of
+    #: framing, not a transition that blurs the mouth mid-word.
+    JUMP = "jump"
+
+
+class RangeZoom(Artifact):
+    """A fixed framing for one EDL range: the picture jumps to it on the cut."""
+
+    range_index: int = Field(ge=0)
+    zoom: float = Field(ge=1.0, le=1.2)
+    reason: str = Field(min_length=1, max_length=300)
 
 
 class AccentCandidate(Artifact):
     """A moment the code found worth moving on, with the move it proposes.
 
-    Exactly one of ``element``, ``punch_in`` and ``transition`` is set. Nothing
-    is applied until the agent accepts the candidate by id.
+    Exactly one of ``element``, ``punch_in``, ``transition`` and ``range_zoom``
+    is set. Nothing is applied until the agent accepts the candidate by id; a
+    range zoom is applied to the edit plan and the EDL, not the motion plan.
     """
 
     id: str
@@ -297,10 +309,15 @@ class AccentCandidate(Artifact):
     element: MotionElement | None = None
     punch_in: PunchIn | None = None
     transition: Transition | None = None
+    range_zoom: RangeZoom | None = None
 
     @model_validator(mode="after")
     def _one_move(self) -> AccentCandidate:
-        moves = [m for m in (self.element, self.punch_in, self.transition) if m is not None]
+        moves = [
+            m
+            for m in (self.element, self.punch_in, self.transition, self.range_zoom)
+            if m is not None
+        ]
         if len(moves) != 1:
             raise ValueError("an accent proposes exactly one move")
         return self

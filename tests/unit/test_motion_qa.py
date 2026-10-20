@@ -242,3 +242,24 @@ def test_a_cta_inside_a_scene_is_told_to_move_to_the_top(tmp_path: Path) -> None
     assert "cta at 12.00s clear of the scene frame" not in checks, "no scene on screen then"
     # The frame holds the captions by design; its label is not "over" them.
     assert "label at 0.00s clear of captions" not in checks
+
+
+def test_a_transition_over_a_talking_face_is_warned_about() -> None:
+    from social_video.schemas.motion import Transition, TransitionStyle
+
+    plan = MotionPlan(
+        rationale="r",
+        transitions=[
+            Transition(at=10.0, style=TransitionStyle.ZOOM, duration=0.4, reason="r"),
+            Transition(at=15.0, style=TransitionStyle.ZOOM, duration=0.4, reason="r"),
+        ],
+    )
+    talking = _track((8.0, 12.0))
+    face = [(0.3, 0.2, 0.7, 0.5)]
+    checks = _by_name(check_motion(_edl(), plan, None, captions=talking, faces=lambda _t: face))
+    warned = checks["transition at 10.00s clear of speech"]
+    assert not warned.passed and warned.severity is QASeverity.WARNING
+    assert "a face is on screen" in warned.message
+    assert "transition at 15.00s clear of speech" not in checks
+    faceless = _by_name(check_motion(_edl(), plan, None, captions=talking, faces=lambda _t: []))
+    assert "transition at 10.00s clear of speech" not in faceless

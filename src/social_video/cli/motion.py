@@ -53,6 +53,7 @@ def motion_suggest(
     from social_video.pipeline import stage_transcribe
     from social_video.schemas.base import load_artifact, save_artifact
     from social_video.schemas.edl import EDL
+    from social_video.schemas.transcript import Transcript
     from social_video.transcribe.base import TranscriptionOptions
     from social_video.workspace.layout import Workspace
 
@@ -73,7 +74,15 @@ def motion_suggest(
                 start_at=edl.audio_bed.start_at,
                 duration=edl.total_duration,
             )
-        found = find_accents(transcript, edl, preset, beats=beats, content_first=_content_first(ws))
+        others = {
+            t.source_id: t
+            for t in (load_artifact(Transcript, p) for p in sorted(ws.transcripts.glob("*.json")))
+            if t.source_id != transcript.source_id
+        }
+        found = find_accents(
+            transcript, edl, preset, beats=beats, content_first=_content_first(ws),
+            transcripts=others,
+        )  # fmt: skip
         save_artifact(found, ws.accent_candidates)
         return found
 
@@ -83,7 +92,15 @@ def motion_suggest(
         return
     console.print(f"energy [bold]{found.energy}[/bold]{' , on the beat' if found.on_beat else ''}")
     for c in found.candidates:
-        move = "element" if c.element else "punch-in" if c.punch_in else "transition"
+        move = (
+            "element"
+            if c.element
+            else "punch-in"
+            if c.punch_in
+            else "framing"
+            if c.range_zoom
+            else "transition"
+        )
         what = c.element.type.value if c.element else move
         colour = "green" if c.confidence == "high" else "yellow"
         console.print(
@@ -103,9 +120,11 @@ def motion_accept(
 ) -> None:
     """Add the chosen accents to motion-plan.json."""
     from social_video.errors import ValidationError
-    from social_video.motion.suggest import accept_accents
-    from social_video.schemas.base import load_artifact, save_artifact
+    from social_video.motion.suggest import accept_accents, apply_range_zooms
+    from social_video.schemas.base import load_artifact, save_artifact, save_artifacts_atomically
+    from social_video.schemas.edl import EDL
     from social_video.schemas.motion import AccentCandidateSet, MotionPlan
+    from social_video.schemas.plan import EditPlan
     from social_video.workspace.layout import Workspace
 
     ws = Workspace.at(workspace_dir)
@@ -121,10 +140,19 @@ def motion_accept(
         ]
         if not chosen and kind and not ids:
             return None, []
+        jumps = [c for c in found.candidates if c.id in chosen and c.range_zoom is not None]
+        skipped: list[str] = []
+        if jumps:
+            edl = load_artifact(EDL, ws.edl)
+            edit = load_artifact(EditPlan, ws.edit_plan) if ws.edit_plan.is_file() else None
+            edl, edit, notes = apply_range_zooms(edl, edit, jumps)
+            writes = {ws.edl: edl, **({ws.edit_plan: edit} if edit is not None else {})}
+            save_artifacts_atomically(writes)
+            skipped += notes
         plan = load_artifact(MotionPlan, ws.motion_plan) if ws.motion_plan.is_file() else None
-        updated, skipped = accept_accents(plan, found, chosen)
+        updated, more = accept_accents(plan, found, chosen)
         save_artifact(updated, ws.motion_plan)
-        return updated, skipped
+        return updated, skipped + more
 
     updated, skipped = _guard(run)
     if as_json:
@@ -146,7 +174,8 @@ def motion_accept(
         soft_wrap=True,
     )
     for line in skipped:
-        console.print(f"  [yellow]skipped[/yellow] {escape(line)}")
+        mark = "[green]framing[/green]" if " on plan item " in line else "[yellow]note[/yellow]"
+        console.print(f"  {mark} {escape(line)}", soft_wrap=True)
 
 
 @motion_app.command("sfx")
