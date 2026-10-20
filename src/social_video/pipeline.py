@@ -24,6 +24,7 @@ from social_video.captions.features import (
     highlight_possible,
 )
 from social_video.captions.srt import write_srt, write_vtt
+from social_video.editorial.acoustic import AcousticEdges, file_loader
 from social_video.editorial.compile import compile_plan
 from social_video.editorial.draft import draft_edit_plan
 from social_video.edl.render import QUALITIES, Quality, render_edl
@@ -170,13 +171,17 @@ def stage_compile(
     *,
     reframe: ReframeMode | None = None,
     transcripts: dict[str, Transcript] | None = None,
+    edges: AcousticEdges | None = None,
 ) -> EDL:
     """Compile the plan, then pin the motion plan's labels to the scenes it made.
 
     ``transcripts`` are the other recordings a multi-source plan keeps words
-    from; `plan_transcripts` loads them from the workspace.
+    from; `plan_transcripts` loads them from the workspace. ``edges`` moves
+    range edges onto the heard speech; `speech_edges` builds one.
     """
-    edl = compile_plan(plan, transcript, profile, reframe_mode=reframe, transcripts=transcripts)
+    edl = compile_plan(
+        plan, transcript, profile, reframe_mode=reframe, transcripts=transcripts, edges=edges
+    )
     if workspace.brand_contract.is_file():
         from social_video.project_config import apply_contract_to_edl
 
@@ -186,6 +191,25 @@ def stage_compile(
     pin_workspace_labels(workspace, edl)
     record_stage(workspace, "compile", {"ranges": len(edl.ranges)})
     return edl
+
+
+def speech_edges(workspace: Workspace, transcripts: list[Transcript]) -> AcousticEdges | None:
+    """Edge refinement over the recordings these transcripts came from.
+
+    ``None`` when a recording is missing from the source manifest: its sound
+    cannot be measured, so its words are trusted as they are.
+    """
+    if not workspace.source_manifest.is_file():
+        return None
+    manifest = load_artifact(SourceManifest, workspace.source_manifest)
+    paths: dict[str, tuple[Path, int]] = {}
+    for transcript in transcripts:
+        try:
+            entry = manifest.by_id(transcript.source_id)
+        except KeyError:
+            return None
+        paths[transcript.source_id] = (entry.resolved_path(), transcript.audio_track)
+    return AcousticEdges(file_loader(paths))
 
 
 def plan_transcripts(

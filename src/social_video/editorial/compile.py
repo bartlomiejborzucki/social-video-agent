@@ -7,6 +7,7 @@ decision's reason carried through so the EDL stays readable.
 
 from __future__ import annotations
 
+from social_video.editorial.acoustic import AcousticEdges
 from social_video.editorial.boundaries import snap_range, text_in
 from social_video.schemas.brand import OutputProfile
 from social_video.schemas.edl import EDL, EDLRange, ReframeMode
@@ -61,6 +62,7 @@ def compile_plan(
     reframe_mode: ReframeMode | None = None,
     name: str = "main",
     transcripts: dict[str, Transcript] | None = None,
+    edges: AcousticEdges | None = None,
 ) -> EDL:
     """Turn a plan into a renderable EDL with word-aligned boundaries.
 
@@ -68,11 +70,16 @@ def compile_plan(
     recording's voice under another's picture, or fix an item's framing --
     is compiled item by item, in ``order``, each against the transcript of the
     recording it keeps the words of (``transcripts``, by source id).
+
+    With ``edges``, each range's outer edges then move from the word times to
+    where the speech is heard to start and stop; the moves are kept on it.
     """
     sid = source_id or transcript.source_id
     if is_multi_source(plan, sid):
         known = {sid: transcript, **(transcripts or {})}
-        return _compile_items(plan, known, profile, reframe_mode=reframe_mode, name=name)
+        return _compile_items(
+            plan, known, profile, reframe_mode=reframe_mode, name=name, edges=edges
+        )
     duration = transcript.duration
     intervals = keep_intervals(plan, duration)
     # A kept item's beat names its scene; labels are pinned to scenes by it.
@@ -95,10 +102,14 @@ def compile_plan(
         if snapped.end - snapped.start < 0.08:
             continue
         because = reason or _describe(snapped.start_reason, snapped.end_reason)
+        low, high = snapped.start, snapped.end
+        if edges is not None:
+            low, high = edges.refine(transcript, low, high, padding=profile.cut_padding)
+            because += _edge_note(snapped.start, snapped.end, low, high)
         # A cut candidate's span is already word-aligned and already includes
         # the right amount of silence, so it is removed exactly, not re-snapped:
         # snapping could pull a short filler's edge back over the filler.
-        for piece_start, piece_end, removed in _subtract(snapped.start, snapped.end, cuts):
+        for piece_start, piece_end, removed in _subtract(low, high, cuts):
             if piece_end - piece_start < 0.08:
                 continue
             quote = text_in(transcript, piece_start, piece_end)
@@ -124,6 +135,7 @@ def compile_plan(
             "Check the drop spans in edit-plan.json."
         )
 
+    _check_tail(edges, {sid: transcript}, ranges)
     mode = reframe_mode or ReframeMode(profile.default_reframe)
     return EDL(
         name=name,
@@ -141,6 +153,7 @@ def _compile_items(
     *,
     reframe_mode: ReframeMode | None,
     name: str,
+    edges: AcousticEdges | None = None,
 ) -> EDL:
     """One range per kept item, from whichever recordings it names."""
     kept = [(n, item) for n, item in enumerate(plan.items) if item in plan.kept]
@@ -167,9 +180,18 @@ def _compile_items(
             transcript, low, high, padding=profile.cut_padding, source_duration=transcript.duration
         )
         because = item.reason or _describe(snapped.start_reason, snapped.end_reason)
-        quote = text_in(transcript, snapped.start, snapped.end)[:300]
+        low, high = snapped.start, snapped.end
+        if edges is not None:
+            limit = None
+            if item.audio_source is not None:
+                limit = low + (item.end - item.start)
+            low, high = edges.refine(
+                transcript, low, high, padding=profile.cut_padding, limit_end=limit
+            )
+            because += _edge_note(snapped.start, snapped.end, low, high)
+        quote = text_in(transcript, low, high)[:300]
         if item.audio_source is not None:
-            voice = snapped.end - snapped.start
+            voice = high - low
             picture = item.end - item.start
             if voice > picture + 0.001:
                 raise ValueError(
@@ -183,8 +205,8 @@ def _compile_items(
                     start=item.start,
                     end=round(item.start + voice, 4),
                     audio_source=item.audio_source,
-                    audio_start=round(snapped.start, 4),
-                    audio_end=round(snapped.end, 4),
+                    audio_start=round(low, 4),
+                    audio_end=round(high, 4),
                     reason=because + f"; voice from {item.audio_source}",
                     audio_track=transcript.audio_track,
                     beat=item.beat,
@@ -194,7 +216,7 @@ def _compile_items(
             )
             continue
         own = [(s, e, c) for src, s, e, c in cuts if src == item.source]
-        for piece_start, piece_end, removed in _subtract(snapped.start, snapped.end, own):
+        for piece_start, piece_end, removed in _subtract(low, high, own):
             if piece_end - piece_start < 0.08:
                 continue
             ranges.append(
@@ -214,6 +236,7 @@ def _compile_items(
             "the plan removes everything; nothing would be left to render. "
             "Check the kept items in edit-plan.json."
         )
+    _check_tail(edges, transcripts, ranges)
     mode = reframe_mode or ReframeMode(profile.default_reframe)
     return EDL(
         name=name,
@@ -246,6 +269,34 @@ def _subtract(
     if cursor < end:
         pieces.append((cursor, end, pending))
     return pieces
+
+
+def _edge_note(start: float, end: float, low: float, high: float) -> str:
+    moved = []
+    if abs(low - start) >= 0.03:
+        moved.append(f"in {low - start:+.2f}s")
+    if abs(high - end) >= 0.03:
+        moved.append(f"out {high - end:+.2f}s")
+    return f"; {' and '.join(moved)} to the speech" if moved else ""
+
+
+def _check_tail(
+    edges: AcousticEdges | None, transcripts: dict[str, Transcript], ranges: list[EDLRange]
+) -> None:
+    """Say so when the voice carries on past the end of the edit."""
+    if edges is None or not ranges:
+        return
+    last = ranges[-1]
+    transcript = transcripts.get(last.effective_audio_source)
+    if transcript is None:
+        return
+    heard = edges.check_tail(transcript, last.effective_audio_end)
+    if heard > 0:
+        edges.warnings.append(
+            f"speech carries on for {heard:.2f}s after the edit ends at "
+            f"{last.effective_audio_end:.2f}s in {last.effective_audio_source}; "
+            "the last word may be cut"
+        )
 
 
 def _describe(start_reason: str, end_reason: str) -> str:

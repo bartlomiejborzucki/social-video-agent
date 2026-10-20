@@ -308,6 +308,12 @@ def compile_edl(
         help="Build the caption track from every transcript the plan uses. "
         "Default: when the workspace has a brand contract.",
     ),
+    acoustic_edges: bool = typer.Option(
+        True,
+        "--acoustic-edges/--word-edges",
+        help="Move each range's edges to where the speech is heard to start and stop "
+        "(within 0.4 s of the word), plus a breath. --word-edges trusts the transcript.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Compile edit-plan.json into edl.json, word-aligned, with accepted cuts removed.
@@ -326,6 +332,7 @@ def compile_edl(
     from social_video.pipeline import (
         load_workspace_brand,
         plan_transcripts,
+        speech_edges,
         stage_captions,
         stage_compile,
         stage_transcribe,
@@ -359,20 +366,40 @@ def compile_edl(
         transcript = stage_transcribe(source, ws, options=options, backend=backend)
         plan = load_artifact(EditPlan, ws.edit_plan)
         others = plan_transcripts(plan, ws, primary=transcript.source_id)
-        edl = stage_compile(plan, transcript, ws, prof, reframe=mode, transcripts=others)
+        edges = speech_edges(ws, [transcript, *others.values()]) if acoustic_edges else None
+        edl = stage_compile(
+            plan, transcript, ws, prof, reframe=mode, transcripts=others, edges=edges
+        )
         wanted = captions if captions is not None else ws.brand_contract.is_file()
         if wanted:
             used = {r.effective_audio_source for r in edl.ranges}
             heard = [t for t in [transcript, *others.values()] if t.source_id in used]
             stage_captions(heard or [transcript], edl, ws, load_workspace_brand(ws))
-        return edl
+        return edl, edges
 
-    edl = _guard(run)
+    edl, edges = _guard(run)
+    shifts = [shift.describe() for shift in edges.shifts] if edges else []
+    warnings = list(edges.warnings) if edges else []
+    if acoustic_edges and edges is None:
+        warnings.append(
+            "edges were left on the words: a recording is missing from the source manifest"
+        )
     if as_json:
-        console.print_json(edl.to_json())
+        console.print_json(
+            json.dumps(
+                {**json.loads(edl.to_json()), "edge_shifts": shifts, "warnings": warnings},
+                ensure_ascii=False,
+            )
+        )
         return
     for rng in edl.ranges:
         console.print(f"  [{rng.start:7.2f}-{rng.end:7.2f}] {escape(rng.reason)}")
+    if shifts:
+        console.print("\n[bold]Edges moved to the speech[/bold]")
+        for line in shifts:
+            console.print(f"  {escape(line)}", soft_wrap=True)
+    for warning in warnings:
+        console.print(f"[yellow]warning[/yellow] {escape(warning)}", soft_wrap=True)
     console.print(
         f"\n{len(edl.ranges)} range(s), {edl.total_duration:.2f}s -> [green]{ws.edl}[/green]",
         soft_wrap=True,
