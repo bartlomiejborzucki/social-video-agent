@@ -114,3 +114,18 @@ def test_brief_import_with_labels_from_word(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     labels = [e.text for e in load_artifact(MotionPlan, ws.motion_plan).elements]
     assert labels == ["A teraz nie chce.", "Częsty odruch"]
+
+
+def test_a_narrated_first_row_opens_on_the_situation_not_the_quote() -> None:
+    from social_video.editorial.brief import parse_brief_text
+
+    text = (
+        "Scenariusz:\n- 0-4 s | Pokój | Dziecko miało posprzątać pokój, np. przed "
+        "kolacją. A teraz… słychać: „Nie chcę!” | Zgodziło się.\n"
+    )
+    brief = parse_brief_text(text)
+    assert brief.first_cue_text == "Dziecko miało posprzątać pokój, np. przed kolacją."
+    child = parse_brief_text(
+        "Scenariusz:\n- 0-3 s | Kubek | Głos dziecka zza kadru: „Mamo, pobaw się!” | Mamo\n"
+    )
+    assert child.first_cue_text == "Mamo"

@@ -263,16 +263,31 @@ def _make_row(timing: re.Match[str], shot: str, said: str, on_screen: str) -> Br
 
 
 def _spoken(said: str) -> str:
-    """The words in quotes, or the text after a speaker label."""
+    """The words in quotes, or the text after a speaker label.
+
+    A row that narrates first ("Dziecko miało posprzątać… A teraz… słychać:
+    „Nie chcę!”") is spoken as a whole: the quote is the end of it,
+    not the line the reel opens on.
+    """
     quoted = re.findall(r"[„\"“](.+?)[”\"]", said)
-    if quoted:
+    before = re.split(r"[„\"“]", said, maxsplit=1)[0]
+    if quoted and not re.search(r"\w[.!?…]\s", before):
         return " ".join(q.strip() for q in quoted)
+    if quoted:
+        return said.strip()
     return said.split(":", 1)[1].strip() if ":" in said else said.strip()
 
 
+#: Abbreviations a sentence does not end on.
+_ABBREVIATIONS = ("np.", "itp.", "itd.", "tzn.", "tj.", "m.in.", "ok.", "e.g.", "i.e.")
+
+
 def _first_sentence(text: str) -> str:
-    match = re.match(r"(.+?[.!?…])(\s|$)", text)
-    return (match.group(1) if match else text).strip()
+    for match in re.finditer(r"[.!?…](\s|$)", text):
+        head = text[: match.start() + 1]
+        if not head.casefold().endswith(_ABBREVIATIONS):
+            return head.strip()
+    return text.strip()
 
 
 def _cover(text: str) -> tuple[str, str]:
