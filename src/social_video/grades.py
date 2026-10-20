@@ -63,4 +63,6 @@ def grade_filter(grade: str, canvas: tuple[int, int]) -> str | None:
     names = grade_names(grade)
     if not names:
         return None
-    return ",".join(GRADES[name](canvas) for name in names)
+    # Scaling for the shake changes the sample aspect ratio; concat needs
+    # every range at 1:1, like the ungraded ones.
+    return ",".join(GRADES[name](canvas) for name in names) + ",setsar=1"

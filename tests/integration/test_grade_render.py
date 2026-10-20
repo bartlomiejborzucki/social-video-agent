@@ -51,3 +51,21 @@ def test_mono_contrast_and_shake_are_rendered(tmp_path: Path) -> None:
     # Shake: the picture moves against the ungraded one, frame to frame.
     drift = [np.abs(shaken[i] - plain[i]).mean() for i in range(0, len(plain), 5)]
     assert max(drift) > 5
+
+
+def test_a_graded_range_concatenates_with_an_ungraded_one(tmp_path: Path) -> None:
+    source = make_video(tmp_path / "plac.mp4", width=320, height=568, duration=2.0)
+    manifest = build_manifest([source])
+    edl = EDL(
+        output_width=320,
+        output_height=568,
+        output_fps="30/1",
+        normalize_audio=False,
+        ranges=[
+            EDLRange(source="plac", start=0, end=1),
+            EDLRange(source="plac", start=1, end=2, grade="mono_contrast+shake"),
+        ],
+    )
+    out = tmp_path / "both.mp4"
+    render_edl(edl, manifest, out, quality=DRAFT)
+    assert len(_frames(out, (320, 568))) == 60

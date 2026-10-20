@@ -28,5 +28,5 @@ def test_shake_stays_inside_an_enlarged_frame_of_the_canvas() -> None:
     assert chain is not None
     assert chain.startswith("scale=1166:2074")
     assert "crop=1080:1920" in chain
-    assert grade_filter("mono", (1080, 1920)) == "hue=s=0"
+    assert grade_filter("mono", (1080, 1920)) == "hue=s=0,setsar=1"
     assert grade_filter("", (1080, 1920)) is None
