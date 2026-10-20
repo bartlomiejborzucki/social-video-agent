@@ -55,6 +55,16 @@ because they are there.
 
 ## Using the native tool
 
+Codex and ChatGPT (ImageGen) and Claude hosts with an image tool can draw a
+plate themselves; the CLI cannot call that tool, so you do, in three steps:
+`image prompt` -> your tool with that prompt **verbatim** -> save outside any
+cloud-synced folder -> `image register`. Under the default
+`image_generation_policy: ask`, ask the user first and pass their yes as
+`--user-request` (or `--allow-cloud-image`): the prompt leaves the
+machine. The guarded prompt already forbids text, logos and realistic
+children; keep it that way -- describe the scene in the brand's palette, never
+a child's face, and never words: every word on a plate is drawn by Remotion.
+
 ```bash
 # 1. take the guarded prompt, so the no-text rule reaches your tool verbatim
 social-video-agent image prompt --prompt "calm night-sky gradient"
@@ -95,11 +105,34 @@ or an API key marked `unknown_to_cli` when it is plainly checkable.
 Re-check the session-dependent halves when you resume: a native tool and an MCP
 connection belong to the session that had them, not to the project.
 
+### Example: an end card with a book cover above the link
+
+The brief asks for "obraz u góry, tekst i link niżej". The cover is
+the user's own file, so no generation is needed at all; a generated plate is
+only for a background behind it.
+
+```json
+{"type": "end_card", "start": 0, "end": 2.6, "hold": true, "layout": "image_top",
+ "image_asset": "assets/okladka.png",
+ "text": "Nowy poradnik\nprzyklad-marki.example/strona-z-zapisami/",
+ "secondary_text": "Premiera: wkrótce",
+ "reason": "Waiting-list link after the last word, with the cover above it."}
+```
+
+`layout: image_top` puts the whole image in the upper half and the text below,
+so nothing overlaps; the text is measured with the brand font, a link is never
+split, and `hold: true` keeps the card to the final frame after the last word.
+If a background behind the cover is wanted, generate it as an
+`end_card_plate` ("soft navy-to-mint gradient, paper texture, no text, no
+people") and compose locally.
+
 ## Consent
 
 Generating a plate sends prompt text off the machine. Media, transcripts and
 brand assets never leave, and there is no upload of any file.
 
+- Default, `image_generation_policy: ask`: every image needs the user's yes
+  for that image (`--user-request` or `--allow-cloud-image`).
 - Project opt-in: `image_generation_policy: optional` in the project config.
 - One-off: `--allow-cloud-image`.
 - The user asked for this specific image, in so many words: `--user-request`.

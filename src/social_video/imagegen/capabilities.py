@@ -112,7 +112,9 @@ def _contract(workspace: Workspace) -> BrandContract | None:
 def _policy(contract: BrandContract | None) -> str:
     if contract is None:
         return "none"
-    return "optional" if contract.image_generation_enabled else "none"
+    if contract.image_generation_enabled:
+        return "optional"
+    return contract.image_generation_policy
 
 
 def _check(record: VisualCapabilities) -> None:

@@ -167,7 +167,9 @@ class ProjectVideoConfig(BaseModel):
     audio_cleanup_policy: Literal["none", "measured", "required"] = "measured"
     #: Whether this project permits sending a text prompt to a cloud image model
     #: for cover and end-card plates. Media is never uploaded either way.
-    image_generation_policy: Literal["none", "optional", "required"] = "none"
+    #: `ask` (the default): each image needs the user's yes for that image.
+    #: `optional`/`required`: the project consents. `none`: nothing, ever.
+    image_generation_policy: Literal["none", "ask", "optional", "required"] = "ask"
     #: Whether the logo and the brand font file may be uploaded to a Claude
     #: Motion film. They are brand files; `none` keeps them on this machine,
     #: and a film then carries neither. The recording is never uploaded.
@@ -325,6 +327,8 @@ class BrandContract(Artifact):
     resolved_logo_file: str | None = None
     safe_margins: dict[str, float] = Field(default_factory=dict)
     image_generation_enabled: bool = False
+    #: The policy as configured; `ask` keeps generation per image and per yes.
+    image_generation_policy: Literal["none", "ask", "optional", "required"] = "none"
     #: Compiled from the project config: whether the logo and brand font file
     #: may be uploaded to a Claude Motion film.
     brand_asset_upload: Literal["none", "allowed"] = "none"

@@ -208,7 +208,9 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
   when your own tool list has the Motion artifact type. The CLI writes the
   spec, you write the film, the user exports it, the CLI imports it. Never
   upload the recording; brand files go up only under `brand_asset_upload` or
-  `--allow-brand-upload`. Read [motion-film.md](references/motion-film.md).
+  `--allow-brand-upload`. Without the Motion type (Codex, most hosts) draw the
+  same card with Remotion and say so; never fail the brief over it. Read
+  [motion-film.md](references/motion-film.md).
 - Stage 2 compiles project config into `brand-contract.json`; render only a
   matching EDL/contract. Stage 4 requires technical QA and `qa/qa-brand.json`.
 - Music and effects are licence-gated and policy-gated: `audio_bed` and every
@@ -230,7 +232,9 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
   host has no image tool, and never assume it has one because of a subscription.
 - Your native tool is yours to call: take the guarded prompt from
   `image prompt`, pass it verbatim, save the file outside any cloud-synced
-  folder, then `image register` it. Record no model name unless the tool gives
+  folder, then `image register` it. Under the default
+  `image_generation_policy: ask` ask the user for each image and record the yes
+  (`--user-request`); never a realistic child, never text in the image. Record no model name unless the tool gives
   one. Consent still applies, because the prompt still leaves the machine, and
   `image_generation_policy: none` outranks every one-off.
 - A plate is a background only. Captions, headlines, CTAs and logos are rendered

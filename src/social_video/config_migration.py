@@ -53,8 +53,9 @@ FIELD_GUIDANCE: dict[str, str] = {
         "in the brandbook or AGENTS.md"
     ),
     "image_generation_policy": (
-        "this is a consent decision: none refuses cloud image calls, optional "
-        "allows them, required expects generated plates"
+        "this is a consent decision: none refuses cloud image calls, ask (the "
+        "default) needs a yes per image, optional allows them, required expects "
+        "generated plates"
     ),
     "brand_asset_upload": (
         "this is a consent decision: none keeps the logo and brand font file on "

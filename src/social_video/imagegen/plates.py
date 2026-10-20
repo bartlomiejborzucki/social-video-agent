@@ -45,9 +45,11 @@ _TOOLS = {
 CONSENT_HELP = (
     "Generating a plate sends your prompt text to a cloud image model. That is true "
     "of the agent's own native image tool as well: the prompt still leaves the "
-    "machine. Enable it for this project with image_generation_policy: optional in "
+    "machine. Under image_generation_policy: ask (the default) say yes per image with "
+    "--allow-cloud-image or --user-request; enable it for the whole project with "
+    "image_generation_policy: optional in "
     "the project config, pass --allow-cloud-image for a one-off, or pass "
-    "--consent user-request when the user asked for this specific image in so many "
+    "--user-request when the user asked for this specific image in so many "
     "words. Media, transcripts and brand assets are never uploaded either way."
 )
 
@@ -66,7 +68,11 @@ def resolve_consent(
     tool and including a direct request: the policy is the project's standing
     decision, and a one-off cannot overrule it.
     """
-    if contract is not None and not contract.image_generation_enabled:
+    if (
+        contract is not None
+        and contract.image_generation_policy == "none"
+        and not (contract.image_generation_enabled)
+    ):
         raise ValidationError(
             "image_generation_policy is 'none' for this project, so no image may be "
             "generated or registered -- by this CLI, by the agent's native image tool, "

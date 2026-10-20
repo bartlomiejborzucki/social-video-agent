@@ -226,3 +226,22 @@ def test_an_unavailable_provider_points_at_the_local_fallback(tmp_path: Path) ->
         generate_workspace_plate(
             workspace, VisualKind.COVER_PLATE, "tło", allow_flag=True, status=status
         )
+
+
+def test_ask_needs_a_yes_per_image_and_none_still_refuses(tmp_path) -> None:
+    from social_video.imagegen.plates import resolve_consent
+    from social_video.schemas.config import BrandContract
+
+    def contract(policy: str) -> BrandContract:
+        return BrandContract.model_construct(
+            image_generation_enabled=policy in ("optional", "required"),
+            image_generation_policy=policy,
+        )
+
+    with pytest.raises(ValidationError):
+        resolve_consent(contract("ask"))
+    assert resolve_consent(contract("ask"), user_request=True) == "user_request"
+    assert resolve_consent(contract("ask"), allow_flag=True) == "explicit_flag"
+    assert resolve_consent(contract("optional")) == "project_config"
+    with pytest.raises(ValidationError, match="'none'"):
+        resolve_consent(contract("none"), user_request=True)

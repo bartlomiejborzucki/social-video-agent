@@ -11,9 +11,15 @@ and the user wants it designed in Motion.
 Only a Claude session whose `Artifact` tool lists the **Motion** type can write
 a film. Look at your own tool list, not at the plan the user is on:
 
-- **Motion listed:** continue below.
-- **Not listed, or a Codex or other host:** say the bridge is unavailable in
-  this session and keep the Remotion graphic. Never offer it.
+- **Motion listed** (a Claude session in Cowork or on claude.ai with the
+  Motion artifact type): continue below.
+- **Not listed** -- Codex, Claude Code without that type, any other host: the
+  bridge does not exist in this session. Do not fail and do not ask the user
+  to switch. Fall back to Remotion: keep (or write) the same element in
+  `motion-plan.json` -- `end_card`, `hook_card`, `chapter`, `cta`, `quote` --
+  with the brief's text, render it, and say in one sentence that the card was
+  drawn by Remotion because this session has no Motion type. A brief that
+  says "zrób planszę w Motion" is a request for the card, not for the tool.
 
 It works on both renderers. On the FFmpeg route it is the only way to get a
 designed hook or end card, and it needs no Remotion licence declaration.
