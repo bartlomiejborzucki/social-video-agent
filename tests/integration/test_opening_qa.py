@@ -102,7 +102,7 @@ def test_an_october_edit_renders_content_first_and_delivers_ready(tmp_path: Path
     shutil.copy2(FONT, project / "assets" / "Lato.ttf")
     (project / ".social-video").mkdir()
     (project / ".social-video/config.yaml").write_text(
-        "schema_version: 1\nbrand_name: Co robić, kiedy dziecko\nfont: Lato\n"
+        "schema_version: 1\nbrand_name: Marka testowa\nfont: Lato\n"
         'font_file: assets/Lato.ttf\nbrand_colors: ["#28BCA5", "#394463"]\n'
         f'default_resolution: "{W * 3}x{H * 3}"\ndefault_fps_policy: "30"\n',
         encoding="utf-8",
