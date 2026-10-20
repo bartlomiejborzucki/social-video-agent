@@ -252,6 +252,7 @@ def refine_transcript(
     ]
     kept = [t for t in current.tokens if t.type is not TokenType.SPACING and not inside(t)]
     added = [t for t in added if inside(t) and not any(_overlaps(t, k) for k in kept)]
+    added = _drop_repeats_at_edges(added, kept, start, end)
     added = _join_sentence(added, kept, end)
     removed = [t for t in current.tokens if t.type is not TokenType.SPACING and inside(t)]
     segments = [
@@ -290,6 +291,34 @@ def _overlaps(token: TranscriptToken, other: TranscriptToken) -> bool:
     """More than half of ``token`` lies under ``other``."""
     shared = min(token.end, other.end) - max(token.start, other.start)
     return shared > 0.5 * max(token.duration, 1e-3)
+
+
+def _drop_repeats_at_edges(
+    added: list[TranscriptToken], kept: list[TranscriptToken], start: float, end: float
+) -> list[TranscriptToken]:
+    """A passage word that repeats the kept word right across its edge is one word.
+
+    The passage hears the edge word whole while the transcript keeps the
+    copy that straddles the edge; both would caption "długo długo".
+    """
+
+    def key(token: TranscriptToken) -> str:
+        return "".join(ch for ch in token.text.casefold() if ch.isalnum())
+
+    words = [t for t in added if t.type is TokenType.WORD]
+    if not words:
+        return added
+    first, last = words[0], words[-1]
+    # Only a kept word cut by the span's edge can be the same word heard twice;
+    # a repeat the speaker made (a false start) lies wholly outside.
+    before = [k for k in kept if k.type is TokenType.WORD and k.start < start < k.end]
+    after = [k for k in kept if k.type is TokenType.WORD and k.start < end < k.end]
+    drop: set[int] = set()
+    if before and key(before[-1]) == key(first) and first.start - before[-1].end < 0.3:
+        drop.add(id(first))
+    if after and key(after[0]) == key(last) and after[0].start - last.end < 0.3:
+        drop.add(id(last))
+    return [t for t in added if id(t) not in drop]
 
 
 def _join_sentence(

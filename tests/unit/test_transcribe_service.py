@@ -300,3 +300,19 @@ def test_a_stage_keeps_the_workspace_transcript_whatever_its_model(
         source, ws, options=TranscriptionOptions(), backend="fake", force=True
     )
     assert forced.provider_model == "small"
+
+
+def test_a_word_repeated_across_the_span_edge_is_kept_once() -> None:
+    added = [
+        TranscriptToken(text="bardzo", start=157.59, end=157.81),
+        TranscriptToken(text="długo", start=157.81, end=158.01),
+    ]
+    kept = [TranscriptToken(text="długo", start=158.03, end=158.19)]
+    assert [t.text for t in service._drop_repeats_at_edges(added, kept, 155.17, 158.1)] == [
+        "bardzo"
+    ]
+    other = [TranscriptToken(text="w", start=158.03, end=158.19)]
+    assert len(service._drop_repeats_at_edges(added, other, 155.17, 158.1)) == 2
+    # A word said again after the span (a false start) is not a duplicate.
+    later = [TranscriptToken(text="długo", start=158.2, end=158.4)]
+    assert len(service._drop_repeats_at_edges(added, later, 155.17, 158.1)) == 2
