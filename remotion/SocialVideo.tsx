@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {Video} from '@remotion/media';
+import {createRoundedTextBox} from '@remotion/rounded-text-box';
 import {
   AbsoluteFill,
   Easing,
@@ -85,7 +86,8 @@ const Caption: React.FC<{
         ? {justifyContent: 'center'}
         : {justifyContent: 'flex-end', paddingBottom: (height * style.margin_pct) / 100};
   const boxed = style.background_style !== 'none';
-  const background = boxed ? style.background_colour : 'transparent';
+  const perLine = style.background_style === 'rounded_lines';
+  const background = boxed && !perLine ? style.background_colour : 'transparent';
   const highlight = style.highlight_active_word;
   return (
     <AbsoluteFill
@@ -98,6 +100,7 @@ const Caption: React.FC<{
     >
       <div
         style={{
+          position: 'relative',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -117,12 +120,15 @@ const Caption: React.FC<{
           textShadow: style.shadow > 0 ? `0 ${style.shadow}px ${style.shadow * 2}px ${style.outline_colour}` : undefined,
         }}
       >
+        {perLine ? (
+          <LineBoxes cue={cue} layout={layout} colour={style.background_colour} radius={style.corner_radius} />
+        ) : null}
         {cue.lines.map((line, index) => (
           <div
             key={`line-${cue.index}-${index}`}
             // `pre` keeps the measured break: the browser must not re-wrap a
             // line Python already fitted, and must not collapse its spaces.
-            style={{whiteSpace: 'pre'}}
+            style={{whiteSpace: 'pre', position: 'relative'}}
           >
             {line.words && line.words.length > 0 ? (
               <ActiveWords
@@ -140,6 +146,51 @@ const Caption: React.FC<{
         ))}
       </div>
     </AbsoluteFill>
+  );
+};
+
+/**
+ * One rounded box per line, joined where lines meet, as on TikTok and Reels.
+ *
+ * The widths are the ones Python measured, so the box hugs the same lines the
+ * layout fitted. The vertical padding goes on the first and last line, which
+ * keeps the box as tall as a `rounded_box` and the scene-frame centring valid.
+ */
+const LineBoxes: React.FC<{cue: CaptionCue; layout: CaptionLayout; colour: string; radius: number}> = ({
+  cue,
+  layout,
+  colour,
+  radius,
+}) => {
+  const lineHeight = cue.font_size_px * layout.line_height;
+  const last = cue.lines.length - 1;
+  const textMeasurements = cue.lines.map((line, index) => ({
+    width: line.width_px,
+    height:
+      lineHeight + (index === 0 ? layout.padding_top : 0) + (index === last ? layout.padding_bottom : 0),
+  }));
+  const {d, boundingBox} = createRoundedTextBox({
+    textMeasurements,
+    textAlign: 'center',
+    horizontalPadding: layout.padding_x,
+    // A radius past half the shortest line would fold the path over itself.
+    borderRadius: Math.min(radius, lineHeight / 2),
+  });
+  return (
+    <svg
+      viewBox={boundingBox.viewBox}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: '50%',
+        width: boundingBox.width,
+        height: boundingBox.height,
+        transform: 'translateX(-50%)',
+        overflow: 'visible',
+      }}
+    >
+      <path fill={colour} d={d} />
+    </svg>
   );
 };
 

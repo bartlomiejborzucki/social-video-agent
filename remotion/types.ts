@@ -168,7 +168,7 @@ export type CaptionStyle = {
   bold: boolean;
   primary_colour: string;
   background_colour: string;
-  background_style: 'none' | 'box' | 'rounded_box';
+  background_style: 'none' | 'box' | 'rounded_box' | 'rounded_lines';
   corner_radius: number;
   outline_colour: string;
   outline_width: number;

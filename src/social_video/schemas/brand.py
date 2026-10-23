@@ -37,6 +37,8 @@ class CaptionBackgroundStyle(str, Enum):
     NONE = "none"
     BOX = "box"
     ROUNDED_BOX = "rounded_box"
+    #: One rounded box per line, joined where lines meet. Drawn by Remotion only.
+    ROUNDED_LINES = "rounded_lines"
 
 
 class CaptionOutlineStyle(str, Enum):

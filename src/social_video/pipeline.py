@@ -39,7 +39,7 @@ from social_video.qa.contact_sheet import boundary_sheets, contact_sheet
 from social_video.reframe.plan import plan_reframe
 from social_video.render_log import record_render
 from social_video.schemas.base import load_artifact, save_artifact
-from social_video.schemas.brand import BrandProfile, OutputProfile
+from social_video.schemas.brand import BrandProfile, CaptionBackgroundStyle, OutputProfile
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.config import BrandContract
 from social_video.schemas.edl import EDL, ReframeMode
@@ -512,6 +512,7 @@ def stage_render(
             )
     if contract is not None:
         _check_audio_policy(edl, contract)
+        _check_remotion_only(contract, renderer, captions=captions is not None)
         _check_movement(edl, motion_plan if renderer is Renderer.REMOTION else None, contract)
         from social_video.motion.film import load_registry
         from social_video.qa.opening import refuse_card_openings
@@ -832,6 +833,22 @@ def _check_movement(edl: EDL, plan: MotionPlan | None, contract: BrandContract) 
         raise ValidationError(
             "movement exceeds the project's brand contract:\n"
             + "\n".join(f"  - {p}" for p in problems)
+        )
+
+
+def _check_remotion_only(contract: BrandContract, renderer: Renderer, *, captions: bool) -> None:
+    """Refuse a contract the FFmpeg route cannot draw rather than approximate it."""
+    if renderer is not Renderer.FFMPEG:
+        return
+    problems = []
+    style = contract.brand.captions
+    if captions and style.background_style is CaptionBackgroundStyle.ROUNDED_LINES:
+        problems.append("caption background_style: rounded_lines")
+    if problems:
+        raise ValidationError(
+            "the brand contract asks for what only the Remotion route draws: "
+            + ", ".join(problems)
+            + ". Render with Remotion, or change the contract."
         )
 
 

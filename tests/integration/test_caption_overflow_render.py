@@ -82,7 +82,9 @@ default_fps_policy: "30"
 """
 
 
-def _project(tmp_path: Path) -> tuple[Path, Path, BrandContract, Workspace]:
+def _project(
+    tmp_path: Path, config_text: str = CONFIG
+) -> tuple[Path, Path, BrandContract, Workspace]:
     system_font = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
     if not system_font.is_file():
         pytest.skip("deterministic test font is unavailable")
@@ -92,7 +94,7 @@ def _project(tmp_path: Path) -> tuple[Path, Path, BrandContract, Workspace]:
     shutil.copy2(system_font, assets / "Lato.ttf")
     (project / ".social-video").mkdir()
     config = project / ".social-video/config.yaml"
-    config.write_text(CONFIG, encoding="utf-8")
+    config.write_text(config_text, encoding="utf-8")
     workspace = Workspace.at(project / "edit")
     contract = compile_brand_contract(config, workspace, project_root=project)
     return project, assets / "Lato.ttf", contract, workspace
@@ -197,3 +199,61 @@ def test_long_polish_captions_render_without_being_shortened(
         # A preview is deliberately half-size, so the contract's own resolution
         # check is expected to fail here and nothing else is.
         assert {check.name for check in brand.errors} == {"brand output resolution"}
+
+
+@pytest.mark.slow
+def test_rounded_lines_captions_render_on_remotion(tmp_path: Path) -> None:
+    project, font, contract, workspace = _project(
+        tmp_path, CONFIG.replace("background_style: rounded_box", "background_style: rounded_lines")
+    )
+    duration = 2.0
+    source = make_video(project / "rozmowa.mp4", width=360, height=640, duration=duration + 0.3)
+    manifest = build_manifest([source])
+    save_artifact(manifest, workspace.source_manifest)
+    track = _track(duration)
+    save_artifact(track, workspace.captions / "main.json")
+    ass = write_ass(
+        track,
+        contract.brand.captions,
+        workspace.captions / "main.ass",
+        width=contract.output_width,
+        height=contract.output_height,
+        font_name=contract.brand.captions.font_family,
+    )
+    edl = apply_contract_to_edl(
+        EDL(
+            ranges=[
+                EDLRange(
+                    source=manifest.ids[0], start=0, end=duration, max_visual_source_time=duration
+                )
+            ]
+        ),
+        contract,
+    )
+    edl.captions = str(ass)
+    save_artifact(edl, workspace.edl)
+    plan = MotionPlan(
+        font_family=contract.brand.captions.font_family,
+        font_path=str(font),
+        elements=[],
+        rationale="The caption contract is the whole visual layer for this regression.",
+    )
+    save_artifact(plan, workspace.motion_plan)
+
+    output = stage_render(
+        edl,
+        manifest,
+        workspace,
+        quality="final",
+        captions=ass,
+        renderer=Renderer.REMOTION,
+        motion_plan=plan,
+        remotion_license_attestation=RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE,
+    )
+
+    render = load_artifact(RenderManifest, workspace.renders / f"{output.stem}.manifest.json")
+    assert "background_rounded_lines" in render.caption_features
+    technical = stage_qa(output, edl, workspace)
+    assert technical.passed, [check.message for check in technical.errors]
+    brand = load_artifact(QAReport, workspace.brand_qa)
+    assert brand.passed, [check.message for check in brand.errors]

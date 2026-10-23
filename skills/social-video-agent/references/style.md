@@ -42,6 +42,10 @@ Caption settings worth knowing:
   bound each cue; breaks still prefer sentence and clause boundaries. These are
   the first line of defence against overflow: a cue is short because it was
   split, not because it was shortened.
+- `background_style`: `none`, `box`, `rounded_box` (one box around the cue), or
+  `rounded_lines` (one rounded box per line, joined where the lines meet, as
+  on TikTok). `rounded_lines` is drawn by Remotion only; the FFmpeg route
+  refuses a contract that asks for it.
 - `outline_or_shadow: none` is the reference on a background box. An outline
   thickens every glyph and costs the line width long words need.
 - `case` defaults to as-spoken. Uppercase is a style choice, not a default.

@@ -6,6 +6,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ### Added
 
+- `caption_style.background_style: rounded_lines`: one rounded box per caption
+  line, joined where the lines meet, drawn with `@remotion/rounded-text-box`
+  from the widths Python measured. Remotion only; the FFmpeg route refuses it.
+
 - `SOCIAL_VIDEO_REMOTION_CONCURRENCY` and `SOCIAL_VIDEO_REMOTION_GL` tune the
   Remotion render (browser tabs, OpenGL backend); unset keeps the defaults.
 

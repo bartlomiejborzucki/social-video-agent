@@ -328,6 +328,7 @@ ellipsised later. A cue that does not fit is wrapped, then shrunk (to at most
 | `max_words_per_cue` / `max_chars_per_cue` | `4` / `24` | the sentence breaks on words before the frame edge |
 | `bottom_margin_pct` | `22` | clears the platform UI |
 | `outline_or_shadow` | `none` | an outline on a box costs line width |
+| `background_style` | `rounded_box` | `rounded_lines` gives each line its own joined box (Remotion only) |
 
 Brand QA checks what was drawn: lost text, an added ellipsis, a line wider than
 the box, a missing highlight, emphasis or animation.
