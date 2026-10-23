@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Fixed
+
+- Remotion draws logos, plates and image stickers with `<Img>`, so a frame is
+  never captured before its image has loaded.
+
 ## [2.5.0] - 2026-10-20
 
 A stronger, livelier opening without breaking the brand: no card at frame 0,

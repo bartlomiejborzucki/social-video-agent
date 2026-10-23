@@ -3,6 +3,7 @@ import {Video} from '@remotion/media';
 import {
   AbsoluteFill,
   Easing,
+  Img,
   Sequence,
   cancelRender,
   continueRender,
@@ -269,7 +270,7 @@ const MotionGraphic: React.FC<{
     >
       {plate ? (
         <>
-          <img
+          <Img
             src={staticFile(plate)}
             style={{
               position: 'absolute',
@@ -365,7 +366,7 @@ const EndCard: React.FC<{
     >
       {plate && !imageTop ? (
         <>
-          <img
+          <Img
             src={staticFile(plate)}
             style={{position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover'}}
           />
@@ -373,7 +374,7 @@ const EndCard: React.FC<{
         </>
       ) : null}
       {imageTop && plate ? (
-        <img
+        <Img
           src={staticFile(plate)}
           style={{
             width: '100%',
@@ -503,7 +504,7 @@ const ExtendedGraphic: React.FC<{
               borderBottom: `10px solid ${accent}`,
             }}
           />
-          <img
+          <Img
             src={staticFile(logoSource)}
             style={{position: 'relative', width: '100%', objectFit: 'contain', transform: `scale(${0.85 + 0.15 * sweep})`}}
           />
@@ -824,7 +825,7 @@ const Sticker: React.FC<{element: MotionElement; durationInFrames: number}> = ({
         }}
       >
         {element.image_source ? (
-          <img src={staticFile(element.image_source)} style={{width: '100%', height: '100%', objectFit: 'contain'}} />
+          <Img src={staticFile(element.image_source)} style={{width: '100%', height: '100%', objectFit: 'contain'}} />
         ) : (
           <span style={{fontFamily: EMOJI_FAMILY, fontSize: size * 0.86, lineHeight: 1}}>{element.emoji}</span>
         )}
@@ -862,7 +863,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
         <AbsoluteFill style={{backgroundColor: props.accentColor, opacity: cut.flash}} />
       ) : null}
       {props.logoSource && props.logoUsage !== 'none' ? (
-        <img
+        <Img
           src={staticFile(props.logoSource)}
           style={{
             position: 'absolute',
