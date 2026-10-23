@@ -21,6 +21,7 @@
 - Validate the Codex manifest, marketplace, and skill with `uv run python scripts/validate_distribution.py`.
 - Run context/workflow regressions when changing discovery, stage schemas, or handoffs: `uv run pytest tests/unit/test_project_context.py tests/unit/test_workflow.py`.
 - Openings are content first by default: no title card, cover, logo or still at the start of the timeline, the first caption from 0.0 s, the cover only as `cover.jpg`. The render refuses a card opening and delivery measures the rest; never weaken either to pass a test.
+- When changing `remotion/*.tsx`, Remotion's own agent skills (`npx skills add remotion-dev/skills`, e.g. `/remotion-markup`, `/remotion-best-practices`) are a useful reference for the API. Install them locally; do not vendor them into this repository. Every `@remotion/*` package stays pinned to the same version as `remotion`.
 - Stage 2 must write a project-aware `motion-plan.json`; keep motion restrained and reviewable rather than adding effects to fill space. FFmpeg owns cuts/audio/timing, Remotion owns the approved visual layer, and FFmpeg/ffprobe own final QA.
 - Stage 5 uses the delivery service, keeps the EDL hash unchanged, QA-checks video variants, and writes verified SHA-256 entries to a durable destination.
 - Do not download ASR models, CUDA, GPU drivers, or large media in CI. The dedicated Remotion job may install locked npm packages and Chrome Headless Shell; GPU support remains optional.
