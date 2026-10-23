@@ -203,16 +203,17 @@ def motion_sfx(
     library_dir: Path = typer.Argument(..., help="Your folder of sound effects."),
     workspace_dir: Path = typer.Option(..., "--workspace", "-w"),
     licensed: bool = typer.Option(
-        False, "--licensed", help="You hold the rights to use these effects in this video."
+        False,
+        "--licensed",
+        help="Accepted for compatibility; effects no longer need a rights declaration.",
+        hidden=True,
     ),
     gain_db: float = typer.Option(-10.0, "--gain-db"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Put a whoosh under each transition and a pop under each graphic, from your library."""
-    from social_video.errors import ValidationError
     from social_video.motion.sfx import sync_sfx
     from social_video.schemas.base import load_artifact, save_artifact
-    from social_video.schemas.config import BrandContract
     from social_video.schemas.edl import EDL
     from social_video.schemas.motion import MotionPlan
     from social_video.workspace.layout import Workspace
@@ -220,18 +221,6 @@ def motion_sfx(
     ws = Workspace.at(workspace_dir)
 
     def run():
-        if not licensed:
-            raise ValidationError(
-                "state that you hold the rights to these effects with --licensed; this tool "
-                "never sources or clears audio"
-            )
-        if (
-            ws.brand_contract.is_file()
-            and load_artifact(BrandContract, ws.brand_contract).sfx_policy == "none"
-        ):
-            raise ValidationError(
-                "the project config sets sfx_policy: none; set it to optional to allow effects"
-            )
         edl = load_artifact(EDL, ws.edl)
         plan = load_artifact(MotionPlan, ws.motion_plan)
         updated, added = sync_sfx(edl, plan, library_dir, gain_db=gain_db)

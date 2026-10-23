@@ -157,16 +157,6 @@ def check_brand(
         )
         _check_caption_layout(add, style, render.caption_layout)
     bed = render.audio_bed_applied
-    add(
-        "music policy",
-        (bool(bed) and contract.music_policy != "none")
-        or (not bed and contract.music_policy != "required"),
-        (
-            f"bed at {bed.get('gain_db')} dB, ducked={bed.get('ducked')}"
-            if bed
-            else f"no music bed; policy is {contract.music_policy}"
-        ),
-    )
     if bed:
         # A bed this close to the voice competes with it rather than sitting under it.
         quiet_enough = float(bed.get("gain_db", 0.0)) <= -12.0
@@ -178,12 +168,6 @@ def check_brand(
             warning=True,
         )
     _check_audio_cleanup(add, contract, render)
-    add(
-        "sfx policy",
-        (render.sound_effects_applied > 0 and contract.sfx_policy != "none")
-        or (render.sound_effects_applied == 0 and contract.sfx_policy != "required"),
-        f"{render.sound_effects_applied} effect(s); policy is {contract.sfx_policy}",
-    )
     background_required = style.background_style.value != "none"
     add(
         "caption background present",

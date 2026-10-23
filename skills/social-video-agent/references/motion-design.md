@@ -57,9 +57,9 @@ else's video to use as a reference.
    (`--kind stat --kind transition`). Reject what repeats the obvious.
 3. Add what the code cannot see: a chart for numbers compared across time,
    a compare card for before/after, a CTA near the end, an end card.
-4. Optionally `motion sfx LIBRARY -w WORKSPACE --licensed`: a whoosh under each
-   transition, a pop under each graphic, a hit under the hook card, from the
-   user's own licensed effects.
+4. Optionally `motion sfx LIBRARY -w WORKSPACE`: a whoosh under each
+   transition, a pop under each graphic, a hit under the hook card, from a
+   folder of effects.
 5. Optionally `broll suggest SOURCE -w WORKSPACE` (the library is
    `broll_library` in the config, or `--library DIR`), then `broll accept`:
    the user's own clips cut in where their subject is said. See below.

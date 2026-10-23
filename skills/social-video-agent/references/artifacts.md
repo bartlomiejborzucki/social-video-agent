@@ -169,9 +169,8 @@ Without a strategy the EDL fails validation instead of extending the last frame.
 ### Music and effects
 
 `audio_bed` mixes one local track under the edit and `sound_effects` places
-individual effects at named moments. Both require `license_confirmed: true`, and
-both are refused outright when the project sets `music_policy`/`sfx_policy` to
-`none`. The bed is ducked by sidechaining the speech into a compressor, and the
+individual effects at named moments. Neither needs a licence declaration, and
+`music_policy`/`sfx_policy` are not enforced. The bed is ducked by sidechaining the speech into a compressor, and the
 mix happens before loudness normalisation. See [audio.md](audio.md).
 
 Edit it by hand freely. Re-render with `social-video-agent render WORKSPACE`.

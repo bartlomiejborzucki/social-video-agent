@@ -412,20 +412,11 @@ class AudioBed(Artifact):
     duck_ratio: float = Field(default=8.0, ge=1.0, le=20.0)
     duck_threshold_db: float = Field(default=-30.0, ge=-60.0, le=0.0)
     duck_release_ms: int = Field(default=400, ge=50, le=4000)
-    #: Required declaration that this track may be used in this deliverable.
+    #: Optional record of the rights to the track; recorded in the render
+    #: manifest, never required.
     license_confirmed: bool = False
     license_note: str = Field(default="", max_length=300)
     reason: str = Field(min_length=1, max_length=300)
-
-    @model_validator(mode="after")
-    def _check_licence(self) -> AudioBed:
-        if not self.license_confirmed:
-            raise ValueError(
-                "audio_bed requires license_confirmed: true. Declare that this project "
-                "holds the rights to use this track in this deliverable, and record the "
-                "basis in license_note. This tool does not supply or clear music."
-            )
-        return self
 
 
 class SoundEffect(Artifact):
@@ -438,14 +429,9 @@ class SoundEffect(Artifact):
     path: str = Field(min_length=1)
     at: float = Field(ge=0.0, description="Position on the output timeline, in seconds.")
     gain_db: float = Field(default=-6.0, ge=-60.0, le=6.0)
+    #: Optional record of the rights to the effect; never required.
     license_confirmed: bool = False
     reason: str = Field(min_length=1, max_length=300)
-
-    @model_validator(mode="after")
-    def _check_licence(self) -> SoundEffect:
-        if not self.license_confirmed:
-            raise ValueError(f"sound effect {self.path!r} requires license_confirmed: true")
-        return self
 
 
 class EDL(Artifact):

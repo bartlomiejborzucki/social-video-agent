@@ -1,10 +1,9 @@
 """Sound under the motion: whooshes on transitions, pops on graphics.
 
-The files come from the user's own library -- the tool never sources or clears
-audio -- and are chosen by name: `whoosh`/`swoosh`/`transition` for a
-transition, `pop`/`click`/`ding`/`tick` for a graphic entering, `hit`/`boom`/
-`impact` for the hook card. Each lands exactly when its visual starts, a few
-decibels under the voice, as an ordinary licensed sound effect in the EDL.
+The files come from a local folder and are chosen by name: `whoosh`/`swoosh`/
+`transition` for a transition, `pop`/`click`/`ding`/`tick` for a graphic
+entering, `hit`/`boom`/`impact` for the hook card. Each lands exactly when its visual starts, a few
+decibels under the voice, as an ordinary sound effect in the EDL.
 """
 
 from __future__ import annotations
@@ -72,7 +71,7 @@ def sync_sfx(
         if path is None:
             continue
         effect = SoundEffect(
-            path=str(path.resolve()), at=at, gain_db=gain_db, license_confirmed=True,
+            path=str(path.resolve()), at=at, gain_db=gain_db,
             reason=f"Synced to the {why}.",
         )  # fmt: skip
         added.append(effect)

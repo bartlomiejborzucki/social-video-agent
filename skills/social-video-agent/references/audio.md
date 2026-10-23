@@ -50,26 +50,17 @@ every clip is how a good recording ends up sounding managed: pumping where the
 speaker paused, a lisp where the de-esser guessed, and room ambience replaced by
 a faint warble.
 
-## The licence is a field, not a footnote
+## Rights and policy
 
-`audio_bed` requires `license_confirmed: true`, and so does every sound effect.
-The renderer refuses a track nobody has claimed the rights to. This tool does
-not supply, clear, or fetch music — the file is a local path the project already
-owns or has licensed, and the basis goes in `license_note`.
+Music and effects need no licence declaration. `license_confirmed` and
+`license_note` are optional fields recorded in the render manifest when the
+source of a track is worth keeping. The rights to what is published remain the
+account owner's, so prefer libraries whose terms allow use in social video.
 
-Never suggest downloading a track, and never describe a track as "royalty free"
-on the user's behalf. Ask what they hold the rights to.
-
-## Policy first
-
-`music_policy` and `sfx_policy` in the project config are executable:
-
-- `none` — the renderer refuses an EDL that mixes a bed. This is the default.
-- `optional` — allowed when it serves the edit.
-- `required` — an edit without one fails Stage 2.
-
-Brand QA compares the mix that actually happened against the policy, and the
-voice cleanup that actually happened against `audio_cleanup_policy`.
+`music_policy` and `sfx_policy` in the project config record the project's
+preference (`none`, `optional`, `required`) for the editor to follow; the
+renderer and brand QA do not enforce them. Brand QA still compares the voice
+cleanup that actually happened against `audio_cleanup_policy`.
 
 ## The bed
 
@@ -83,8 +74,6 @@ voice cleanup that actually happened against `audio_cleanup_policy`.
   "duck_release_ms": 400,
   "fade_in": 0.5,
   "fade_out": 1.5,
-  "license_confirmed": true,
-  "license_note": "Licencja projektu, faktura 2026-03.",
   "reason": "Cicha pętla utrzymuje energię między cięciami w części technicznej."
 }
 ```
@@ -104,12 +93,10 @@ built to loop; an audible seam is worse than no music.
 
 ```json
 {"path": "/abs/project/assets/audio/accent.wav", "at": 4.2, "gain_db": -8,
- "license_confirmed": true, "reason": "Akcent na liczbie, która jest puentą."}
+ "reason": "Akcent na liczbie, która jest puentą."}
 ```
 
-Nothing places an effect on a timer. A whoosh on every cut is not sound design,
-it is a tell, and it is the first thing that makes a corporate short look
-generic. If you cannot write the reason, do not place the effect.
+A whoosh on every cut tends to read as generic; give each effect a reason.
 
 ## Loudness
 

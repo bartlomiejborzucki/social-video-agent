@@ -338,8 +338,8 @@ class BrandContract(Artifact):
     #: Compiled from the project config's opening keys.
     opening: OpeningPolicy = Field(default_factory=OpeningPolicy)
     target_platforms: list[str] = Field(default_factory=list)
-    #: Compiled from the project config. `required` means an edit without one is
-    #: incomplete; `none` means the renderer refuses to mix one at all.
+    #: Compiled from the project config. A preference recorded for the editor;
+    #: the renderer and QA do not enforce it.
     music_policy: Literal["none", "optional", "required"] = "none"
     sfx_policy: Literal["none", "optional", "required"] = "none"
     #: Compiled from the project config. `measured` cleans only what this

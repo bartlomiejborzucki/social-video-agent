@@ -443,7 +443,7 @@ stay put.
 **Sound, b-roll and review.**
 
 ```bash
-social-video-agent motion sfx ./sfx -w edit --licensed      # whoosh, pop, hit from your library
+social-video-agent motion sfx ./sfx -w edit                 # whoosh, pop, hit from a folder
 social-video-agent broll suggest interview.mp4 --library ./b-roll -w edit
 social-video-agent broll accept -w edit br-001
 social-video-agent motion variants -w edit --text "Hook A" --text "Hook B"
@@ -473,9 +473,9 @@ social-video-agent motion film import film.mp4 -w edit --film-id main-film --fon
 ```
 
 B-roll is matched by file name and tags, tolerant of Polish inflection
-(“samochodu” finds `samochod.mp4`). Sound and music are always the user's own
-licensed files; the tool never sources or clears audio. The render refuses any
-movement above the energy level's limits.
+(“samochodu” finds `samochod.mp4`). Sound and music are local files; no licence
+declaration is required. The render refuses any movement above the energy
+level's limits.
 
 ## CLI
 

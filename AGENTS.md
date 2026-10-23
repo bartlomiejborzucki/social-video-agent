@@ -10,7 +10,6 @@
 - Renderers record the caption features they actually applied; brand QA compares the contract against that evidence, never against a copy of itself. A contracted feature a renderer cannot draw must fail, not downgrade silently.
 - Cloud image generation is credential-gated, consent-gated and background-only: the model never draws text, media is never uploaded, and `visuals.json` records provider, model, prompt, consent basis and hash. A host without an image API has no such feature; say so rather than offering one.
 - Platform reserved zones are conservative JSON estimates, not specifications. Report both measured and expected values and keep them as warnings.
-- Music and sound effects require a recorded `license_confirmed` declaration and a project policy that permits them. Never source, fetch, or clear a track, and never place an effect on a timer.
 - Speaker framing is audio-correlated mouth motion. When the signal is ambiguous it must decline and say so in the reframe reason rather than following the wrong face.
 - Clip selection for multi-short workflows is editorial. Code materialises approved candidates; it never picks them.
 - Resume staged edits from `workflow-state.json`; do not rely on chat history. Guided stages are editorial plan, execution/preview, supervising review, finalization, and optional mechanical delivery.

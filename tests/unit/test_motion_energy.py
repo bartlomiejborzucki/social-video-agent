@@ -252,7 +252,7 @@ def test_sound_lands_under_each_transition_and_graphic(tmp_path: Path) -> None:
 
     placed = {(Path(e.path).name, e.at) for e in added}
     assert placed == {("hit.wav", 0.0), ("pop.wav", 3.0), ("whoosh-1.wav", 9.3)}
-    assert all(e.license_confirmed and e.gain_db == -10.0 for e in updated.sound_effects)
+    assert all(e.gain_db == -10.0 for e in updated.sound_effects)
     _, again = sync_sfx(updated, plan, library)
     assert again == []
 
@@ -316,14 +316,12 @@ def test_the_cli_suggests_accepts_and_adds_sound(tmp_path: Path, monkeypatch) ->
     accepted = runner.invoke(
         app, ["motion", "accept", "-w", ws, "--kind", "stat", "--kind", "transition"]
     )
-    refused = runner.invoke(app, ["motion", "sfx", str(library), "-w", ws])
-    sound = runner.invoke(app, ["motion", "sfx", str(library), "-w", ws, "--licensed"])
+    sound = runner.invoke(app, ["motion", "sfx", str(library), "-w", ws])
 
     assert found.exit_code == 0, found.output
     assert accepted.exit_code == 0, accepted.output
     plan = load_artifact(MotionPlan, workspace.motion_plan)
     assert [e.type.value for e in plan.elements] == ["stat"]
     assert len(plan.transitions) == 1
-    assert refused.exit_code == 1 and "--licensed" in refused.output
     assert sound.exit_code == 0, sound.output
     assert len(load_artifact(EDLModel, workspace.edl).sound_effects) == 2

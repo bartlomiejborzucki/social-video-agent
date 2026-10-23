@@ -1,4 +1,4 @@
-"""Music bed and sound effects: licence gate, policy gate, graph shape."""
+"""Music bed and sound effects: schema limits and graph shape."""
 
 from __future__ import annotations
 
@@ -8,11 +8,7 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 
 from social_video.edl.render import AudioMix, build_audio_graph
-from social_video.errors import ValidationError
 from social_video.ffmpeg.probe import MediaInfo
-from social_video.pipeline import _check_audio_policy
-from social_video.schemas.brand import BrandProfile
-from social_video.schemas.config import BrandContract
 from social_video.schemas.edl import EDL, AudioBed, EDLRange, SoundEffect
 
 
@@ -25,25 +21,9 @@ def _edl(**kwargs) -> EDL:
     return EDL(ranges=[EDLRange(source="talk", start=0.0, end=10.0)], **kwargs)
 
 
-def _contract(music: str = "none", sfx: str = "none") -> BrandContract:
-    return BrandContract(
-        project_config_path="c.yaml",
-        project_config_sha256="c" * 64,
-        project_root="/p",
-        brand=BrandProfile(),
-        output_width=1080,
-        output_height=1920,
-        output_fps="30/1",
-        music_policy=music,
-        sfx_policy=sfx,
-    )
-
-
-def test_a_bed_without_a_licence_declaration_is_refused() -> None:
-    with pytest.raises(PydanticValidationError, match="license_confirmed"):
-        AudioBed(path="music.m4a", reason="r")
-    with pytest.raises(PydanticValidationError, match="license_confirmed"):
-        SoundEffect(path="ping.wav", at=1.0, reason="r")
+def test_music_and_effects_need_no_licence_declaration() -> None:
+    assert not AudioBed(path="music.m4a", reason="r").license_confirmed
+    assert not SoundEffect(path="ping.wav", at=1.0, reason="r").license_confirmed
 
 
 def test_a_bed_louder_than_the_voice_is_not_a_bed() -> None:
@@ -125,20 +105,3 @@ def test_an_unnormalised_mix_gets_a_limiter_because_nothing_else_caps_it() -> No
     assert "alimiter=limit=0.891" in graph
     normalised, _ = build_audio_graph(_edl(audio_bed=_bed()), _ranges(), AudioMix(bed_input=2))
     assert "alimiter" not in normalised
-
-
-def test_the_project_policy_decides_whether_music_may_be_mixed_at_all() -> None:
-    with pytest.raises(ValidationError, match="music_policy: none"):
-        _check_audio_policy(_edl(audio_bed=_bed()), _contract(music="none"))
-    _check_audio_policy(_edl(audio_bed=_bed()), _contract(music="optional"))
-    with pytest.raises(ValidationError, match="music_policy: required"):
-        _check_audio_policy(_edl(), _contract(music="required"))
-
-
-def test_the_sfx_policy_is_enforced_the_same_way() -> None:
-    effect = SoundEffect(path="p.wav", at=1.0, reason="Akcent.", license_confirmed=True)
-    with pytest.raises(ValidationError, match="sfx_policy: none"):
-        _check_audio_policy(_edl(sound_effects=[effect]), _contract(sfx="none"))
-    _check_audio_policy(_edl(sound_effects=[effect]), _contract(sfx="optional"))
-    with pytest.raises(ValidationError, match="places no effects"):
-        _check_audio_policy(_edl(), _contract(sfx="required"))

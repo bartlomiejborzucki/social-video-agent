@@ -511,7 +511,6 @@ def stage_render(
                 "the motion plan's stickers break the brand: " + "; ".join(problems)
             )
     if contract is not None:
-        _check_audio_policy(edl, contract)
         _check_remotion_only(contract, renderer, captions=captions is not None)
         _check_movement(edl, motion_plan if renderer is Renderer.REMOTION else None, contract)
         from social_video.motion.film import load_registry
@@ -851,27 +850,6 @@ def _check_remotion_only(contract: BrandContract, renderer: Renderer, *, caption
             "the brand contract asks for what only the Remotion route draws: "
             + ", ".join(problems)
             + ". Render with Remotion, or change the contract."
-        )
-
-
-def _check_audio_policy(edl: EDL, contract: BrandContract) -> None:
-    """Make music_policy and sfx_policy executable instead of decorative."""
-    if edl.audio_bed is not None and contract.music_policy == "none":
-        raise ValidationError(
-            "this EDL mixes a music bed, but the project config sets music_policy: none. "
-            "Set music_policy: optional to allow it, or remove audio_bed."
-        )
-    if edl.audio_bed is None and contract.music_policy == "required":
-        raise ValidationError(
-            "the project config sets music_policy: required, but this EDL has no audio_bed"
-        )
-    if edl.sound_effects and contract.sfx_policy == "none":
-        raise ValidationError(
-            "this EDL places sound effects, but the project config sets sfx_policy: none"
-        )
-    if not edl.sound_effects and contract.sfx_policy == "required":
-        raise ValidationError(
-            "the project config sets sfx_policy: required, but this EDL places no effects"
         )
 
 

@@ -219,10 +219,9 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
   [motion-film.md](references/motion-film.md).
 - Stage 2 compiles project config into `brand-contract.json`; render only a
   matching EDL/contract. Stage 4 requires technical QA and `qa/qa-brand.json`.
-- Music and effects are licence-gated and policy-gated: `audio_bed` and every
-  sound effect require `license_confirmed`, the project's `music_policy` and
-  `sfx_policy` decide whether they may exist at all, and nothing is ever placed
-  on a timer. Never source, clear, or describe a track's licence for the user.
+- Music and effects are not gated: `audio_bed` and `sound_effects` need no
+  licence declaration, and `music_policy`/`sfx_policy` are recorded preferences
+  the renderer does not enforce. Read [audio.md](references/audio.md).
 - `speaker` framing correlates mouth movement with the speech envelope. When no
   face is convincingly the talker it falls back to prominence and records that
   in the reframe reason; do not describe the result as speaker detection when it

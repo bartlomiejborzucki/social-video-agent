@@ -20,6 +20,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ### Changed
 
+- Music and sound effects are no longer gated: `audio_bed` and
+  `sound_effects` need no `license_confirmed`, `motion sfx` no longer needs
+  `--licensed` (still accepted), and `music_policy`/`sfx_policy` are recorded
+  preferences that the render and brand QA no longer enforce.
 - Remotion 4.0.538: frames are encoded while later frames render (parallel
   encoding, on by default since 4.0.534).
 
