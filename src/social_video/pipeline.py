@@ -1021,7 +1021,20 @@ def _sticker_evidence(plan: MotionPlan) -> list[dict]:
     for element in plan.elements:
         if element.type is not MotionElementType.STICKER:
             continue
-        if element.emoji is not None and font is not None:
+        if element.emoji is not None and element.animated_emoji:
+            from social_video.motion.animated_emoji import CREDIT, LICENCE, require_name
+
+            found.append(
+                {
+                    "at": element.start,
+                    "emoji": element.emoji,
+                    "animation": require_name(element.emoji),
+                    "source": "Noto Animated Emoji (Google)",
+                    "licence": LICENCE,
+                    "credit": CREDIT,
+                }
+            )
+        elif element.emoji is not None and font is not None:
             found.append({"at": element.start, **font.evidence(element.emoji)})
         elif element.image_asset is not None:
             found.append({"at": element.start, "image": element.image_asset})

@@ -15,6 +15,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 - `motion sfx -w WORKSPACE` without a folder uses a built-in set of CC0
   effects listed by `@remotion/sfx` (whoosh, whip, mouse click), downloaded
   once into the cache and verified against pinned SHA-256 hashes.
+- `animated_emoji: true` on an emoji sticker plays its Noto Animated Emoji
+  clip (`@remotion/animated-emoji`), downloaded once from a pinned commit into
+  the cache. CC BY 4.0: the credit is recorded in `stickers_applied` and goes
+  in the post description.
 - `light_leak` transition: a WebGL film light leak (`@remotion/effects`) over
   the cut, its hue turned to the brand accent.
 

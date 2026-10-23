@@ -133,6 +133,9 @@ class MotionElement(Artifact):
     #: A sticker: one emoji from the contract's `sticker_allowlist`, or a
     #: project image in `image_asset` (PNG, WebP or SVG).
     emoji: str | None = None
+    #: Play the emoji's Noto Animated Emoji clip instead of drawing its glyph.
+    #: Downloaded once into the cache; CC BY 4.0, credited in the manifest.
+    animated_emoji: bool = False
     #: Anchor a sticker to a spoken word: its start becomes the start of that
     #: word's ``occurrence``-th appearance in the captions.
     at_word: str | None = Field(default=None, max_length=60)
@@ -210,8 +213,8 @@ class MotionElement(Artifact):
             raise ValueError("hold and layout are only used by an end_card")
         if self.type is MotionElementType.STICKER:
             self._check_sticker()
-        elif self.emoji is not None or self.at_word is not None:
-            raise ValueError("emoji and at_word are only used by a sticker")
+        elif self.emoji is not None or self.at_word is not None or self.animated_emoji:
+            raise ValueError("emoji, animated_emoji and at_word are only used by a sticker")
         if self.layout is EndCardLayout.IMAGE_TOP and self.image_asset is None:
             raise ValueError("layout image_top needs an image_asset to put above the text")
         if self.image_asset is not None and self.type is not MotionElementType.STICKER:
@@ -228,6 +231,8 @@ class MotionElement(Artifact):
     def _check_sticker(self) -> None:
         if (self.emoji is None) == (self.image_asset is None):
             raise ValueError("a sticker shows one emoji or one image_asset")
+        if self.animated_emoji and self.emoji is None:
+            raise ValueError("animated_emoji animates an emoji sticker, not an image")
         if self.image_asset is not None:
             suffix = Path(self.image_asset).suffix.casefold()
             if suffix not in {".png", ".webp", ".svg"}:

@@ -142,6 +142,16 @@ under Creative Commons 0 on freesound.org:
 
 ---
 
+## Animated emoji
+
+An emoji sticker with `animated_emoji: true` downloads its clip from the
+`remotion-dev/animated-emoji` repository (pinned commit, via jsDelivr) into the
+user's cache; none is bundled. The animations are Google's Noto Animated Emoji,
+licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). A video that
+shows one must credit Google; the render manifest records the credit line.
+
+---
+
 ## Fonts
 
 No fonts are bundled. Captions use a font discovered on the host system.

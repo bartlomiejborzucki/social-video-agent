@@ -3,6 +3,7 @@ import {Video} from '@remotion/media';
 import {createRoundedTextBox} from '@remotion/rounded-text-box';
 import {Circle, Highlight, Underline} from '@remotion/rough-notation';
 import {lightLeak} from '@remotion/effects/light-leak';
+import {AnimatedEmoji, type EmojiName} from '@remotion/animated-emoji';
 import {
   AbsoluteFill,
   Easing,
@@ -933,6 +934,13 @@ const Sticker: React.FC<{element: MotionElement; durationInFrames: number}> = ({
       >
         {element.image_source ? (
           <Img src={staticFile(element.image_source)} style={{width: '100%', height: '100%', objectFit: 'contain'}} />
+        ) : element.animated_emoji_name ? (
+          <AnimatedEmoji
+            emoji={element.animated_emoji_name as EmojiName}
+            scale="0.5"
+            calculateSrc={({emoji}) => staticFile(`animated-emoji/${emoji}.webm`)}
+            style={{width: size * 0.92, height: size * 0.92}}
+          />
         ) : (
           <span style={{fontFamily: EMOJI_FAMILY, fontSize: size * 0.86, lineHeight: 1}}>{element.emoji}</span>
         )}

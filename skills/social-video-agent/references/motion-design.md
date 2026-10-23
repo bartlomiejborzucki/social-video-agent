@@ -202,6 +202,12 @@ trzęsie". That is one sticker and one shake, both on the word:
   `stickers_applied`); or a small image from the project. At most 0 (`calm`),
   1 (`lively`) or 2 (`bold`) per reel; never in the opening frame (from 0.3 s),
   never on the end card or a hook card.
+- `animated_emoji: true` plays the emoji's Noto Animated Emoji clip (a laughing
+  face that laughs) instead of the still glyph; it reads as livelier and is the
+  better choice for a reaction. The clip is downloaded once into the cache.
+  It is CC BY 4.0: the manifest's `stickers_applied` carries a `credit`, and
+  that credit goes in the post description (see publishing.md). An emoji with
+  no animated version is refused with its name.
 - Place it in the safe zone off the face, the caption band and the scene frame:
   `motion qa` measures each sticker against faces (box overlap), the captions
   while one is up, and the frame, plus its time on screen.

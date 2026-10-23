@@ -46,6 +46,9 @@ them and the CLI validates them. Nothing generates this file for you.
 }
 ```
 
+When the render manifest's `stickers_applied` has a `credit` (an animated
+emoji, CC BY 4.0), end the description with that credit line.
+
 Rules that hold: hashtags are single words and unique, the title must fit every
 targeted platform, and `alt_text` describes the frame rather than repeating the
 title. `deliver --publish` validates it against the target platforms and records

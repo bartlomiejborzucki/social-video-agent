@@ -227,8 +227,9 @@ Allowed element types:
   frame's width: a long title is drawn smaller, down to 60 %, and refused
   beyond that (80 characters at most in any case).
 
-- `sticker` — `emoji` (in `sticker_allowlist`) or `image_asset` (PNG, WebP,
-  SVG), 0.6–1.5 s, from 0.3 s, optional `at_word` + `occurrence`, `animation`
+- `sticker` — `emoji` (in `sticker_allowlist`, optionally `animated_emoji:
+  true`) or `image_asset` (PNG, WebP, SVG), 0.6–1.5 s, from 0.3 s, optional
+  `at_word` + `occurrence`, `animation`
   (`pop`, `shake`, `pulse`, `drop`), `size_pct`, `x_pct`, `y_pct`.
 
 `shakes` lists moments the picture shakes: `start`, `end` (0.15–2 s),

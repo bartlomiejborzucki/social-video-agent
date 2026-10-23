@@ -98,3 +98,41 @@ def test_remotion_draws_the_sticker_and_the_shake(tmp_path: Path) -> None:
 
     evidence = load_artifact(RenderManifest, ws.renders / "final.manifest.json")
     assert evidence.stickers_applied and "image" in evidence.stickers_applied[0]
+
+
+def test_remotion_plays_an_animated_emoji_sticker_and_credits_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if not HAS_REMOTION:
+        pytest.skip("Remotion dependencies/browser not installed")
+    # A red square with alpha stands in for the downloaded clip: tests never fetch.
+    clip = tmp_path / "joy-0.5x.webm"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=red:size=64x64:rate=30:duration=1",
+         "-vf", "format=yuva420p", "-c:v", "libvpx", "-auto-alt-ref", "0", str(clip)],
+        check=True,
+    )  # fmt: skip
+    monkeypatch.setattr(
+        "social_video.motion.animated_emoji.fetch_animation", lambda name, directory=None: clip
+    )
+    # No brand contract here, so no allowlist; this test is about drawing it.
+    monkeypatch.setattr("social_video.motion.stickers.sticker_problems", lambda *a, **k: [])
+    _source, edl, manifest, ws, plan = _setup(tmp_path)
+    sticker = plan.elements[0].model_copy(
+        update={"image_asset": None, "emoji": "😂", "animated_emoji": True}
+    )
+    plan = plan.model_copy(update={"elements": [sticker], "shakes": []})
+    output = tmp_path / "final.mp4"
+    stage_render(
+        edl, manifest, ws, quality="preview", output=output, renderer=Renderer.REMOTION,
+        motion_plan=plan,
+        remotion_license_attestation=RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE,
+    )  # fmt: skip
+    patch = _frame(output, 1.6)[36:44, 64:72]
+    assert patch[..., 0].mean() > 200 and patch[..., 1].mean() < 60
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.qa import RenderManifest
+
+    evidence = load_artifact(RenderManifest, ws.renders / "final.manifest.json")
+    assert evidence.stickers_applied[0]["animation"] == "joy"
+    assert "CC BY 4.0" in evidence.stickers_applied[0]["credit"]

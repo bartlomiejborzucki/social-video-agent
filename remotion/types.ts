@@ -41,6 +41,8 @@ export type MotionElement = {
   fitted?: FittedCard | null;
   /** Sticker: one emoji (drawn from the emoji font) or image_source. */
   emoji?: string | null;
+  /** Sticker: the Noto Animated Emoji clip staged as animated-emoji/<name>.webm. */
+  animated_emoji_name?: string | null;
   animation?: 'pop' | 'shake' | 'pulse' | 'drop';
   /** Sticker height as a percentage of the output height. */
   size_pct?: number;

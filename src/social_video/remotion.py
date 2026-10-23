@@ -85,8 +85,18 @@ def render_motion_design(
         asset: f"motion-plate-{index}{path.suffix.casefold()}"
         for index, (asset, path) in enumerate(sorted(plates.items()))
     }
+    animations: dict[str, Path] = {}
+    for element in plan.elements:
+        if element.type is MotionElementType.STICKER and element.emoji and element.animated_emoji:
+            from social_video.motion.animated_emoji import fetch_animation, require_name
+
+            name = require_name(element.emoji)
+            animations.setdefault(name, fetch_animation(name))
     emoji = None
-    if any(e.type is MotionElementType.STICKER and e.emoji for e in plan.elements):
+    if any(
+        e.type is MotionElementType.STICKER and e.emoji and not e.animated_emoji
+        for e in plan.elements
+    ):
         from social_video.motion.stickers import emoji_font
 
         emoji = emoji_font()
@@ -189,6 +199,10 @@ def render_motion_design(
             shutil.copy2(plates[asset], public / name)
         if emoji is not None:
             shutil.copy2(emoji.path, public / f"emoji-font{emoji.path.suffix.casefold()}")
+        if animations:
+            (public / "animated-emoji").mkdir()
+            for name, clip in animations.items():
+                shutil.copy2(clip, public / "animated-emoji" / f"{name}.webm")
         props = {
             "source": "base.mp4",
             "durationInFrames": duration_in_frames,
@@ -295,6 +309,10 @@ def _element_payload(
     """One element as the compositor reads it, its placement resolved."""
     payload = item.model_dump(mode="json", exclude={"schema_version", "image_asset"})
     payload["image_source"] = plate_sources.get(item.image_asset or "")
+    if item.animated_emoji and item.emoji:
+        from social_video.motion.animated_emoji import require_name
+
+        payload["animated_emoji_name"] = require_name(item.emoji)
     payload["position"] = item.placement.value if item.placement else None
     if item.type is MotionElementType.LABEL:
         previous = continues(item, plan.elements)
