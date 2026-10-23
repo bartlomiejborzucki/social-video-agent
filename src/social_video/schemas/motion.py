@@ -269,6 +269,8 @@ class TransitionStyle(str, Enum):
     SLIDE = "slide"
     #: A brief wash of the brand's accent colour.
     FLASH = "flash"
+    #: A warm film light leak over the cut, tinted to the brand accent.
+    LIGHT_LEAK = "light_leak"
 
 
 class Shake(Artifact):

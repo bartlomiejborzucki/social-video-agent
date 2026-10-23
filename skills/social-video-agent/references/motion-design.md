@@ -96,7 +96,10 @@ moment: `{start, end, amplitude_pct, frequency_hz}`, 0.15–2 s, or anchored
 with `at_word`. Both renderers draw them, so the "trzęsący" scene of a script
 needs no derivative file; for a whole range use `grade: shake`.
 
-`transitions` (`zoom`, `slide`, `flash`) sit on cuts only. Never put one on a
+`transitions` (`zoom`, `slide`, `flash`, `light_leak`) sit on cuts only.
+`light_leak` is a warm film leak tinted to the accent that covers the whole
+frame on the cut: use it between scenes or places, at most once or twice a
+reel, never as the default. Never put one on a
 cut inside one take while the speaker keeps talking: a zoom or blur over a
 mouth that is still moving reads as the sound being out of sync. For a cut
 with speech on both sides (at most 0.3 s of silence) `motion suggest`

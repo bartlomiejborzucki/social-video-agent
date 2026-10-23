@@ -9,6 +9,7 @@
   "dependencies": {
     "@remotion/bundler": "4.0.538",
     "@remotion/cli": "4.0.538",
+    "@remotion/effects": "4.0.538",
     "@remotion/media": "4.0.538",
     "@remotion/renderer": "4.0.538",
     "@remotion/rough-notation": "4.0.538",

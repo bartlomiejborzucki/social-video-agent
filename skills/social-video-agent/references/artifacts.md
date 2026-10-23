@@ -240,7 +240,7 @@ font and style are replaced by the brand contract's at render; the render logs
 each value it replaced.
 
 `transitions` lists effects across cuts: `at` (the cut's output time), `style`
-(`zoom`, `slide`, `flash`), `duration` (0.2–0.8 s) and `reason`. How many are
+(`zoom`, `slide`, `flash`, `light_leak`), `duration` (0.2–0.8 s) and `reason`. How many are
 allowed per minute depends on `motion_energy`. `punch_ins` are described in
 style.md.
 

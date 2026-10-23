@@ -15,7 +15,13 @@ from social_video.ffmpeg.run import run_ffprobe_json
 from social_video.pipeline import stage_render
 from social_video.qa.checks import check_render
 from social_video.schemas.edl import EDL, EDLRange
-from social_video.schemas.motion import MotionElement, MotionElementType, MotionPlan
+from social_video.schemas.motion import (
+    MotionElement,
+    MotionElementType,
+    MotionPlan,
+    Transition,
+    TransitionStyle,
+)
 from social_video.schemas.workflow import RemotionLicenseAttestation, Renderer
 from social_video.sources import build_manifest
 from social_video.workspace.layout import Workspace
@@ -288,3 +294,59 @@ def test_a_held_end_card_lasts_to_the_final_frame(tmp_path: Path) -> None:
     assert names["duration matches EDL"].passed
     assert names["ending visual continuity"].passed
     assert names["audio/video sync against base"].passed
+
+
+def test_a_light_leak_washes_over_its_cut_only(tmp_path: Path) -> None:
+    import numpy as np
+
+    source = make_video(tmp_path / "kamera.mp4", width=360, height=640, fps=30, duration=2.0,
+                        audio_channels=2)  # fmt: skip
+    font = default_caption_font()
+    assert font is not None
+    plan = MotionPlan(
+        style="editorial_clean",
+        rationale="One warm transition across the cut.",
+        font_family=font.family,
+        font_path=str(font.path),
+        elements=[],
+        transitions=[
+            Transition(at=1.0, style=TransitionStyle.LIGHT_LEAK, duration=0.6, reason="cut")
+        ],
+    )
+    manifest = build_manifest([source])
+    edl = EDL(
+        output_width=360,
+        output_height=640,
+        output_fps="30/1",
+        normalize_audio=False,
+        ranges=[EDLRange(source=manifest.ids[0], start=0, end=2)],
+    )
+    output = tmp_path / "przejscie.mp4"
+    stage_render(
+        edl,
+        manifest,
+        Workspace.at(tmp_path / "edit"),
+        quality="final",
+        output=output,
+        renderer=Renderer.REMOTION,
+        motion_plan=plan,
+        remotion_license_attestation=RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE,
+    )
+
+    def difference(at: float) -> float:
+        frames = [
+            np.frombuffer(
+                subprocess.run(
+                    ["ffmpeg", "-v", "error", "-ss", f"{at}", "-i", str(path), "-frames:v", "1",
+                     "-vf", "scale=36:64,format=gray", "-f", "rawvideo", "-"],
+                    check=True, capture_output=True,
+                ).stdout,
+                dtype=np.uint8,
+            ).astype(float)
+            for path in (source, output)
+        ]  # fmt: skip
+        return float(np.abs(frames[0] - frames[1]).mean())
+
+    # Away from the cut the picture is the source; on it, the leak covers it.
+    assert difference(0.3) < 6
+    assert difference(1.0) > 15

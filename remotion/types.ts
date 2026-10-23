@@ -109,7 +109,7 @@ export type SocialVideoProps = {
 /** An effect across one cut, centred on its output time. */
 export type Transition = {
   at: number;
-  style: 'zoom' | 'slide' | 'flash';
+  style: 'zoom' | 'slide' | 'flash' | 'light_leak';
   duration: number;
   reason: string;
 };

@@ -437,7 +437,7 @@ social-video-agent motion accept -w edit acc-001 acc-003 --kind transition
 `compare`, `list`, `steps`, `chapter`, `cta`, `progress`, `logo_reveal` and
 `end_card`. `style_pack` — `editorial`, `bold-social` or `tech-minimal` — sets
 their look in the brand's colours and font. Transitions (`zoom`, `slide`,
-`flash`) sit on cuts; punch-ins move the picture while captions and graphics
+`flash`, `light_leak`) sit on cuts; punch-ins move the picture while captions and graphics
 stay put.
 
 **Sound, b-roll and review.**

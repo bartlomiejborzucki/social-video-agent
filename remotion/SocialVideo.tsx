@@ -2,11 +2,13 @@ import React, {useEffect, useState} from 'react';
 import {Video} from '@remotion/media';
 import {createRoundedTextBox} from '@remotion/rounded-text-box';
 import {Circle, Highlight, Underline} from '@remotion/rough-notation';
+import {lightLeak} from '@remotion/effects/light-leak';
 import {
   AbsoluteFill,
   Easing,
   Img,
   Sequence,
+  Solid,
   cancelRender,
   continueRender,
   delayRender,
@@ -32,7 +34,7 @@ import type {
 import {DATA_GRAPHICS, DataGraphic} from './DataGraphics';
 import {SceneFrame, rgba} from './SceneFrame';
 import {stylePack} from './stylePacks';
-import {useTransition} from './Transitions';
+import {leakHueShift, useTransition} from './Transitions';
 
 const useProjectFont = (family: string, source: string | null): void => {
   const [handle] = useState(() => delayRender('Load project motion-design font'));
@@ -966,6 +968,14 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
       </AbsoluteFill>
       {cut.flash > 0.01 ? (
         <AbsoluteFill style={{backgroundColor: props.accentColor, opacity: cut.flash}} />
+      ) : null}
+      {cut.leak !== null ? (
+        <Solid
+          width={props.width}
+          height={props.height}
+          style={{position: 'absolute', inset: 0}}
+          effects={[lightLeak({seed: cut.seed, hueShift: leakHueShift(props.accentColor), progress: cut.leak})]}
+        />
       ) : null}
       {props.logoSource && props.logoUsage !== 'none' ? (
         <Img

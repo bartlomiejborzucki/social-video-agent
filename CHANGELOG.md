@@ -12,6 +12,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 - `caption_style.emphasis_mark: highlight | underline | circle`: a hand-drawn
   mark (`@remotion/rough-notation`) on each emphasis word as it is spoken.
   Remotion only; the FFmpeg route refuses it and brand QA checks it was drawn.
+- `light_leak` transition: a WebGL film light leak (`@remotion/effects`) over
+  the cut, its hue turned to the brand accent.
 
 - `SOCIAL_VIDEO_REMOTION_CONCURRENCY` and `SOCIAL_VIDEO_REMOTION_GL` tune the
   Remotion render (browser tabs, OpenGL backend); unset keeps the defaults.
