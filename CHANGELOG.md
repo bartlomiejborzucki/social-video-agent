@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Added
+
+- `SOCIAL_VIDEO_REMOTION_CONCURRENCY` and `SOCIAL_VIDEO_REMOTION_GL` tune the
+  Remotion render (browser tabs, OpenGL backend); unset keeps the defaults.
+
 ### Changed
 
 - Remotion 4.0.538: frames are encoded while later frames render (parallel
