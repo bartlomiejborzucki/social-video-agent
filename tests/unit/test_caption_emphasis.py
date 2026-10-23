@@ -9,7 +9,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 from social_video.captions.ass import render_ass
 from social_video.captions.emphasis import emphasis_keys, is_emphasised, normalise
-from social_video.captions.features import KEYWORD_EMPHASIS, caption_features
+from social_video.captions.features import EMPHASIS_MARK, KEYWORD_EMPHASIS, caption_features
 from social_video.captions.fit import layout_captions
 from social_video.project_config import compile_brand_contract
 from social_video.qa.brand import check_brand
@@ -176,5 +176,61 @@ def test_remotion_receives_emphasis_with_or_without_word_timings(words: bool) ->
 
     drawn = [word for line in payload[0]["lines"] for word in line["words"]]
     assert [word["emphasis"] for word in drawn] == [True, False]
-    # With no highlight, no word is ever timed as active.
-    assert all(word["start"] > word["end"] for word in drawn)
+    # Real times place an emphasis mark; without them a start after the end
+    # says the word has none. With no highlight the compositor never treats a
+    # word as the spoken one either way.
+    if words:
+        assert all(word["start"] < word["end"] for word in drawn)
+    else:
+        assert all(word["start"] > word["end"] for word in drawn)
+
+
+def test_an_emphasis_mark_is_recorded_only_where_it_can_be_drawn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    style = CaptionStyle(emphasis_words=["studio"], emphasis_mark="circle")
+    assert EMPHASIS_MARK in caption_features(style, _track(), highlight=False, animated=True)
+    assert EMPHASIS_MARK not in caption_features(style, _track(), highlight=False)
+    unmarked = CaptionStyle(emphasis_words=["studio"])
+    assert EMPHASIS_MARK not in caption_features(unmarked, _track(), highlight=False, animated=True)
+
+    class Video:
+        display_size = (1080, 1920)
+
+    class Info:
+        video = Video()
+
+    monkeypatch.setattr("social_video.qa.brand.probe", lambda _: Info())
+    project = tmp_path / "project"
+    (project / "assets").mkdir(parents=True)
+    (project / "assets" / "Lato.ttf").write_bytes(b"fixture-font")
+    config = project / "social-video.yaml"
+    config.write_text(
+        "schema_version: 1\nfont_file: assets/Lato.ttf\n"
+        "caption_style:\n  emphasis_words: [Studio]\n  emphasis_mark: underline\n",
+        encoding="utf-8",
+    )
+    contract = compile_brand_contract(config, Workspace.at(project / "edit"), project_root=project)
+    assert contract.brand.captions.emphasis_mark == "underline"
+
+    def report(features: list[str]):
+        render = RenderManifest(
+            output="final.mp4",
+            edl="main",
+            rendered_at="2026-09-23T00:00:00Z",
+            duration=1,
+            width=1080,
+            height=1920,
+            frame_rate="30/1",
+            brand_contract_sha256=contract.project_config_sha256,
+            caption_style=contract.brand.captions.model_dump(mode="json"),
+            captions_burned=True,
+            caption_renderer="remotion",
+            caption_features=features,
+            brand_safe_margins=contract.safe_margins,
+        )
+        checks = check_brand(tmp_path / "final.mp4", contract, render).checks
+        return next(check for check in checks if check.name == "caption emphasis mark")
+
+    assert report(["burned_in", KEYWORD_EMPHASIS, EMPHASIS_MARK]).passed
+    assert not report(["burned_in", KEYWORD_EMPHASIS]).passed

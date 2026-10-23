@@ -24,6 +24,8 @@ TRANSITIONS = "transitions"
 CAPTION_ANIMATION = "caption_animation"
 #: Recorded when an animation was asked for and this renderer cannot draw it.
 CAPTION_ANIMATION_UNAVAILABLE = "caption_animation_unavailable"
+#: Recorded when emphasis words were marked by hand (highlight, underline, circle).
+EMPHASIS_MARK = "emphasis_mark"
 #: Recorded when caption lines were wrapped against the real font's metrics.
 CAPTION_LAYOUT_MEASURED = "caption_layout_measured"
 #: Recorded when the font could not be measured and a conservative estimate of
@@ -63,6 +65,8 @@ def caption_features(
         applied.append(ACTIVE_WORD_UNAVAILABLE)
     if style.emphasis_words:
         applied.append(KEYWORD_EMPHASIS)
+        if animated and style.emphasis_mark != "none":
+            applied.append(EMPHASIS_MARK)
     if style.background_style.value != "none":
         applied.append(f"background_{style.background_style.value}")
     if style.bold:

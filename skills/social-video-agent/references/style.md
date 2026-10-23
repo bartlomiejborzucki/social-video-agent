@@ -57,6 +57,11 @@ Caption settings worth knowing:
   QA fails a render that was asked for either and did not draw it. Use it for
   a handful of names, not for decoration: a caption where every third word is
   coloured emphasises nothing.
+- `emphasis_mark: highlight | underline | circle` draws a hand-made mark on
+  each emphasis word as it is spoken (from the cue start without word timings).
+  Remotion only; the FFmpeg route refuses it, and brand QA fails a render that
+  did not draw it. A highlighted keyword keeps the caption colour, so the
+  marker in `emphasis_color` does not hide it.
 
 Captions are never truncated to fit. Layout is measured against the project
 font in Python and handed to Remotion as explicit lines, so nothing is wrapped

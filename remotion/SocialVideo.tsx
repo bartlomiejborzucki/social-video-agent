@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {Video} from '@remotion/media';
 import {createRoundedTextBox} from '@remotion/rounded-text-box';
+import {Circle, Highlight, Underline} from '@remotion/rough-notation';
 import {
   AbsoluteFill,
   Easing,
@@ -20,6 +21,7 @@ import type {
   CaptionLayout,
   CaptionStyle,
   CaptionWord,
+  EmphasisMark,
   FittedBlock,
   FittedCard,
   MotionElement,
@@ -138,6 +140,7 @@ const Caption: React.FC<{
                 emphasis={style.emphasis_colour}
                 animation={highlight ? style.animation ?? 'none' : 'none'}
                 boxText={boxed ? style.background_colour : '#111111'}
+                mark={style.emphasis_mark ?? 'none'}
               />
             ) : (
               line.text
@@ -199,7 +202,8 @@ const LineBoxes: React.FC<{cue: CaptionCue; layout: CaptionLayout; colour: strin
  *
  * The spoken word takes the highlight colour while it is spoken; a brand
  * keyword rests in the emphasis colour. The FFmpeg route draws the same thing
- * with timed ASS colour transforms.
+ * with timed ASS colour transforms. An emphasis mark (Remotion only) draws a
+ * hand-made highlight, underline or circle on the keyword as it is spoken.
  */
 const ActiveWords: React.FC<{
   words: CaptionWord[];
@@ -208,7 +212,8 @@ const ActiveWords: React.FC<{
   emphasis: string;
   animation?: 'none' | 'pop' | 'box';
   boxText?: string;
-}> = ({words, cueStart, highlight, emphasis, animation = 'none', boxText = '#111111'}) => {
+  mark?: EmphasisMark;
+}> = ({words, cueStart, highlight, emphasis, animation = 'none', boxText = '#111111', mark = 'none'}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   // The sequence is offset to the cue, so add the cue start back to compare
@@ -218,11 +223,19 @@ const ActiveWords: React.FC<{
     <>
       {words.map((word, index) => {
         const active = highlight !== undefined && now >= word.start && now < word.end;
-        const colour = active ? highlight : word.emphasis ? emphasis : undefined;
+        const marked = Boolean(word.emphasis) && mark !== 'none';
+        // A marker in the emphasis colour behind text in the same colour would
+        // hide the word, so a highlighted keyword keeps the caption's colour.
+        const colour = active
+          ? highlight
+          : word.emphasis && !(marked && mark === 'highlight')
+            ? emphasis
+            : undefined;
         // pop springs the spoken word up; box slides a highlight behind it.
         // Both use transform and box-shadow, which never change the measured
         // layout, so a line cannot reflow or overflow while it animates.
-        const since = now - word.start;
+        // A start after the end means the word has no timing: count from the cue.
+        const since = now - (word.start > word.end ? cueStart : word.start);
         // Kept small: a scaled word grows over the spaces beside it, so the
         // pop is mostly a lift, with just enough scale to read as a spring.
         const popped =
@@ -247,12 +260,53 @@ const ActiveWords: React.FC<{
                 WebkitTextStroke: boxed ? '0' : undefined,
               }}
             >
-              {word.text}
+              {marked ? (
+                <EmphasisMarkOn mark={mark} colour={emphasis} since={since} seed={index + 1}>
+                  {word.text}
+                </EmphasisMarkOn>
+              ) : (
+                word.text
+              )}
             </span>
           </React.Fragment>
         );
       })}
     </>
+  );
+};
+
+/** Draws in over the first 0.35 s of the word and stays for the rest of the cue. */
+const EmphasisMarkOn: React.FC<{
+  mark: EmphasisMark;
+  colour: string;
+  since: number;
+  seed: number;
+  children: React.ReactNode;
+}> = ({mark, colour, since, seed, children}) => {
+  const progress = interpolate(since, [0, 0.35], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+    easing: Easing.out(Easing.cubic),
+  });
+  // A fixed seed keeps the stroke the same shape on every frame.
+  if (mark === 'highlight') {
+    return (
+      <Highlight progress={progress} seed={seed} color={rgba(colour, 0.55)} padding={{left: 6, right: 6}}>
+        {children}
+      </Highlight>
+    );
+  }
+  if (mark === 'underline') {
+    return (
+      <Underline progress={progress} seed={seed} color={colour} strokeWidth={4}>
+        {children}
+      </Underline>
+    );
+  }
+  return (
+    <Circle progress={progress} seed={seed} color={colour} strokeWidth={4}>
+      {children}
+    </Circle>
   );
 };
 

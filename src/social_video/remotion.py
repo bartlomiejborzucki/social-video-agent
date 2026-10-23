@@ -362,7 +362,10 @@ def _caption_payload(
         lines = []
         for line in drawn.lines:
             entry = line.payload(with_words=False)
-            if highlight and line.words:
+            # Transcribed word times also place an emphasis mark; without a
+            # highlight the compositor never treats a word as the spoken one.
+            # The layout estimates times for a cue without them; those are not used.
+            if line.words and (highlight or (keys and cue.words)):
                 entry["words"] = [
                     {
                         "text": apply_case(word.text, case),

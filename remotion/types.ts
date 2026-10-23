@@ -181,5 +181,8 @@ export type CaptionStyle = {
   highlight_colour: string;
   emphasis_words: string[];
   emphasis_colour: string;
+  emphasis_mark?: EmphasisMark;
   animation: 'none' | 'pop' | 'box';
 };
+
+export type EmphasisMark = 'none' | 'highlight' | 'underline' | 'circle';

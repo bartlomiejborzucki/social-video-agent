@@ -13,6 +13,7 @@ same document forbids.
 from __future__ import annotations
 
 from enum import Enum
+from typing import Literal
 
 from pydantic import Field
 
@@ -95,6 +96,8 @@ class CaptionStyle(Artifact):
     #: Brand keywords drawn in ``emphasis_colour`` wherever they are spoken.
     emphasis_words: list[str] = Field(default_factory=list)
     emphasis_colour: str = "#FFD400"
+    #: A hand-drawn mark on each emphasis word as it is spoken. Drawn by Remotion.
+    emphasis_mark: Literal["none", "highlight", "underline", "circle"] = "none"
     #: How the spoken word moves: none, pop (it springs up) or box (a highlight
     #: box slides behind it). Drawn by Remotion.
     animation: str = "none"

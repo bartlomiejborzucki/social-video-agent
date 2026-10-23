@@ -11,6 +11,7 @@
     "@remotion/cli": "4.0.538",
     "@remotion/media": "4.0.538",
     "@remotion/renderer": "4.0.538",
+    "@remotion/rough-notation": "4.0.538",
     "@remotion/rounded-text-box": "4.0.538",
     "react": "19.3.0",
     "react-dom": "19.3.0",

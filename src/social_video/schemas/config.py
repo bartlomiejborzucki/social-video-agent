@@ -55,6 +55,9 @@ class CaptionConfig(BaseModel):
     #: listed separately: `Studio` does not also match `Studia`.
     emphasis_words: list[str] = Field(default_factory=list, max_length=100)
     emphasis_color: str = "#FFD400"
+    #: A hand-drawn mark on each emphasis word as it is spoken: a marker
+    #: highlight, an underline or a circle. Drawn by Remotion only.
+    emphasis_mark: Literal["none", "highlight", "underline", "circle"] = "none"
     #: How the spoken word moves. Empty means "what motion_energy implies".
     animation: Literal["", "none", "pop", "box"] = ""
     #: Within one scene, keep a caption on screen until the next one starts,

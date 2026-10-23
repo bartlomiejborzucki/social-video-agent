@@ -202,10 +202,27 @@ def test_long_polish_captions_render_without_being_shortened(
 
 
 @pytest.mark.slow
-def test_rounded_lines_captions_render_on_remotion(tmp_path: Path) -> None:
-    project, font, contract, workspace = _project(
-        tmp_path, CONFIG.replace("background_style: rounded_box", "background_style: rounded_lines")
-    )
+@pytest.mark.parametrize(
+    ("edit", "feature"),
+    [
+        (
+            ("background_style: rounded_box", "background_style: rounded_lines"),
+            "background_rounded_lines",
+        ),
+        (
+            (
+                "  case: as_spoken\n",
+                "  case: as_spoken\n  emphasis_words: [siłę]\n  emphasis_mark: circle\n",
+            ),
+            "emphasis_mark",
+        ),
+    ],
+    ids=["rounded_lines", "emphasis_mark"],
+)
+def test_remotion_only_caption_styles_render(
+    tmp_path: Path, edit: tuple[str, str], feature: str
+) -> None:
+    project, font, contract, workspace = _project(tmp_path, CONFIG.replace(*edit))
     duration = 2.0
     source = make_video(project / "rozmowa.mp4", width=360, height=640, duration=duration + 0.3)
     manifest = build_manifest([source])
@@ -252,7 +269,7 @@ def test_rounded_lines_captions_render_on_remotion(tmp_path: Path) -> None:
     )
 
     render = load_artifact(RenderManifest, workspace.renders / f"{output.stem}.manifest.json")
-    assert "background_rounded_lines" in render.caption_features
+    assert feature in render.caption_features
     technical = stage_qa(output, edl, workspace)
     assert technical.passed, [check.message for check in technical.errors]
     brand = load_artifact(QAReport, workspace.brand_qa)

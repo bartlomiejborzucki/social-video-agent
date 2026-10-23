@@ -9,6 +9,7 @@ from social_video.captions.features import (
     ACTIVE_WORD_HIGHLIGHT,
     ACTIVE_WORD_UNAVAILABLE,
     CAPTION_ANIMATION_UNAVAILABLE,
+    EMPHASIS_MARK,
     KEYWORD_EMPHASIS,
 )
 from social_video.edl.voice import (
@@ -134,6 +135,19 @@ def check_brand(
                 if KEYWORD_EMPHASIS in applied
                 else f"the contract lists emphasis words but "
                 f"{render.caption_renderer or 'the renderer'} did not colour them"
+            ),
+        )
+        marked = bool(style.emphasis_words) and style.emphasis_mark != "none"
+        add(
+            "caption emphasis mark",
+            not marked or EMPHASIS_MARK in applied,
+            (
+                "not requested by the contract"
+                if not marked
+                else "applied"
+                if EMPHASIS_MARK in applied
+                else f"the contract marks emphasis words ({style.emphasis_mark}) but "
+                f"{render.caption_renderer or 'the renderer'} did not draw the mark"
             ),
         )
         add(
