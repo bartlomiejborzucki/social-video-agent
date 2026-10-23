@@ -200,7 +200,9 @@ def motion_accept(
 
 @motion_app.command("sfx")
 def motion_sfx(
-    library_dir: Path = typer.Argument(..., help="Your folder of sound effects."),
+    library_dir: Path | None = typer.Argument(
+        None, help="Your folder of sound effects; omit it for the built-in CC0 set."
+    ),
     workspace_dir: Path = typer.Option(..., "--workspace", "-w"),
     licensed: bool = typer.Option(
         False,
@@ -211,8 +213,8 @@ def motion_sfx(
     gain_db: float = typer.Option(-10.0, "--gain-db"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Put a whoosh under each transition and a pop under each graphic, from your library."""
-    from social_video.motion.sfx import sync_sfx
+    """Put a whoosh under each transition and a pop under each graphic."""
+    from social_video.motion.sfx import builtin_library, sync_sfx
     from social_video.schemas.base import load_artifact, save_artifact
     from social_video.schemas.edl import EDL
     from social_video.schemas.motion import MotionPlan
@@ -223,7 +225,8 @@ def motion_sfx(
     def run():
         edl = load_artifact(EDL, ws.edl)
         plan = load_artifact(MotionPlan, ws.motion_plan)
-        updated, added = sync_sfx(edl, plan, library_dir, gain_db=gain_db)
+        directory = library_dir if library_dir is not None else builtin_library()
+        updated, added = sync_sfx(edl, plan, directory, gain_db=gain_db)
         save_artifact(updated, ws.edl)
         return added
 

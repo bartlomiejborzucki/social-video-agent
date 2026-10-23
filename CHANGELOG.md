@@ -12,6 +12,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 - `caption_style.emphasis_mark: highlight | underline | circle`: a hand-drawn
   mark (`@remotion/rough-notation`) on each emphasis word as it is spoken.
   Remotion only; the FFmpeg route refuses it and brand QA checks it was drawn.
+- `motion sfx -w WORKSPACE` without a folder uses a built-in set of CC0
+  effects listed by `@remotion/sfx` (whoosh, whip, mouse click), downloaded
+  once into the cache and verified against pinned SHA-256 hashes.
 - `light_leak` transition: a WebGL film light leak (`@remotion/effects`) over
   the cut, its hue turned to the brand accent.
 

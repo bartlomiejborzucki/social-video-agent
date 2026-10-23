@@ -128,6 +128,20 @@ at https://www.remotion.dev/license before selecting either declaration.**
 
 ---
 
+## Built-in sound effects
+
+`motion sfx` without a folder downloads three effects from the URLs listed by
+`@remotion/sfx` into the user's cache; none is bundled. All three are released
+under Creative Commons 0 on freesound.org:
+
+- `whoosh.wav`: "Woosh" by 1bob, https://freesound.org/s/831936/
+- `whip.wav`: "SWSH_Badminton Racquet_Recording_01_JW Audio" by JW_Audio,
+  https://freesound.org/s/838766/
+- `mouse-click.wav`: "Mouse Click Sound.mp3" by Pixeliota,
+  https://freesound.org/s/678248/
+
+---
+
 ## Fonts
 
 No fonts are bundled. Captions use a font discovered on the host system.

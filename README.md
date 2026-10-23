@@ -444,6 +444,7 @@ stay put.
 
 ```bash
 social-video-agent motion sfx ./sfx -w edit                 # whoosh, pop, hit from a folder
+social-video-agent motion sfx -w edit                       # or the built-in CC0 set
 social-video-agent broll suggest interview.mp4 --library ./b-roll -w edit
 social-video-agent broll accept -w edit br-001
 social-video-agent motion variants -w edit --text "Hook A" --text "Hook B"
