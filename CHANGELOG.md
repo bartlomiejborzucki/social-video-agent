@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Changed
+
+- Remotion 4.0.538: frames are encoded while later frames render (parallel
+  encoding, on by default since 4.0.534).
+
 ### Fixed
 
 - Remotion draws logos, plates and image stickers with `<Img>`, so a frame is
