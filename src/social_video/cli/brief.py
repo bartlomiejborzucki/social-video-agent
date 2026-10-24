@@ -15,7 +15,7 @@ from social_video.cli._common import _guard, console
 def brief_import(
     file: Path = typer.Argument(
         ...,
-        help="A brief as text, the package's pakiet_sm JSON, or the month's posts .docx "
+        help="A brief as text, a package JSON of several reels, or the month's posts .docx "
         "(choose the reel with --match; tracked deletions are left out).",
     ),
     workspace_dir: Path = typer.Option(..., "--workspace", "-w"),
@@ -159,7 +159,7 @@ def hook_check(
 ) -> None:
     """Ocena otwarcia: pierwszy napis i pierwsza sekunda. Heurystyka, nie blokuje."""
     from social_video.pipeline import load_workspace_artifacts, resolve_caption_track
-    from social_video.qa.hook import check_hook
+    from social_video.qa.hook import check_hook, workspace_words
     from social_video.workspace.layout import Workspace
 
     ws = Workspace.at(workspace_dir)
@@ -170,7 +170,7 @@ def hook_check(
             (p for p in (ws.final / "final.mp4", ws.previews / "preview.mp4") if p.is_file()), None
         )
         track = resolve_caption_track(Path(edl.captions))[0] if edl.captions else None
-        return check_hook(track, target, analysis_dir=ws.analysis)
+        return check_hook(track, target, analysis_dir=ws.analysis, words=workspace_words(ws))
 
     report = _guard(run)
     if as_json:

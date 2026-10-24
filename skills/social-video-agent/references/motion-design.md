@@ -243,7 +243,7 @@ with Polish endings handled ("parku" finds `park`). A clip with
 speaker talking to the camera a clip stays at most 2 s, so the mouth is not
 hidden for long; clips keep at least 3 s apart, so the picture changes every
 3–5 s. To ask for b-roll in a reel's brief, name the subject in "Ujęcie"
-("wstawka: dłonie rodzica i dziecka przy wyjściu") and add the clip with those
+("wstawka: dłonie przy zapinaniu kurtki") and add the clip with those
 keywords to the library.
 
 ## Style

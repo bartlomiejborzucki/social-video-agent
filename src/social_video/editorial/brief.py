@@ -8,7 +8,7 @@ The text form is the one the package's Word document prints:
     Montaż: ...
     Okładka: TITLE. Mały podpis: „subtitle”
 
-The JSON form (`plany/pakiet_sm_YYYY-MM.json`) carries the same four fields as
+The JSON form (a package file of several reels) carries the same four fields as
 `nagranie`, `scenariusz`, `montaz` and `okladka`, where `scenariusz` is the
 same table as text or a list of rows.
 """
@@ -34,7 +34,8 @@ SECTIONS = {
 _HEADER = re.compile(r"^\s*(?:#+\s*)?(nagranie|scenariusz|monta[żz]|ok[łl]adka)\b[^:\n]*:?\s*(.*)$",
                      re.IGNORECASE)  # fmt: skip
 _TIME = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*(?:s\s*)?[–—-]\s*(\d+(?:[.,]\d+)?)\s*s?\s*$")  # noqa: RUF001
-_CHILD = re.compile(r"(g[łl]os\s+dziecka|dziecko)\b.*zza\s+kadru|zza\s+kadru.*dziec", re.IGNORECASE)
+#: A line said by someone the camera does not show.
+_OFF_SCREEN = re.compile(r"zza\s+kadru|poza\s+kadrem|off[- ]?screen", re.IGNORECASE)
 _QUOTES = "„”\"“'‚‘’«»"  # noqa: RUF001 - the quotes Polish text uses
 _SUBTITLE = re.compile(r"ma[łl]y\s+podpis\s*:\s*(.+)$", re.IGNORECASE | re.DOTALL)
 LABEL_SECONDS = 3.0
@@ -138,8 +139,8 @@ def overrides(brief: Brief) -> list[str]:
     lines = [f"brief: {brief.source or 'montage brief'} overrides project defaults for this edit"]
     if brief.first_cue_text:
         who = (
-            "a child off screen, text only unless recorded"
-            if brief.first_line_is_child
+            "said off screen, text only unless recorded"
+            if brief.first_line_off_screen
             else "spoken"
         )
         lines.append(f"brief: first caption from 0.0 s carries {brief.first_cue_text!r} ({who})")
@@ -157,9 +158,9 @@ def overrides(brief: Brief) -> list[str]:
 def opening_line(workspace, transcript) -> str | None:
     """The brief's first line as a text-only caption, when nobody says it.
 
-    Only a child's line off screen qualifies, and only when the recording does
-    not carry it: a child's voice is never synthesised, so without it the line
-    is shown, not heard. A line the recording does carry is captioned from the
+    Only a line said off screen qualifies, and only when the recording does
+    not carry it: a voice is never synthesised, so without it the line is
+    shown, not heard. A line the recording does carry is captioned from the
     speech like any other.
     """
     from social_video.schemas.base import load_artifact
@@ -168,10 +169,10 @@ def opening_line(workspace, transcript) -> str | None:
     if not path.is_file():
         return None
     brief = load_artifact(Brief, path)
-    if not (brief.first_line_is_child and brief.first_cue_text):
+    if not (brief.first_line_off_screen and brief.first_cue_text):
         return None
     wanted = _keys(brief.first_cue_text)
-    # Any recording of the edit may carry it: the child's voice is often its own file.
+    # Any recording of the edit may carry it: an off-screen voice is often its own file.
     heard: set[str] = set()
     for source in transcript if isinstance(transcript, list) else [transcript]:
         heard |= _keys(" ".join(token.text for token in source.words[: len(wanted) + 4]))
@@ -192,7 +193,7 @@ def _derive(brief: Brief, cover: str) -> Brief:
         raise ValidationError("the brief's scenario has no timed rows like `0-3 s | shot | ...`")
     title, subtitle = _cover(cover)
     first = brief.rows[0]
-    if first.child_off_screen:
+    if first.voice_off_screen:
         first_text = first.on_screen[0] if first.on_screen else _spoken(first.said)
     else:
         first_text = _first_sentence(_spoken(first.said)) or (
@@ -213,7 +214,7 @@ def _derive(brief: Brief, cover: str) -> Brief:
             "cover_title": title,
             "cover_subtitle": subtitle,
             "first_cue_text": first_text.strip(),
-            "first_line_is_child": first.child_off_screen,
+            "first_line_off_screen": first.voice_off_screen,
             "labels": labels,
         }
     )
@@ -258,15 +259,15 @@ def _make_row(timing: re.Match[str], shot: str, said: str, on_screen: str) -> Br
         shot=shot,
         said=said,
         on_screen=[part.strip() for part in on_screen.split(" / ") if part.strip()],
-        child_off_screen=bool(_CHILD.search(said)),
+        voice_off_screen=bool(_OFF_SCREEN.search(said)),
     )
 
 
 def _spoken(said: str) -> str:
     """The words in quotes, or the text after a speaker label.
 
-    A row that narrates first ("Dziecko miało posprzątać… A teraz… słychać:
-    „Nie chcę!”") is spoken as a whole: the quote is the end of it,
+    A row that narrates first ("Kawa miała być gotowa… A teraz… słychać:
+    „Nie ma mleka!”") is spoken as a whole: the quote is the end of it,
     not the line the reel opens on.
     """
     quoted = re.findall(r"[„\"“](.+?)[”\"]", said)

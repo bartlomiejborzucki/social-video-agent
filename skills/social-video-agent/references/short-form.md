@@ -20,13 +20,15 @@ below is either measured by `reel-check` or a judgement for you to make.
 - **Read it at once.** The first caption carries the whole first sentence from
   frame 0, because most viewing starts muted.
 - **Check the hook.** `hook check WORKSPACE` reads the first caption and the
-  first second in Polish: a concrete situation with a child, not a name, title
-  or book; the viewer addressed (`Twoje dziecko…`) or a tension or question
-  left open; at most 8 words; the first word within 0.3 s; the picture moving
-  in the first second; no greeting. Each miss comes with a fix; it never
-  blocks. The word lists are `src/social_video/qa/data/hook_pl.yaml` -- edit
-  them, not the code. The result is `analysis/hook-check.json` and
-  `hook_check` / `hook_check_fixes` in the delivery manifest.
+  first second in Polish: not a name, title or book; the viewer addressed
+  (`Twój poranek…`) or a tension or question left open; at most 8 words; the
+  first word within 0.3 s; the picture moving in the first second; no
+  greeting. A concrete situation is judged only when the project lists its
+  niche's words under `situation:` in `.social-video/hook-words.yaml`; that
+  file can replace any general list in
+  `src/social_video/qa/data/hook_pl.yaml`. Each miss comes with a fix; it
+  never blocks. The result is `analysis/hook-check.json` and `hook_check` /
+  `hook_check_fixes` in the delivery manifest.
 - **Test the line.** `motion variants -w WORKSPACE --from-brief --seconds 4`
   renders up to three first captions from the brief -- its on-screen text
   (`napis`), the first spoken sentence (`zdanie`), a question (`pytanie`) --

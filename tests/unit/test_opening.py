@@ -160,7 +160,7 @@ def test_the_brief_text_becomes_first_line_labels_and_cover() -> None:
     brief = load_brief(FIXTURE)
 
     assert [r.start for r in brief.rows] == [0.0, 3.0, 9.0, 22.0]
-    assert brief.first_line_is_child and brief.first_cue_text == "„Mamo, pobaw się ze mną!”"
+    assert brief.first_line_off_screen and brief.first_cue_text == "„Mamo, pobaw się ze mną!”"
     assert [label.text for label in brief.labels] == [
         "Jak postawić teraz granicę?", "Częsty odruch", "Spróbuj tak",
         "Jasna decyzja + miejsce na emocje",
@@ -187,7 +187,7 @@ def test_a_spoken_first_line_is_its_first_sentence() -> None:
         }
     )
 
-    assert not brief.first_line_is_child
+    assert not brief.first_line_off_screen
     assert brief.first_cue_text == "Kiedy widzisz efekt pozwolenia dziecku na naukę."
     assert brief.title == "Zaufanie" and brief.cover_title == "ZAUFANIE"
 
@@ -203,7 +203,7 @@ def test_a_package_with_several_reels_needs_a_choice(tmp_path: Path) -> None:
     with pytest.raises(ValidationError, match="choose one with --entry or --match"):
         load_brief(package)
     assert load_brief(package, entry=1).title == "Inna"
-    assert load_brief(package, match="Nie pobawię").first_line_is_child
+    assert load_brief(package, match="Nie pobawię").first_line_off_screen
 
 
 def test_a_childs_line_is_text_only_unless_the_recording_carries_it(tmp_path: Path) -> None:

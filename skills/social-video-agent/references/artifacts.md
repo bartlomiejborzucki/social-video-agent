@@ -88,8 +88,8 @@ place in the list), and may add:
 
 ```json
 {"action": "keep", "source": "kubek", "start": 0.0, "end": 3.0, "order": 1,
- "audio_source": "dziecko", "audio_start": 0.4, "audio_end": 1.9,
- "reason": "the child's line over the mug shot"}
+ "audio_source": "glos", "audio_start": 0.4, "audio_end": 1.9,
+ "reason": "the off-screen line over the mug shot"}
 ```
 
 ## edl.json — execution

@@ -9,7 +9,7 @@ text only ever becomes `cover.jpg`.
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from social_video.schemas.base import Artifact
 
@@ -23,9 +23,12 @@ class BriefRow(Artifact):
     said: str = ""
     #: The on-screen text, split where the brief separates lines with " / ".
     on_screen: list[str] = Field(default_factory=list)
-    #: The line is said by a child off screen. A child's voice is never
-    #: synthesised: without it in the recording, the line is text only.
-    child_off_screen: bool = False
+    #: The line is said by someone off screen. A voice is never synthesised:
+    #: without it in the recording, the line is text only. Briefs written
+    #: before 2.7 call this ``child_off_screen``.
+    voice_off_screen: bool = Field(
+        default=False, validation_alias=AliasChoices("voice_off_screen", "child_off_screen")
+    )
 
 
 class BriefLabel(Artifact):
@@ -46,6 +49,9 @@ class Brief(Artifact):
     cover_subtitle: str = ""
     #: The text the first caption must carry, from the first row.
     first_cue_text: str = ""
-    #: The first line is a child's, off screen: text only unless recorded.
-    first_line_is_child: bool = False
+    #: The first line is said off screen: text only unless recorded.
+    first_line_off_screen: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("first_line_off_screen", "first_line_is_child"),
+    )
     labels: list[BriefLabel] = Field(default_factory=list)

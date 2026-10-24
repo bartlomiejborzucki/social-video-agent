@@ -1,16 +1,17 @@
 """Hook check: is the first caption and the first second worth staying for?
 
 A heuristic, not an oracle. It reads the first caption and measures the first
-second of the picture against what held viewers on this brand's reels: a
-concrete situation with a child rather than a name, a title or a book; the
-viewer addressed, or a tension or question left open; at most eight words;
-the first word within 0.3 s; the picture moving in the first second; no
-greeting. Each miss comes with a concrete fix, in Polish, and nothing is
-blocked: the result goes to `analysis/hook-check.json` and the delivery
-manifest for the editor to weigh.
+second of the picture: a concrete situation rather than a name, a title or a
+book; the viewer addressed, or a tension or question left open; at most eight
+words; the first word within 0.3 s; the picture moving in the first second; no
+greeting. What counts as a concrete situation depends on the project's niche,
+so that list is empty here and filled by the project. Each miss comes with a
+concrete fix, in Polish, and nothing is blocked: the result goes to
+`analysis/hook-check.json` and the delivery manifest for the editor to weigh.
 
-The word lists live in `qa/data/hook_pl.yaml` so an editor can change them
-without touching code.
+The general word lists live in `qa/data/hook_pl.yaml`. A project replaces any
+of them with `.social-video/hook-words.yaml` in its own root, so niche words
+never live in this package.
 """
 
 from __future__ import annotations
@@ -26,6 +27,10 @@ import yaml
 from social_video.schemas.captions import CaptionTrack
 
 WORDS_FILE = Path(__file__).with_name("data") / "hook_pl.yaml"
+#: A project's own lists, relative to its root.
+PROJECT_WORDS = Path(".social-video") / "hook-words.yaml"
+#: Category names used before 2.7.
+_RENAMED = {"child": "situation"}
 MAX_WORDS = 8
 FIRST_WORD_LIMIT = 0.3
 #: Mean change between frames 0 and 1 s, out of 255, below which it is still.
@@ -64,7 +69,29 @@ class HookReport:
 
 def load_words(path: Path = WORDS_FILE) -> dict[str, list[str]]:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return {key: [str(v).casefold() for v in values or []] for key, values in data.items()}
+    return {
+        _RENAMED.get(key, key): [str(v).casefold() for v in values or []]
+        for key, values in data.items()
+    }
+
+
+def project_words(project_root: Path | None) -> dict[str, list[str]]:
+    """The general lists, with every category the project defines replaced."""
+    words = load_words()
+    if project_root is not None and (project_root / PROJECT_WORDS).is_file():
+        words |= load_words(project_root / PROJECT_WORDS)
+    return words
+
+
+def workspace_words(workspace) -> dict[str, list[str]]:
+    """The lists for an edit, from the project its brand contract was compiled in."""
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.config import BrandContract
+
+    if not workspace.brand_contract.is_file():
+        return load_words()
+    contract = load_artifact(BrandContract, workspace.brand_contract)
+    return project_words(Path(contract.project_root))
 
 
 def _tokens(text: str) -> list[str]:
@@ -114,15 +141,16 @@ def check_text(
                 f"zacznij pierwszy zakres na mowie: pierwsze słowo do {FIRST_WORD_LIMIT} s",
             )
         )
-    child = matches(text, lists.get("child", []))
-    findings.append(
-        HookFinding(
-            "konkretna sytuacja z dzieckiem",
-            bool(child),
-            ", ".join(child) if child else "brak dziecka ani sytuacji",
-            "otwórz na tym, co robi dziecko (np. „Dziecko miało posprzątać… a teraz nie chce”)",
+    if lists.get("situation"):
+        situation = matches(text, lists["situation"])
+        findings.append(
+            HookFinding(
+                "konkretna sytuacja",
+                bool(situation),
+                ", ".join(situation) if situation else "brak konkretnej sytuacji",
+                "otwórz na tym, kto co robi (np. „Kawa miała być gotowa… a teraz nie ma mleka”)",
+            )
         )
-    )
     promo = matches(text, lists.get("promo", []))
     findings.append(
         HookFinding(
@@ -139,7 +167,7 @@ def check_text(
             "zwrot do widza albo napięcie",
             bool(address or tension),
             ", ".join(address + tension) if address or tension else "ani jednego, ani drugiego",
-            "zwróć się do widza („Twoje dziecko…”) albo zostaw pytanie bez odpowiedzi",
+            "zwróć się do widza („Twój poranek…”) albo zostaw pytanie bez odpowiedzi",
         )
     )
     greeting = matches(text, lists.get("greeting", []))
@@ -166,7 +194,11 @@ def first_second_movement(video: Path) -> float | None:
 
 
 def check_hook(
-    captions: CaptionTrack | None, video: Path | None, *, analysis_dir: Path | None = None
+    captions: CaptionTrack | None,
+    video: Path | None,
+    *,
+    analysis_dir: Path | None = None,
+    words: dict[str, list[str]] | None = None,
 ) -> HookReport:
     """The whole hook check; writes `hook-check.json` when given a folder."""
     cue = captions.cues[0] if captions and captions.cues else None
@@ -180,7 +212,7 @@ def check_hook(
             HookFinding("pierwszy napis", False, "brak napisów", "zbuduj napisy przed oceną")
         )
     else:
-        report.findings += check_text(text, first_word_at=first)
+        report.findings += check_text(text, first_word_at=first, words=words)
     if video is not None and video.is_file():
         change = first_second_movement(video)
         if change is not None:

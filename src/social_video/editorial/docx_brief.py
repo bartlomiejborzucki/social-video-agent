@@ -1,6 +1,6 @@
 """Read one reel's brief out of the monthly Word document.
 
-The posts document (``posty-RRRR-MM.docx``) holds every post of the
+The monthly posts document (a .docx) holds every post of the
 month, each under a heading ``DD.MM DZIEŃ · ROLKA · Tytuł``: a ``Nagranie``
 paragraph, a ``Scenariusz`` table (Czas | Ujęcie | Co mówisz | Napis na
 ekranie), ``Montaż``, ``Okładka`` and then the captions for each platform.

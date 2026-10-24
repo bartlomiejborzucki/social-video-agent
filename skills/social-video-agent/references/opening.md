@@ -46,18 +46,15 @@ max_leading_silence_s: 0.3
 
 ## The brief
 
-A monthly package carries a brief per reel, as text, as an entry of
-`plany/pakiet_sm_YYYY-MM.json` (fields `nagranie`, `scenariusz`, `montaz`,
-`okladka`), or in the month's posts document in Word
-(`PLANY/<MIESIĄC>/posty-RRRR-MM.docx`). It overrides the
-project defaults for that edit:
+A monthly package can carry a brief per reel: as text, as an entry of a
+package JSON (fields `nagranie`, `scenariusz`, `montaz`, `okladka`), or in
+the month's posts document in Word. It overrides the project defaults for
+that edit:
 
 ```bash
 social-video-agent brief import BRIEF.txt -w WORKSPACE --labels
-social-video-agent brief import plany/pakiet_sm_2026-10.json -w WORKSPACE \
-  --match "Nie pobawię" --labels
-social-video-agent brief import posty-2026-01.docx -w WORKSPACE \
-  --match "Przecież się dogadaliśmy" --labels
+social-video-agent brief import package.json -w WORKSPACE --match "Brak mleka" --labels
+social-video-agent brief import posts.docx -w WORKSPACE --match "Plan był prosty" --labels
 ```
 
 In the Word document each post sits under a heading `DD.MM DZIEŃ · ROLKA ·
@@ -69,15 +66,15 @@ left out and insertions (`w:ins`) kept, so read the brief from the document
 as its author left it, never from a copy with the changes typed in by hand.
 
 - **The first row is the first caption.** The words in "Co mówisz" become cue
-  1. When a child says the first line off screen, cue 1 shows the text from
-  "Napis na ekranie" instead.
-- **A child's voice is never synthesised.** If the recording does not carry
-  the child's line, the line is shown as text from 0.0 s until the speech
-  begins, and is not heard. When the child's line was recorded on its own
-  file, put it under the opening picture with the plan item's
-  `audio_source`, `audio_start` and `audio_end`; `compile` captions it from
-  that file's transcript.
-- **Short texts are labels, not cards.** Texts such as "Częsty odruch" or
+  1. When the first line is said off screen ("zza kadru", "poza kadrem"), cue
+  1 shows the text from "Napis na ekranie" instead.
+- **A voice is never synthesised.** If the recording does not carry an
+  off-screen line, the line is shown as text from 0.0 s until the speech
+  begins, and is not heard. When it was recorded on its own file, put it
+  under the opening picture with the plan item's `audio_source`,
+  `audio_start` and `audio_end`; `compile` captions it from that file's
+  transcript.
+- **Short texts are labels, not cards.** Texts such as "Pierwszy krok" or
   "Spróbuj tak" become `label` graphics that name the scene; `--labels` adds
   them to `motion-plan.json` with the brief's times. They are never drawn like
   a caption: with `label_style: scene_frame` each is the title of a frame around
@@ -91,23 +88,23 @@ as its author left it, never from a copy with the changes typed in by hand.
   every override is written as a `brief:` line in `edit-plan.json`
   `user_overrides`.
 
-Example, the reel of 13.10.2026 "Nie pobawię się teraz":
+An invented example:
 
 ```text
-Nagranie: Stały kadr z misiem w tle, miętowy detal przy twarzy, kubek „Lubię być mamą” w ręce.
+Nagranie: Stały kadr przy blacie kuchennym, kubek w ręce.
 Scenariusz (Czas | Ujęcie | Co mówisz | Napis na ekranie):
-- 0–3 s | Pijesz z kubka, słysząc głos dziecka zamykasz oczy | Głos dziecka zza kadru: „Mamo, pobaw się ze mną!” | „Mamo, pobaw się ze mną!” / Jak postawić teraz granicę?
-- 3–9 s | Lekko odwracasz głowę do dziecka poza kadrem | „No teraz chyba nie mogę…” | Częsty odruch
-- 9–22 s | Cięcie, spokojniejszy głos | „Nie pobawię się teraz. Potrzebuję odpocząć.” | Spróbuj tak
-- 22–30 s | Do obiektywu | „Jasna odmowa nie musi być długa…” | Jasna decyzja + miejsce na emocje
+- 0–3 s | Otwierasz pustą lodówkę | Głos zza kadru: „Nie ma mleka!” | „Nie ma mleka!” / Co teraz z kawą?
+- 3–9 s | Odwracasz się do obiektywu | „Plan był prosty…” | Częsta sytuacja
+- 9–22 s | Cięcie, spokojniejszy głos | „Najpierw sprawdzam, co mam pod ręką.” | Spróbuj tak
+- 22–30 s | Do obiektywu | „Prosty zamiennik wystarczy.” | Jeden krok naraz
 Montaż: Pierwsza klatka = scena, nie okładka…
-Okładka: NIE POBAWIĘ SIĘ TERAZ. Mały podpis: „Bez kar, czyli jak? / Granice w praktyce”.
+Okładka: BRAK MLEKA. Mały podpis: „Poranek bez planu B”.
 ```
 
 It gives:
-- **First caption:** „Mamo, pobaw się ze mną!” as text only, since the line is a child's off screen.
-- **Labels:** "Jak postawić teraz granicę?", "Częsty odruch", "Spróbuj tak" and "Jasna decyzja + miejsce na emocje".
-- **Cover:** "NIE POBAWIĘ SIĘ TERAZ" with the subtitle "Bez kar, czyli jak? / Granice w praktyce".
+- **First caption:** „Nie ma mleka!” as text only, since the line is said off screen.
+- **Labels:** "Co teraz z kawą?", "Częsta sytuacja", "Spróbuj tak" and "Jeden krok naraz".
+- **Cover:** "BRAK MLEKA" with the subtitle "Poranek bez planu B".
 
 ## A stronger opening without a card
 

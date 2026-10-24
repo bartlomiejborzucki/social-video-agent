@@ -1,39 +1,14 @@
-# Słowa, po których `hook check` rozpoznaje otwarcie rolki. Edytuj śmiało:
-# wpis to jedno słowo albo krótka fraza, małymi literami, bez interpunkcji.
-# Słowa porównywane są po początku (rdzeniu), więc „dzieck” łapie „dziecko”,
-# „dziecka”, „dzieckiem”.
+# Słowa, po których `hook check` rozpoznaje otwarcie rolki. Wpis to jedno słowo
+# albo krótka fraza, małymi literami, bez interpunkcji. Słowa porównywane są po
+# początku (rdzeniu), więc „kaw” łapie „kawa”, „kawy”, „kawą”.
+#
+# Te listy są ogólne. Projekt może je podmienić plikiem
+# `.social-video/hook-words.yaml` w swoim katalogu: każda kategoria podana tam
+# zastępuje tę stąd, pozostałe zostają.
 
-# Konkretna sytuacja z dzieckiem: ktoś i coś, co się dzieje.
-child:
-  - dzieck
-  - dzieci
-  - synek
-  - syn
-  - córk
-  - córeczk
-  - maluch
-  - przedszkolak
-  - niemowl
-  - nastolat
-  - brat
-  - siostr
-  - obiecał
-  - płacz
-  - krzycz
-  - złości
-  - bije
-  - gryzie
-  - rzuca
-  - nie chce
-  - nie chcę
-  - plac zabaw
-  - placu zabaw
-  - zabaw
-  - sklep
-  - przedszkol
-  - kąpiel
-  - spać
-  - jedzeni
+# Konkretna sytuacja w temacie projektu: kto i co się dzieje. Pusta, bo zależy od
+# niszy; projekt ją uzupełnia. Bez niej `hook check` tego nie ocenia.
+situation: []
 
 # Zwrot do widza.
 address:

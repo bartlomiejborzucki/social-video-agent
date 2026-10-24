@@ -280,7 +280,11 @@ def _hook_check(
     video = destination / "final.mp4"
     if not any(Path(i.path) == video for i in items):
         return {}
-    report = check_hook(captions, video, analysis_dir=workspace.analysis)
+    from social_video.qa.hook import workspace_words
+
+    report = check_hook(
+        captions, video, analysis_dir=workspace.analysis, words=workspace_words(workspace)
+    )
     return {"hook_check": report.score, "hook_check_fixes": report.fixes}
 
 

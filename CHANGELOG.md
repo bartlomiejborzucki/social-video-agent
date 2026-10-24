@@ -4,6 +4,18 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Changed
+
+- `hook check` keeps only general Polish word lists. The concrete-situation
+  list is empty by default and comes from the project's
+  `.social-video/hook-words.yaml`, which can replace any list; a `child:` list
+  there still reads as `situation:`.
+- A brief line said off screen (`zza kadru`, `poza kadrem`, `off screen`) is
+  shown as text only unless the recording carries it, whoever says it. The
+  fields are `voice_off_screen` and `first_line_off_screen`; briefs saved with
+  `child_off_screen` / `first_line_is_child` still load.
+- Documentation examples are neutral and invented.
+
 ## [2.6.0] - 2026-10-24
 
 More of Remotion in the reel: TikTok-style caption boxes, hand-drawn emphasis,

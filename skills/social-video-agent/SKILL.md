@@ -115,7 +115,7 @@ example and every manifest field are in [opening.md](references/opening.md).
 
 ## Scenes, labels and the cut
 
-The house rules for a scripted reel, from the 13.10.2026 decisions:
+The house rules for a scripted reel:
 
 - **No card at the start.** The hook is the scene and the whole first caption
   from 0.0 s (above).
@@ -130,7 +130,7 @@ The house rules for a scripted reel, from the 13.10.2026 decisions:
   a send; inside a scene frame put it at `position: top`. A summary list sits
   over the upper zone with `position: top`, off the face.
 
-A reel cut from several recordings -- takes of the speaker plus a child's line
+A reel cut from several recordings -- takes of the speaker plus an off-screen line
 recorded on its own -- is one plan: each item names its `source` and `order`,
 `audio_source`/`audio_start`/`audio_end` put a voice under another file's
 picture, and `reframe` fixes a crop. `compile` builds the EDL, one caption
