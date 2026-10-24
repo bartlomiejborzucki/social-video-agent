@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-10-25
+
+An editorial read of a reference video from stills and its transcript, and
+opening variants that change one thing and say what they test.
+
 ### Added
 
 - `style analyze --editorial`: besides the rhythm, writes stills of a
