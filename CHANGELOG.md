@@ -14,10 +14,33 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   observations, hypotheses that cite them, stretches to watch and what not to
   copy. `style check-analysis` checks every claim is anchored to a moment that
   exists and writes `context/reference-analysis.md`. No model API is called.
-- MCP tools `style_analyze` and `style_check_analysis`.
+- `motion variants --axis text|first_shot`: opening variants that change one
+  thing. Each records a `--hypothesis`, the exact changes, what stays shared
+  and the hash of its audio; the set keeps the hashes of the edit it varies.
+  `first_shot` replaces the first range with another span of the footage,
+  keeps the other ranges, rebuilds the captions and moves the motion by the
+  change in length; `--pickup` records a variant that needs footage filmed
+  first.
+- `deliver --hook-variants` runs opening QA on each variant's own file and
+  records its axis, hypothesis and result, plus a caveat that two organic
+  posts are not an A/B test.
+- MCP tools `motion_variants`, `style_analyze` and `style_check_analysis`;
+  `deliver` takes `hook_variants`.
 
 ### Changed
 
+- `motion variants` makes 6 s previews by default and names variants `a`,
+  `b`…; render the chosen one with `--full --only NAME`. Previews are written
+  as `previews/opening-<name>-<N>s.mp4`. `--from-brief` gives two lines (the
+  brief's on-screen text and first spoken sentence); the generated question
+  is gone.
+- A text variant that is not said word for word is drawn as on-screen text
+  over the opening, never as the first caption; a line that is said keeps its
+  real word timings. Text variants must share one audio track, or the run
+  fails.
+- Rendering a variant no longer writes the workspace EDL or motion plan, and
+  its Remotion base gets its own file instead of replacing the edit's
+  `base-<quality>.mp4`.
 - `hook check` keeps only general Polish word lists. The concrete-situation
   list is empty by default and comes from the project's
   `.social-video/hook-words.yaml`, which can replace any list; a `child:` list

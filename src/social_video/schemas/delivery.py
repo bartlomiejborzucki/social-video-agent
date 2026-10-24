@@ -16,11 +16,17 @@ class DeliveryItem(Artifact):
     qa_status: str
     qa_report: str | None = None
     qa_report_sha256: str | None = None
-    #: Set when the delivery had a size limit: the limit, and the video
-    #: bitrate of the two-pass encode that met it (None: it already fitted).
-    #: A hook variant's name ("napis", "zdanie", "pytanie") and opening line.
+    #: An opening variant's name, its opening line (text axis), what it
+    #: varies and what it tests (`motion variants`).
     variant: str | None = None
     variant_text: str | None = None
+    variant_axis: str | None = None
+    variant_hypothesis: str | None = None
+    #: Opening QA of this variant's own file; None for the main video.
+    variant_opening_ready: bool | None = None
+    variant_opening_issues: list[str] = Field(default_factory=list)
+    #: Set when the delivery had a size limit: the limit, and the video
+    #: bitrate of the two-pass encode that met it (None: it already fitted).
     size_limit_bytes: int | None = None
     video_bitrate_kbps: int | None = None
     av_error_ms: float | None = None
@@ -58,3 +64,5 @@ class DeliveryManifest(Artifact):
     #: blocking. "passed/total" and what to consider.
     reel_check: str | None = None
     reel_check_warnings: list[str] = Field(default_factory=list)
+    #: Delivered opening variants are not an A/B test once posted organically.
+    variant_comparison_caveat: str | None = None

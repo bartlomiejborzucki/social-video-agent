@@ -29,12 +29,31 @@ below is either measured by `reel-check` or a judgement for you to make.
   `src/social_video/qa/data/hook_pl.yaml`. Each miss comes with a fix; it
   never blocks. The result is `analysis/hook-check.json` and `hook_check` /
   `hook_check_fixes` in the delivery manifest.
-- **Test the line.** `motion variants -w WORKSPACE --from-brief --seconds 4`
-  renders up to three first captions from the brief -- its on-screen text
-  (`napis`), the first spoken sentence (`zdanie`), a question (`pytanie`) --
-  as `previews/hook-<name>-4s.mp4`. Without `--seconds` they are full length,
-  and `deliver --hook-variants` delivers them as `final-hook-<name>.mp4`,
-  each named in the manifest (`variant`, `variant_text`) for an A/B test.
+- **Test one change at a time.** `motion variants` renders opening variants
+  along one axis and records what each tests:
+  - `--axis text` (`--text LINE` or `--from-brief`): the opening line. A line
+    the speaker says word for word may become the first caption, with its real
+    timings; any other line appears as on-screen text over the opening and the
+    captions keep the transcript. The variants must share one audio track,
+    checked by hash.
+  - `--axis first_shot` (`--first-shot SOURCE:START-END`): the first range is
+    replaced, ranges two onwards stay identical, captions are rebuilt for the
+    variant and its motion is moved by the change in length. When no recorded
+    span can open that way, record `--pickup "what to film"` instead; it is
+    not rendered.
+
+  Give one `--hypothesis` per variant. Two variants is the default; more are
+  harder to compare. Previews of the first 6 s come first
+  (`previews/opening-<name>-6s.mp4`); render the chosen one with
+  `--full --only NAME`, then `deliver --hook-variants` delivers it as
+  `final-hook-<name>.mp4` with its own opening QA. The record is
+  `analysis/hook-variants.json`: axis, base hashes, each variant's changes,
+  shared elements and warnings. Spoken opening, pacing and ending are not
+  built yet. Two different story structures are two concepts, not a test of
+  one change.
+- **Reading the results.** Two organic posts of two variants are not an A/B
+  test: the date, the audience and the distribution differ. Say so whenever
+  results are compared.
 
 ## The middle
 

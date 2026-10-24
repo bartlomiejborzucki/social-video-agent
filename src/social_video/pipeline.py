@@ -399,10 +399,14 @@ def stage_captions(
     edl: EDL,
     workspace: Workspace,
     brand: BrandProfile,
+    *,
+    persist_edl: bool = True,
 ) -> tuple[CaptionTrack, Path]:
     """Build caption data and render it to ASS, ready for the final burn-in.
 
     Pass every transcript an edit cuts between; their cues become one track.
+    ``persist_edl=False`` sets ``edl.captions`` without writing the workspace
+    EDL, for an EDL that is not the edit (an opening variant).
     """
     timeline = Timeline(edl)
     from social_video.editorial.brief import opening_line
@@ -426,8 +430,9 @@ def stage_captions(
         font_name=brand.captions.font_family or (font.family if font else None),
     )
     edl.captions = str(ass_path)
-    save_artifact(edl, workspace.edl)
-    record_stage(workspace, "captions", {"cues": len(track.cues)})
+    if persist_edl:
+        save_artifact(edl, workspace.edl)
+        record_stage(workspace, "captions", {"cues": len(track.cues)})
     return track, ass_path
 
 
@@ -451,7 +456,17 @@ def stage_render(
     motion_plan: MotionPlan | None = None,
     remotion_license_attestation: RemotionLicenseAttestation | None = None,
     audio_cleanup: bool = True,
+    persist_artifacts: bool = True,
+    base_name: str | None = None,
 ) -> Path:
+    """Render ``edl``; returns the output path.
+
+    ``persist_artifacts=False`` keeps adjustments made for this render (a held
+    end card, stickers anchored to words) out of the workspace EDL and motion
+    plan: a variant must never overwrite the edit it varies. ``base_name``
+    gives the Remotion base its own file under ``cache/remotion`` so it does
+    not replace the main edit's base.
+    """
     started = time.monotonic()
     if motion_plan is not None and workspace.edl.is_file():
         # A held end card lengthens the edit; keep both artifacts agreeing.
@@ -460,9 +475,10 @@ def stage_render(
         held_edl, held_plan, note = held_end_card(motion_plan, edl)
         if note is not None:
             edl, motion_plan = held_edl, held_plan
-            from social_video.schemas.base import save_artifacts_atomically
+            if persist_artifacts:
+                from social_video.schemas.base import save_artifacts_atomically
 
-            save_artifacts_atomically({workspace.edl: edl, workspace.motion_plan: motion_plan})
+                save_artifacts_atomically({workspace.edl: edl, workspace.motion_plan: motion_plan})
             log.info("%s", note)
     reactive = motion_plan
     if reactive is None and renderer is Renderer.FFMPEG and workspace.motion_plan.is_file():
@@ -474,7 +490,8 @@ def stage_render(
 
         anchored, notes = anchor_to_words(reactive, _caption_json(captions, edl))
         if notes:
-            save_artifact(anchored, workspace.motion_plan)
+            if persist_artifacts:
+                save_artifact(anchored, workspace.motion_plan)
             for note in notes:
                 log.info("%s", note)
         if renderer is Renderer.REMOTION:
@@ -560,7 +577,8 @@ def stage_render(
             raise ValidationError(
                 f"Remotion is enabled but MotionPlan was not provided ({workspace.motion_plan})"
             )
-        render_target = workspace.cache / "remotion" / f"base-{quality}.mp4"
+        render_target = workspace.cache / "remotion" / f"{base_name or f'base-{quality}'}.mp4"
+        render_target.parent.mkdir(parents=True, exist_ok=True)
     caption_track: CaptionTrack | None = None
     remotion_caption_style = None
     base_captions = captions

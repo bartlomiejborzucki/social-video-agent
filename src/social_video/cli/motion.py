@@ -242,128 +242,98 @@ def motion_sfx(
 @motion_app.command("variants")
 def motion_variants(
     texts: list[str] = typer.Option(
-        [], "--text", help="One opening line per variant (repeat), or use --from-brief."
+        [], "--text", help="Text axis: one opening line per variant (repeat)."
     ),
     workspace_dir: Path = typer.Option(..., "--workspace", "-w"),
+    axis: str | None = typer.Option(
+        None,
+        "--axis",
+        help="What the variants change: text (the opening line) or first_shot (the first "
+        "range). Default: inferred from the other options.",
+    ),
     from_brief: bool = typer.Option(
         False,
         "--from-brief",
-        help="Up to three first captions from the brief: its on-screen text, the first "
-        "spoken sentence, and a question.",
+        help="Text axis: the brief's first on-screen text and first spoken sentence.",
     ),
-    seconds: float | None = typer.Option(
-        None, "--seconds", help="Render only the first N seconds (a quick A/B look)."
+    first_shots: list[str] = typer.Option(
+        [], "--first-shot", help="First-shot axis: SOURCE:START-END for one variant (repeat)."
     ),
+    pickups: list[str] = typer.Option(
+        [],
+        "--pickup",
+        help="First-shot axis: a variant no footage can open, recorded as a pickup to "
+        "film; not rendered.",
+    ),
+    hypotheses: list[str] = typer.Option(
+        [], "--hypothesis", help="What each variant tests, one per variant, in order."
+    ),
+    only: list[str] = typer.Option(
+        [], "--only", help="Render recorded variants again by name (e.g. --full --only a)."
+    ),
+    seconds: float = typer.Option(
+        6.0, "--seconds", min=1.0, help="Preview length; ignored with --full."
+    ),
+    full: bool = typer.Option(False, "--full", help="Render full length instead of a preview."),
     quality: str = typer.Option("preview", "--quality"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Render one version per opening line, to test which hook holds viewers.
+    """Render opening variants that change one thing, with what they test.
 
-    Under a content-first opening a variant changes the first caption, never
-    adds a card; with `opening_policy: free` it is the hook card's text.
+    Previews of the first seconds come first; render the chosen one with
+    `--full --only NAME`. A text line that is not said word for word appears
+    as on-screen text and never as a caption, and text variants must share
+    one audio track. The set, with each variant's hypothesis, changes and
+    shared elements, is `analysis/hook-variants.json`.
     """
-    from social_video.captions.ass import write_ass
     from social_video.errors import ValidationError
-    from social_video.motion.hook_variants import (
-        HookVariant,
-        HookVariantSet,
-        Proposal,
-        head_of,
-        variants_from_brief,
-        with_first_caption,
-    )
-    from social_video.motion.review import with_hook
-    from social_video.pipeline import load_workspace_artifacts, load_workspace_brand, stage_render
-    from social_video.schemas.base import load_artifact, save_artifact
-    from social_video.schemas.brief import Brief
-    from social_video.schemas.captions import CaptionTrack
-    from social_video.schemas.motion import MotionPlan
-    from social_video.schemas.workflow import Renderer
-    from social_video.workflow import load_workflow
+    from social_video.motion.hook_variants import VariantAxis
+    from social_video.motion.variant_service import VariantRequest, make_variants
     from social_video.workspace.layout import Workspace
 
     ws = Workspace.at(workspace_dir)
 
     def run():
-        state = load_workflow(ws)
-        if state.renderer is not Renderer.REMOTION:
+        try:
+            chosen_axis = VariantAxis(axis) if axis else None
+        except ValueError:
             raise ValidationError(
-                "hook variants are drawn by Remotion; switch with `workflow renderer`"
-            )
-        proposals = [Proposal(f"tekst-{n}", t) for n, t in enumerate(texts, start=1)]
-        if from_brief:
-            if not ws.brief.is_file():
-                raise ValidationError(f"no brief at {ws.brief}; run `brief import` first")
-            proposals += variants_from_brief(load_artifact(Brief, ws.brief))
-        if not proposals:
-            raise ValidationError("give --text lines or --from-brief")
-        manifest, edl = load_workspace_artifacts(ws)
-        plan = load_artifact(MotionPlan, ws.motion_plan)
-        content_first = _content_first(ws)
-        caption_path = Path(edl.captions) if edl.captions else None
-        track = (
-            load_artifact(CaptionTrack, caption_path.with_suffix(".json"))
-            if caption_path and caption_path.with_suffix(".json").is_file()
-            else None
-        )
-        if content_first and track is None:
-            raise ValidationError("hook variants change the first caption; build captions first")
-        brand = load_workspace_brand(ws)
-        made = []
-        for proposal in proposals:
-            variant_edl, variant_plan = edl, plan
-            captions = caption_path
-            if content_first:
-                assert track is not None
-                variant = with_first_caption(track, proposal.text)
-                captions = ws.captions / f"hook-{proposal.name}.ass"
-                save_artifact(variant, captions.with_suffix(".json"))
-                write_ass(
-                    variant,
-                    brand.captions,
-                    captions,
-                    width=edl.output_width,
-                    height=edl.output_height,
-                    font_name=brand.captions.font_family,
-                )
-            else:
-                variant_plan = with_hook(plan, proposal.text)
-            if seconds is not None:
-                variant_edl, head_plan = head_of(variant_edl, variant_plan, seconds)
-                variant_plan = head_plan or variant_plan
-            suffix = f"-{seconds:g}s" if seconds is not None else ""
-            output = ws.previews / f"hook-{proposal.name}{suffix}.mp4"
-            stage_render(
-                variant_edl,
-                manifest,
-                ws,
-                quality=quality,
-                captions=captions,
-                output=output,
-                renderer=Renderer.REMOTION,
-                motion_plan=variant_plan,
-                remotion_license_attestation=state.remotion_license_attestation,
-            )
-            made.append(
-                HookVariant(
-                    name=proposal.name, text=proposal.text, file=str(output), seconds=seconds
-                )
-            )
-        registry = ws.analysis / "hook-variants.json"
-        known = load_artifact(HookVariantSet, registry).variants if registry.is_file() else []
-        kept = [v for v in known if v.file not in {m.file for m in made}]
-        save_artifact(HookVariantSet(variants=[*kept, *made]), registry)
-        return made
+                f"unknown axis {axis!r}; expected one of " + ", ".join(a.value for a in VariantAxis)
+            ) from None
+        request = VariantRequest(
+            axis=chosen_axis, texts=list(texts), from_brief=from_brief,
+            first_shots=list(first_shots), pickups=list(pickups), hypotheses=list(hypotheses),
+            only=list(only), seconds=None if full else seconds, quality=quality,
+        )  # fmt: skip
+        return make_variants(ws, request)
 
-    made = _guard(run)
+    result, notes = _guard(run)
     if as_json:
-        console.print_json(data={"variants": [v.model_dump(mode="json") for v in made]})
+        payload = result.model_dump(mode="json", exclude_none=True)
+        payload["notes"] = notes
+        console.print_json(data=payload)
         return
-    for variant in made:
-        console.print(
-            f"[green]rendered[/green] {variant.name}: {escape(variant.text)} -> {variant.file}",
-            soft_wrap=True,
-        )
+    console.print(f"[bold]axis[/bold] {result.axis.value}")
+    for variant in result.variants:
+        file = variant.full or variant.preview
+        if variant.needs_pickup:
+            console.print(f"[yellow]pickup[/yellow] {variant.name}: {escape(variant.needs_pickup)}")
+        else:
+            console.print(f"[green]rendered[/green] {variant.name} -> {file}", soft_wrap=True)
+        if variant.hypothesis:
+            console.print(f"  tests   {escape(variant.hypothesis)}")
+        for change in variant.changes:
+            console.print(
+                f"  changes {escape(change.element)}: {escape(change.before or '-')} -> "
+                f"{escape(change.after)}"
+            )
+        if variant.shared:
+            console.print(f"  shared  {escape(', '.join(variant.shared))}")
+        for warning in variant.warnings:
+            console.print(f"  [yellow]check[/yellow]   {escape(warning)}")
+    for note in notes:
+        console.print(f"[yellow]note[/yellow] {escape(note)}")
+    console.print(f"[dim]{escape(result.comparison_caveat)}[/dim]")
 
 
 @motion_app.command("sheet")

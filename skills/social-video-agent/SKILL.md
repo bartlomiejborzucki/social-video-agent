@@ -157,8 +157,11 @@ Never work around the tool by hand; each of these is a feature:
   copied untouched, and QA holds A/V to the base render within 20 ms.
 - A reaction on a word is a `sticker` (allowlisted emoji or project image) and
   a `shake`, both `at_word`; never in frame 0, never on the end card.
-- Judge the opening with `hook check` and test lines with `motion variants
-  --from-brief`; open on movement and `--hook-punch`, never with a card.
+- Judge the opening with `hook check`; open on movement and `--hook-punch`,
+  never with a card. Test an opening with `motion variants` along one axis
+  (`text` or `first_shot`), two previews with a `--hypothesis` each, then
+  `--full --only NAME`; a line nobody says is never a caption
+  ([short-form.md](references/short-form.md)).
 - B-roll comes from the project library described in `broll.yaml`; a clip with
   a child's face is never proposed.
 

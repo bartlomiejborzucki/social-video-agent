@@ -350,3 +350,58 @@ def test_a_light_leak_washes_over_its_cut_only(tmp_path: Path) -> None:
     # Away from the cut the picture is the source; on it, the leak covers it.
     assert difference(0.3) < 6
     assert difference(1.0) > 15
+
+
+def test_text_variants_share_the_audio_and_leave_the_edit_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from social_video.motion.variant_service import VariantRequest, make_variants
+    from social_video.schemas.base import save_artifact
+
+    source = make_video(tmp_path / "kamera.mp4", duration=5.0, width=360, height=640)
+    font = default_caption_font()
+    assert font is not None
+    manifest = build_manifest([source])
+    ws = Workspace.at(tmp_path / "edit").ensure()
+    save_artifact(manifest, ws.source_manifest)
+    save_artifact(
+        EDL(
+            output_width=360, output_height=640, output_fps="30/1", normalize_audio=False,
+            ranges=[EDLRange(source=manifest.ids[0], start=0, end=5)],
+        ),
+        ws.edl,
+    )  # fmt: skip
+    save_artifact(
+        MotionPlan(rationale="r", font_family=font.family, font_path=str(font.path)),
+        ws.motion_plan,
+    )
+    main_base = ws.cache / "remotion" / "base-preview.mp4"
+    main_base.parent.mkdir(parents=True, exist_ok=True)
+    main_base.write_bytes(b"main edit base")
+    edl_before, plan_before = ws.edl.read_bytes(), ws.motion_plan.read_bytes()
+    monkeypatch.setattr(
+        "social_video.workflow.load_workflow",
+        lambda _ws: SimpleNamespace(
+            renderer=Renderer.REMOTION,
+            remotion_license_attestation=RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE,
+        ),
+    )
+
+    result, _ = make_variants(
+        ws,
+        VariantRequest(
+            texts=["Pierwsza wersja", "Druga wersja"],
+            hypotheses=["a question", "a statement"],
+            seconds=2.0,
+        ),
+    )
+
+    assert [v.name for v in result.variants] == ["a", "b"]
+    hashes = {v.audio_sha256 for v in result.variants}
+    assert len(hashes) == 1 and None not in hashes
+    assert all(Path(v.preview).is_file() for v in result.variants)
+    assert ws.edl.read_bytes() == edl_before
+    assert ws.motion_plan.read_bytes() == plan_before
+    assert main_base.read_bytes() == b"main edit base"

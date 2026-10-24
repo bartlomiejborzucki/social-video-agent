@@ -10,6 +10,7 @@ from social_video.errors import ValidationError
 from social_video.ffmpeg.probe import probe
 from social_video.ffmpeg.run import run_ffmpeg
 from social_video.fsutil import atomic_copy
+from social_video.motion.hook_variants import COMPARISON_CAVEAT
 from social_video.pipeline import load_workspace_artifacts, stage_render
 from social_video.profiles import load_platform
 from social_video.qa.checks import check_render
@@ -18,6 +19,7 @@ from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.config import BrandContract
 from social_video.schemas.delivery import DeliveryItem, DeliveryManifest
+from social_video.schemas.edl import EDL
 from social_video.schemas.motion import MotionPlan
 from social_video.schemas.platform import PlatformSpec
 from social_video.schemas.publish import PublishMetadata
@@ -133,7 +135,9 @@ def deliver_workspace(
             _video_item(target, variant_edl, caption_track, destination, specs, contract, limit)
         )
     if hook_variants:
-        items += _hook_variant_items(workspace, edl, destination, specs, contract, limit)
+        items += _hook_variant_items(
+            workspace, edl, destination, specs, contract, limit, sources=manifest
+        )
     for language in languages or []:
         from social_video.captions.translate import check_language, translated_paths
 
@@ -227,6 +231,7 @@ def deliver_workspace(
         edl_sha256_after=after,
         items=items,
         cover_path=cover_item.path if cover_item else None,
+        variant_comparison_caveat=COMPARISON_CAVEAT if hook_variants else None,
         **opening,
     )
     save_artifact(result, destination / "delivery-manifest.json")
@@ -242,31 +247,64 @@ def deliver_workspace(
 
 
 def _hook_variant_items(
-    workspace: Workspace, edl, destination: Path, specs, contract, limit: int | None
+    workspace: Workspace,
+    edl,
+    destination: Path,
+    specs,
+    contract,
+    limit: int | None,
+    sources=None,
 ) -> list[DeliveryItem]:
-    """Full-length hook variants rendered by `motion variants`, under their names."""
-    from social_video.motion.hook_variants import HookVariantSet
+    """Full-length opening variants from `motion variants`, each with its own opening QA."""
+    from social_video.motion.film import load_registry
+    from social_video.motion.hook_variants import load_variant_set
+    from social_video.motion.variant_service import registry_path
+    from social_video.qa.opening import check_opening
+    from social_video.schemas.config import OpeningPolicy
 
-    registry = workspace.analysis / "hook-variants.json"
-    found = load_artifact(HookVariantSet, registry).variants if registry.is_file() else []
-    whole = [v for v in found if v.seconds is None and Path(v.file).is_file()]
-    if not whole:
+    found = load_variant_set(registry_path(workspace))
+    whole = [v for v in (found.variants if found else []) if v.full and Path(v.full).is_file()]
+    if found is None or not whole:
         raise ValidationError(
-            "no full-length hook variants to deliver; render them with "
-            "`motion variants --from-brief` (without --seconds)"
+            "no full-length opening variants to deliver; render the chosen one with "
+            "`motion variants --full --only NAME`"
         )
+    policy = contract.opening if contract else OpeningPolicy(opening_policy="free")
     items = []
     for variant in whole:
         target = destination / f"final-hook-{variant.name}.mp4"
-        _copy_atomic(Path(variant.file), target)
-        track = (
-            load_artifact(CaptionTrack, workspace.captions / f"hook-{variant.name}.json")
-            if (workspace.captions / f"hook-{variant.name}.json").is_file()
-            else None
-        )
-        item = _video_item(target, edl, track, destination, specs, contract, limit)
+        _copy_atomic(Path(variant.full), target)
+        own_captions = Path(variant.captions) if variant.captions else None
+        if own_captions is None and (workspace.captions / f"hook-{variant.name}.json").is_file():
+            own_captions = workspace.captions / f"hook-{variant.name}.json"
+        track = load_artifact(CaptionTrack, own_captions) if own_captions else None
+        if track is None and edl.captions and Path(edl.captions).with_suffix(".json").is_file():
+            track = load_artifact(CaptionTrack, Path(edl.captions).with_suffix(".json"))
+        variant_edl = load_artifact(EDL, Path(variant.edl)) if variant.edl else edl
+        plan_path = Path(variant.motion_plan) if variant.motion_plan else workspace.motion_plan
+        plan = load_artifact(MotionPlan, plan_path) if plan_path.is_file() else None
+        item = _video_item(target, variant_edl, track, destination, specs, contract, limit)
+        report = check_opening(
+            target, variant_edl, plan, track, policy, sources=sources,
+            film_segments=load_registry(workspace).segments,
+            analysis_dir=workspace.analysis / "variants" / variant.name,
+        )  # fmt: skip
+        if report.ready is False:
+            raise ValidationError(
+                f"opening variant {variant.name} breaks the content-first rule: "
+                + "; ".join(report.issues)
+            )
         items.append(
-            item.model_copy(update={"variant": variant.name, "variant_text": variant.text})
+            item.model_copy(
+                update={
+                    "variant": variant.name,
+                    "variant_text": variant.text or None,
+                    "variant_axis": found.axis.value,
+                    "variant_hypothesis": variant.hypothesis or None,
+                    "variant_opening_ready": report.ready,
+                    "variant_opening_issues": report.issues,
+                }
+            )
         )
     return items
 
