@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from social_video.errors import ValidationError
 from social_video.imaging import sha256_file
@@ -143,7 +144,7 @@ def _proposals(
 
 
 def _transcripts(ws: Workspace, edl: EDL) -> list[Transcript]:
-    found = []
+    found: list[Transcript] = []
     for rng in edl.ranges:
         path = ws.transcript_for(rng.effective_audio_source, rng.audio_track)
         if path.is_file() and all(t.source_id != rng.effective_audio_source for t in found):
@@ -218,7 +219,7 @@ def make_variants(ws: Workspace, request: VariantRequest) -> tuple[OpeningVarian
         changes: list[VariantChange] = []
         shared: list[str] = []
         warnings: list[str] = []
-        shown_as = None
+        shown_as: Literal["caption", "on_screen_text", "hook_card"] | None = None
         own_edl = own_plan = own_captions = None
         if axis is VariantAxis.TEXT:
             text = proposal.text
@@ -325,8 +326,8 @@ def make_variants(ws: Workspace, request: VariantRequest) -> tuple[OpeningVarian
         )  # fmt: skip
 
     if axis is VariantAxis.TEXT:
-        heard = {v.audio_sha256 for v in made if v.audio_sha256}
-        if len(heard) > 1:
+        hashes = {v.audio_sha256 for v in made if v.audio_sha256}
+        if len(hashes) > 1:
             raise ValidationError(
                 "the text variants do not share the same audio; a text-only change must "
                 "leave the sound untouched"

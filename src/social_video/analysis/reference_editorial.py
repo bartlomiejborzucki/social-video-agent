@@ -77,8 +77,10 @@ def editorial_moments(
     if len(candidates) > room:
         cuts_only = [m for m in candidates if m[1] is FrameReason.CUT]
         pool = cuts_only if len(cuts_only) >= room else candidates
-        picks = np.linspace(0, len(pool) - 1, room).round().astype(int) if room else []
-        candidates = [pool[int(i)] for i in sorted(set(picks))]
+        picks: list[int] = (
+            np.linspace(0, len(pool) - 1, room).round().astype(int).tolist() if room else []
+        )
+        candidates = [pool[i] for i in sorted(set(picks))]
     for moment in candidates:
         if far(moment[0], chosen):
             chosen.append(moment)
