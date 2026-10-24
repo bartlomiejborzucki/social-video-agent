@@ -92,6 +92,10 @@ def _proposals(
             picked.append((Proposal(name, variant.text, variant.first_shot), variant.hypothesis))
         return known.axis, picked
 
+    textual = bool(request.texts or request.from_brief)
+    shots = bool(request.first_shots or request.pickups)
+    if request.axis is None and textual and shots:
+        raise ValidationError("text and first-shot options were both given; a set varies one thing")
     axis = request.axis or (
         VariantAxis.FIRST_SHOT if request.first_shots or request.pickups else VariantAxis.TEXT
     )

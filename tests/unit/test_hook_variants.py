@@ -169,3 +169,41 @@ def test_the_head_keeps_four_seconds_of_edit_and_plan() -> None:
     assert head_plan is not None
     assert head_plan.elements[0].end == pytest.approx(4.0)
     assert [p.start for p in head_plan.punch_ins] == [2.0]
+
+
+@pytest.mark.parametrize(
+    ("request_args", "message"),
+    [
+        ({"texts": ["A"], "first_shots": ["k:1-2"]}, "a set varies one thing"),
+        ({"axis": VariantAxis.TEXT, "pickups": ["x"]}, "belong to the first_shot axis"),
+        ({"axis": VariantAxis.FIRST_SHOT, "texts": ["A"]}, "belong to the text axis"),
+        ({"texts": ["A", "B"], "hypotheses": ["one"]}, "give one per variant"),
+        ({"axis": VariantAxis.PACING}, "not built yet"),
+        ({"only": ["a"]}, "no variants recorded yet"),
+        ({}, "give --text lines or --from-brief"),
+    ],
+)
+def test_variant_requests_that_do_not_hold_together_are_refused(
+    tmp_path: Path, request_args: dict, message: str
+) -> None:
+    from social_video.motion.variant_service import VariantRequest, _proposals
+    from social_video.workspace.layout import Workspace
+
+    with pytest.raises(ValidationError, match=message):
+        _proposals(Workspace.at(tmp_path), VariantRequest(**request_args), None)
+
+
+def test_variants_are_named_in_order_with_their_hypotheses(tmp_path: Path) -> None:
+    from social_video.motion.variant_service import VariantRequest, _proposals
+    from social_video.workspace.layout import Workspace
+
+    axis, found = _proposals(
+        Workspace.at(tmp_path),
+        VariantRequest(first_shots=["k:1-2"], pickups=["a close-up"], hypotheses=["x", "y"]),
+        None,
+    )
+    assert axis is VariantAxis.FIRST_SHOT
+    assert [(p.name, p.first_shot, p.pickup, h) for p, h in found] == [
+        ("a", "k:1-2", None, "x"),
+        ("b", None, "a close-up", "y"),
+    ]

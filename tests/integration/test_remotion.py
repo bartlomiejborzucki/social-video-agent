@@ -405,3 +405,71 @@ def test_text_variants_share_the_audio_and_leave_the_edit_alone(
     assert ws.edl.read_bytes() == edl_before
     assert ws.motion_plan.read_bytes() == plan_before
     assert main_base.read_bytes() == b"main edit base"
+
+
+def test_a_first_shot_variant_previews_renders_full_and_delivers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from social_video.delivery import deliver_workspace
+    from social_video.motion.variant_service import VariantRequest, make_variants
+    from social_video.schemas.base import load_artifact, save_artifact
+
+    source = make_video(tmp_path / "kamera.mp4", duration=6.0, width=360, height=640)
+    font = default_caption_font()
+    assert font is not None
+    manifest = build_manifest([source])
+    sid = manifest.ids[0]
+    ws = Workspace.at(tmp_path / "edit").ensure()
+    save_artifact(manifest, ws.source_manifest)
+    save_artifact(
+        EDL(
+            output_width=360, output_height=640, output_fps="30/1", normalize_audio=False,
+            ranges=[EDLRange(source=sid, start=0, end=3), EDLRange(source=sid, start=3, end=6)],
+        ),
+        ws.edl,
+    )  # fmt: skip
+    save_artifact(
+        MotionPlan(rationale="r", font_family=font.family, font_path=str(font.path)),
+        ws.motion_plan,
+    )
+    edl_before = ws.edl.read_bytes()
+    state = SimpleNamespace(
+        renderer=Renderer.REMOTION,
+        remotion_license_attestation=RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE,
+    )
+    monkeypatch.setattr("social_video.workflow.load_workflow", lambda _ws: state)
+    monkeypatch.setattr("social_video.delivery.load_workflow", lambda _ws: state, raising=False)
+
+    previews, _ = make_variants(
+        ws,
+        VariantRequest(
+            first_shots=[f"{sid}:4.0-5.0"],
+            pickups=["a close-up of the hands"],
+            hypotheses=["movement first", "a detail first"],
+            seconds=2.0,
+        ),
+    )
+    shot, pickup = previews.variants
+    assert previews.axis.value == "first_shot"
+    assert Path(shot.preview).is_file()
+    assert any("repeats footage used in range 2" in w for w in shot.warnings)
+    assert pickup.needs_pickup and not pickup.preview
+    variant_edl = load_artifact(EDL, Path(shot.edl or ""))
+    assert variant_edl.ranges[0].start == 4.0
+    assert variant_edl.ranges[1:] == load_artifact(EDL, ws.edl).ranges[1:]
+
+    whole, _ = make_variants(ws, VariantRequest(only=["a"], seconds=None))
+    assert whole.chosen == "a"
+    assert Path(whole.variants[0].full).is_file()
+
+    delivered = deliver_workspace(
+        ws, tmp_path / "delivery", with_captions=False, no_captions=False, srt=False,
+        vtt=False, poster=False, hook_variants=True, allow_temporary=True,
+    )  # fmt: skip
+    (item,) = [i for i in delivered.items if i.variant == "a"]
+    assert item.variant_axis == "first_shot"
+    assert item.variant_hypothesis == "movement first"
+    assert delivered.variant_comparison_caveat
+    assert ws.edl.read_bytes() == edl_before
