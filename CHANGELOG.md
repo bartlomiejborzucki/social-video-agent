@@ -4,6 +4,18 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Added
+
+- `style analyze --editorial`: besides the rhythm, writes stills of a
+  reference (the first frame, every 0.5 s of the first 3 s, just after each
+  cut, the middle of each shot, the last frame), its timed transcript and the
+  limits of that sample under `context/reference/`. The agent reads them in
+  its own session and writes `context/reference-analysis.json`: timed
+  observations, hypotheses that cite them, stretches to watch and what not to
+  copy. `style check-analysis` checks every claim is anchored to a moment that
+  exists and writes `context/reference-analysis.md`. No model API is called.
+- MCP tools `style_analyze` and `style_check_analysis`.
+
 ### Changed
 
 - `hook check` keeps only general Polish word lists. The concrete-situation

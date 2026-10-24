@@ -207,7 +207,8 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
   `motion suggest` candidates the agent accepts plus graphics it adds, sized to
   the project's `motion_energy`. Read [motion-design.md](references/motion-design.md).
   When the user shows a reference video, measure it with `style analyze` and
-  borrow only its rhythm.
+  borrow only its rhythm. To learn how it tells its story, read
+  [reference-analysis.md](references/reference-analysis.md).
   Remotion enriches an approved edit; it does not decide the story or repair
   insufficient footage.
 - A full-frame graphic may instead be authored as a Claude Motion film, only
@@ -267,6 +268,7 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 | Agent on Windows, engine in WSL2 | [hybrid-runtime.md](references/hybrid-runtime.md) |
 | The opening, the cover and the montage brief | [opening.md](references/opening.md) |
 | Short-form practices, length, reach | [short-form.md](references/short-form.md) |
+| How a reference video holds attention | [reference-analysis.md](references/reference-analysis.md) |
 | Hook card, graphics, punch-ins, transitions, b-roll | [motion-design.md](references/motion-design.md) |
 | Hook, chapter or end card designed in Claude Motion | [motion-film.md](references/motion-film.md) |
 

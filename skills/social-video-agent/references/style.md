@@ -80,7 +80,10 @@ suggest` proposes and how the spoken word animates. `style_pack: editorial |
 bold-social | tech-minimal` sets the look of every graphic, in the brand's
 colours and font. `caption_style.animation: pop | box` overrides the word
 animation (Remotion draws it; the FFmpeg route draws a colour highlight and
-brand QA warns). See [motion-design.md](motion-design.md).
+brand QA warns). See [motion-design.md](motion-design.md). To match a
+reference video, `style analyze` measures its rhythm; `--editorial` prepares
+stills and its timed transcript for a read of how it tells the story
+([reference-analysis.md](reference-analysis.md)).
 
 ## Captions
 

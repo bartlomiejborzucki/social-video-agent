@@ -160,9 +160,16 @@ def sheet_moments(cuts: list[float], duration: float) -> list[tuple[float, str]]
 
 
 def analyze_reference(
-    video: Path, *, transcript: Transcript | None = None, sheet: Path | None = None
+    video: Path,
+    *,
+    transcript: Transcript | None = None,
+    sheet: Path | None = None,
+    cuts: list[float] | None = None,
 ) -> StyleReference:
-    """Measure ``video``; write a contact sheet to ``sheet`` when given."""
+    """Measure ``video``; write a contact sheet to ``sheet`` when given.
+
+    ``cuts`` skips scene detection when the caller has already run it.
+    """
     info = probe(video)
     if info.video is None:
         raise ValidationError(f"{video.name} has no video stream; a reference must be a video")
@@ -171,7 +178,8 @@ def analyze_reference(
     duration = info.duration
     width, height = info.video.display_size
 
-    cuts = scene_cut_times(detect_scenes(video, min_scene_len=MIN_SHOT))
+    if cuts is None:
+        cuts = scene_cut_times(detect_scenes(video, min_scene_len=MIN_SHOT))
     shots = shot_rhythm(cuts, duration)
 
     speech = None

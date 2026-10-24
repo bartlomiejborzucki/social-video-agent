@@ -168,6 +168,24 @@ class Workspace:
         return self.context / "style-reference.png"
 
     @property
+    def reference_dir(self) -> Path:
+        """Stills and timed transcript of a reference, for an editorial read."""
+        return self.context / "reference"
+
+    @property
+    def reference_material(self) -> Path:
+        return self.reference_dir / "material.json"
+
+    @property
+    def reference_analysis(self) -> Path:
+        """The agent's editorial read of the reference (`style check-analysis`)."""
+        return self.context / "reference-analysis.json"
+
+    @property
+    def reference_analysis_summary(self) -> Path:
+        return self.context / "reference-analysis.md"
+
+    @property
     def technical_qa(self) -> Path:
         return self.qa / "qa-technical.json"
 

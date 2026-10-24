@@ -41,6 +41,8 @@ else's video to use as a reference.
   framing are invisible to scene detection.
 - Name the reference and what you took from it in `motion-plan.json`'s
   `rationale`.
+- For how the reference opens, promises and pays off (not only its rhythm),
+  add `--editorial` and follow [reference-analysis.md](reference-analysis.md).
 
 ## Workflow (Stage 2)
 
