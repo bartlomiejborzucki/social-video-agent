@@ -4,6 +4,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Fixed
+
+- `workflow status` and `workflow resume` take the workspace as `-w`, like the
+  other commands, as well as the argument.
+- `workflow status` names the command that makes each missing artifact
+  (`next_commands` in `--json`), so a resumed session does not have to guess
+  how to write, say, the motion plan.
+
 ## [2.7.0] - 2026-10-25
 
 An editorial read of a reference video from stills and its transcript, and

@@ -223,6 +223,38 @@ def test_status_reports_required_and_missing_artifacts(tmp_path: Path) -> None:
     assert state.project_context_path in status["required_artifacts"]
     assert state.edit_plan_path in status["missing_artifacts"]
     assert state.project_context_path not in status["missing_artifacts"]
+    assert status["next_commands"] == [
+        {
+            "artifact": state.edit_plan_path,
+            "command": f"social-video-agent plan {state.source_media[0]} -w {state.workspace}",
+        }
+    ]
+
+
+def test_status_names_the_command_for_a_missing_motion_plan(tmp_path: Path) -> None:
+    _, _, workspace, state = _setup(tmp_path, renderer=Renderer.REMOTION)
+    _write_stage_1(workspace)
+    state = advance_workflow(workspace, WorkflowStage.EDITORIAL_PLAN)
+
+    commands = {
+        item["artifact"]: item["command"] for item in workflow_status(state)["next_commands"]
+    }
+
+    assert commands[state.motion_plan_path].startswith("social-video-agent motion suggest ")
+    assert commands[state.edl_path] == f"social-video-agent compile -w {state.workspace}"
+
+
+def test_status_takes_the_workspace_as_an_option(tmp_path: Path) -> None:
+    from typer.testing import CliRunner
+
+    from social_video.cli import app
+
+    _, _, workspace, _ = _setup(tmp_path)
+
+    for command in ("status", "resume"):
+        result = CliRunner().invoke(app, ["workflow", command, "-w", str(workspace.root), "--json"])
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output)["current_stage"] == "stage_1_editorial_plan"
 
 
 def test_stage_0_blocks_remotion_before_creating_workspace_without_attestation(

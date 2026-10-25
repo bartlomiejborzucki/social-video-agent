@@ -2,7 +2,8 @@
 
 `workflow-state.json` is the cross-model and cross-conversation router. Read it
 before doing work. After completing a stage run `workflow complete N`; this
-validates artifacts and advances state. `workflow status` reports missing files,
+validates artifacts and advances state. `workflow status WORKSPACE` (or
+`-w WORKSPACE`) reports missing files with the command that makes each one,
 the next stage, model tier/name, effort, and continuation prompt.
 
 ## Stage 0 — mandatory renderer and license gate

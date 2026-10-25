@@ -164,13 +164,16 @@ def workflow_show_status(
     workspace_dir: Path = typer.Argument(Path(), help="Edit workspace, or a batch's parent."),
     language: str = typer.Option("en", "--language"),
     as_json: bool = typer.Option(False, "--json"),
+    workspace_option: Path | None = typer.Option(
+        None, "--workspace", "-w", help="Same as the argument, as other commands take it."
+    ),
 ) -> None:
     """Report persisted state, missing artifacts, and the recommended handoff."""
     from social_video.workflow import load_workflow, workflow_status
     from social_video.workflow.batch import batch_status, is_batch
     from social_video.workspace.layout import Workspace
 
-    workspace = Workspace.at(workspace_dir)
+    workspace = Workspace.at(workspace_option or workspace_dir)
     if is_batch(workspace) and not workspace.workflow_state.is_file():
         _print_batch(_guard(lambda: batch_status(workspace, language=language)), as_json=as_json)
         return
@@ -208,9 +211,12 @@ def workflow_resume(
     workspace_dir: Path = typer.Argument(Path(), help="Edit workspace."),
     language: str = typer.Option("en", "--language"),
     as_json: bool = typer.Option(False, "--json"),
+    workspace_option: Path | None = typer.Option(
+        None, "--workspace", "-w", help="Same as the argument, as other commands take it."
+    ),
 ) -> None:
     """Resume from files only; equivalent to workflow status."""
-    workflow_show_status(workspace_dir, language, as_json)
+    workflow_show_status(workspace_dir, language, as_json, workspace_option)
 
 
 @workflow_app.command("brief")
@@ -366,6 +372,12 @@ def _print_workflow(payload: dict[str, Any], *, as_json: bool) -> None:
         console.print(f"[yellow]{missing_label}[/yellow]")
         for path in payload["missing_artifacts"]:
             console.print(f"  - {escape(path)}")
+        if payload.get("next_commands"):
+            console.print(
+                "[bold]Jak je utworzyć:[/bold]" if polish else "[bold]To make them:[/bold]"
+            )
+            for item in payload["next_commands"]:
+                console.print(f"  {escape(item['command'])}", soft_wrap=True)
     if payload["handoff_required"]:
         model_label = "Zalecane modele" if polish else "Recommended models"
         effort_label = "Poziom rozumowania" if polish else "Reasoning"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -269,6 +270,7 @@ def workflow_status(state: WorkflowState, *, language: str = "en") -> dict[str, 
         "next_prompt": prompt,
         "required_artifacts": _required_paths(state, state.current_stage),
         "missing_artifacts": missing,
+        "next_commands": _next_commands(state, missing),
         "workspace": state.workspace,
         "target_project_root": state.target_project_root,
         "renderer": state.renderer.value,
@@ -399,6 +401,33 @@ def _required_paths(state: WorkflowState, stage: WorkflowStage) -> list[str]:
 
 def _missing_for_stage(state: WorkflowState, stage: WorkflowStage) -> list[str]:
     return [path for path in _required_paths(state, stage) if not Path(path).is_file()]
+
+
+def _next_commands(state: WorkflowState, missing: list[str]) -> list[dict[str, str]]:
+    """The command that writes each missing artifact, so a resumed session need not guess.
+
+    The editorial QA has none: the supervising editor writes it in Stage 3.
+    """
+    ws = shlex.quote(state.workspace)
+    source = shlex.quote(state.source_media[0])
+    makers = {
+        state.project_context_path: (
+            f"social-video-agent context refresh {shlex.quote(state.target_project_root)} -w {ws}"
+        ),
+        state.edit_plan_path: f"social-video-agent plan {source} -w {ws}",
+        state.edl_path: f"social-video-agent compile -w {ws}",
+        state.motion_plan_path: (
+            f"social-video-agent motion suggest {source} -w {ws}, "
+            f"then social-video-agent motion accept IDS -w {ws}"
+        ),
+        state.preview_path: f"social-video-agent render {ws} --quality preview",
+        state.technical_qa_path: f"social-video-agent qa {ws}",
+        str(Workspace.at(state.workspace).motion_qa): f"social-video-agent motion qa -w {ws}",
+        state.final_output_path: f"social-video-agent render {ws} --quality final",
+        state.brand_qa_path: f"social-video-agent qa {ws}",
+        state.delivery_manifest_path: f"social-video-agent deliver {ws}",
+    }
+    return [{"artifact": path, "command": makers[path]} for path in missing if path in makers]
 
 
 def _next_prompt(stage: WorkflowStage, language: str) -> str:
