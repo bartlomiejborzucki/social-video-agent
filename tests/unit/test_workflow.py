@@ -383,5 +383,5 @@ def test_a_remotion_review_needs_measured_motion_qa(tmp_path: Path) -> None:
 def test_status_commands_quote_only_paths_that_need_it() -> None:
     from social_video.workflow.service import _arg
 
-    assert _arg(r"C:\Users\ola\Temp\edit") == r"C:\Users\ola\Temp\edit"
+    assert _arg(r"C:\Users\user\Temp\edit") == r"C:\Users\user\Temp\edit"
     assert _arg("/mnt/c/Projekty/rolka z placu/edit") == '"/mnt/c/Projekty/rolka z placu/edit"'
