@@ -256,6 +256,11 @@ def test_status_takes_the_workspace_as_an_option(tmp_path: Path) -> None:
         assert result.exit_code == 0, result.output
         assert json.loads(result.output)["current_stage"] == "stage_1_editorial_plan"
 
+    _write_stage_1(workspace)
+    done = CliRunner().invoke(app, ["workflow", "complete", "1", str(workspace.root), "--json"])
+    assert done.exit_code == 0, done.output
+    assert json.loads(done.output)["current_stage"] == "stage_2_execution"
+
 
 def test_stage_0_blocks_remotion_before_creating_workspace_without_attestation(
     tmp_path: Path,

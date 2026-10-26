@@ -250,6 +250,9 @@ def workflow_brief(
 @workflow_app.command("complete")
 def workflow_complete(
     stage: int = typer.Argument(..., min=1, max=5),
+    workspace_arg: Path | None = typer.Argument(
+        None, metavar="[WORKSPACE]", help="Edit workspace; the same as -w."
+    ),
     workspace_dir: Path = typer.Option(Path(), "--workspace", "-w"),
     language: str = typer.Option("en", "--language"),
     as_json: bool = typer.Option(False, "--json"),
@@ -266,7 +269,8 @@ def workflow_complete(
         4: WorkflowStage.FINALIZATION,
         5: WorkflowStage.DELIVERY,
     }
-    state = _guard(lambda: advance_workflow(Workspace.at(workspace_dir), stages[stage]))
+    workspace = Workspace.at(workspace_arg or workspace_dir)
+    state = _guard(lambda: advance_workflow(workspace, stages[stage]))
     _print_workflow(workflow_status(state, language=language), as_json=as_json)
 
 
@@ -367,6 +371,17 @@ def _print_workflow(payload: dict[str, Any], *, as_json: bool) -> None:
                 "`social-video-agent remotion-license attest DECLARATION --accept-terms`"
             )
             console.print(f"[dim]{escape(hint)}[/dim]", soft_wrap=True)
+    present = [
+        p for p in payload.get("required_artifacts", []) if p not in payload["missing_artifacts"]
+    ]
+    if present:
+        console.print(
+            "[green]Gotowe w tym etapie:[/green]"
+            if polish
+            else "[green]Done for this stage:[/green]"
+        )
+        for path in present:
+            console.print(f"  - {escape(path)}")
     if payload["missing_artifacts"]:
         missing_label = "Brakujące artefakty etapu:" if polish else "Missing for this stage:"
         console.print(f"[yellow]{missing_label}[/yellow]")
