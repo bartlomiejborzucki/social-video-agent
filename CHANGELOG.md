@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-10-26
+
+Fixes from the first manual run of reference analysis and opening variants.
+
 ### Fixed
 
 - `workflow status` and `workflow resume` take the workspace as `-w`, and

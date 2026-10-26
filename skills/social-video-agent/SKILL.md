@@ -3,8 +3,8 @@ name: social-video-agent
 description: Create project-aware Reels and Shorts from recordings with local transcription, an explicit plan and EDL, persistent stages, rendering, and QA. Use when asked to edit, trim, caption, reframe, review or resume a preview, or create delivery variants. Do not use for generated video or simple conversion.
 license: Apache-2.0
 metadata:
-  version: "2.7.0"
-  last_updated: "2026-10-25"
+  version: "2.7.1"
+  last_updated: "2026-10-26"
 ---
 
 # Project-aware social video editing
