@@ -123,6 +123,12 @@ def limitations(
     ]
     if transcript is None:
         found.append("not transcribed: what is said was not analysed (run with --transcribe)")
+    elif not transcript.words:
+        model = transcript.provider_model or transcript.provider
+        found.append(
+            f"no speech found by the transcript ({model}): the read rests on the stills, "
+            "on-screen text and sound; there is no first sentence to measure"
+        )
     else:
         model = transcript.provider_model or transcript.provider
         found.append(f"automatic transcript ({model}): check a word before quoting it")

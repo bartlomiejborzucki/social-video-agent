@@ -179,3 +179,15 @@ def test_cli_writes_stills_and_checks_a_read(tmp_path: Path):
     path = save_artifact(bad, tmp_path / "bad.json")
     refused = runner.invoke(app, ["style", "check-analysis", str(path), "-w", str(workspace)])
     assert refused.exit_code == 1
+
+
+def test_a_reference_without_speech_says_so() -> None:
+    from social_video.analysis.reference_editorial import limitations
+    from social_video.schemas.transcript import Transcript
+
+    silent = Transcript(
+        source_id="wzorzec", source_fingerprint="f" * 16, duration=10.0, provider="fake",
+        provider_model="small", tokens=[],
+    )  # fmt: skip
+    found = limitations([], 10.0, transcript=silent, audio=True)
+    assert any(item.startswith("no speech found by the transcript (small)") for item in found)

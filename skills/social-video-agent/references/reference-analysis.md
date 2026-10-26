@@ -77,6 +77,15 @@ Rules:
 }
 ```
 
+### A reference without speech
+
+When the transcript finds no words (`style analyze` prints "no speech found"
+and adds it to `limitations`), the video speaks through on-screen text, picture
+and sound. Read the text in the stills instead: `said_vs_written` records what
+is written and that nothing is said, `promise` and `payoff` come from the
+written lines, and the measures have no first sentence. Say what the music or
+sound does only where a still or a measure shows it.
+
 ## 3. Check it
 
 ```bash

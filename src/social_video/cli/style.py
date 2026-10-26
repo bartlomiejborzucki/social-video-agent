@@ -67,7 +67,7 @@ def style_analyze(
                 source, transcript=transcript, sheet=ws.style_reference_sheet
             )
             save_artifact(result, ws.style_reference)
-            return result, None
+            return result, None, transcript
         from social_video.analysis.reference_editorial import prepare_editorial
 
         transcript_path = None
@@ -83,9 +83,9 @@ def style_analyze(
         )
         save_artifact(result, ws.style_reference)
         save_artifact(material, ws.reference_material)
-        return result, material
+        return result, material, transcript
 
-    result, material = _guard(run)
+    result, material, transcript = _guard(run)
     current = None
     if ws.brand_contract.is_file():
         brand = load_artifact(BrandContract, ws.brand_contract).brand
@@ -126,6 +126,14 @@ def style_analyze(
         if speech.words_per_minute is not None:
             line += f", {speech.words_per_minute:.0f} words/min"
         console.print(line)
+    if transcript is not None:
+        model = transcript.provider_model or transcript.provider
+        heard = (
+            f"{len(transcript.words)} words"
+            if transcript.words
+            else "[yellow]no speech found[/yellow]"
+        )
+        console.print(f"  transcript   {heard} ({escape(model)})")
     energy = rec.motion_energy
     if current and current != energy:
         energy += f" (project: {current})"
