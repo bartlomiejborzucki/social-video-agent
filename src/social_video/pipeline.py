@@ -458,8 +458,12 @@ def stage_render(
     audio_cleanup: bool = True,
     persist_artifacts: bool = True,
     base_name: str | None = None,
+    voice_reference: EDL | None = None,
 ) -> Path:
     """Render ``edl``; returns the output path.
+
+    ``voice_reference``: the whole edit when ``edl`` is an excerpt of it, so
+    the voice repair is decided on the whole (see `render_edl`).
 
     ``persist_artifacts=False`` keeps adjustments made for this render (a held
     end card, stickers anchored to words) out of the workspace EDL and motion
@@ -622,6 +626,7 @@ def stage_render(
         audio_cleanup_policy=cleanup_policy,
         caption_fonts_dir=caption_fonts_dir,
         shakes=ffmpeg_shakes,
+        voice_reference=voice_reference,
     )
     if renderer is Renderer.REMOTION:
         from social_video.remotion import render_motion_design

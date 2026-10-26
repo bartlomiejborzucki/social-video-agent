@@ -689,11 +689,15 @@ def render_edl(
     audio_cleanup_policy: str = "none",
     caption_fonts_dir: Path | None = None,
     shakes: list[ShakeWindow] | None = None,
+    voice_reference: EDL | None = None,
 ) -> RenderManifest:
     """Render an EDL to a file. Returns a manifest describing what was made.
 
     ``caption_fonts_dir`` lets libass load the brand's own font file, so the
-    captions it draws are the ones that were measured.
+    captions it draws are the ones that were measured. ``voice_reference`` is
+    the whole edit an excerpt comes from: the voice is measured on it, so a
+    6 s preview gets the repair the full render gets, not one decided from
+    6 s of noise floor.
     """
     warnings = validate_edl(edl, manifest)
     for warning in warnings:
@@ -722,9 +726,23 @@ def render_edl(
     mix, mix_inputs = _music_inputs(edl, next_input, total_output_duration)
     inputs += mix_inputs
 
-    cleanup = _plan_voice_cleanup(
-        edl, render_ranges, inputs, policy=audio_cleanup_policy, quality=quality
-    )
+    if voice_reference is not None and audio_cleanup_policy != "none":
+        reference_infos = [
+            probe(manifest.by_id(r.effective_video_source).resolved_path())
+            for r in voice_reference.ranges
+        ]
+        reference_inputs, reference_ranges, _ = _collect_inputs(
+            voice_reference, manifest, reference_infos,
+            allocate_range_frames(voice_reference, fps), rate,
+        )  # fmt: skip
+        cleanup = _plan_voice_cleanup(
+            voice_reference, reference_ranges, reference_inputs,
+            policy=audio_cleanup_policy, quality=quality,
+        )  # fmt: skip
+    else:
+        cleanup = _plan_voice_cleanup(
+            edl, render_ranges, inputs, policy=audio_cleanup_policy, quality=quality
+        )
     loudnorm = _plan_loudness(edl, render_ranges, inputs, mix, cleanup, quality)
 
     graph, vlabel, alabel = build_filtergraph(
