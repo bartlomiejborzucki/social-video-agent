@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import shlex
+import re
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -403,16 +403,25 @@ def _missing_for_stage(state: WorkflowState, stage: WorkflowStage) -> list[str]:
     return [path for path in _required_paths(state, stage) if not Path(path).is_file()]
 
 
+def _arg(value: str) -> str:
+    """A path as a shell argument: bare when safe, else in double quotes.
+
+    Double quotes read the same in bash, PowerShell and cmd, so a Windows
+    path keeps its backslashes and a folder name with spaces stays one word.
+    """
+    return value if re.fullmatch(r"[\w./\\:~+@=,-]+", value) else f'"{value}"'
+
+
 def _next_commands(state: WorkflowState, missing: list[str]) -> list[dict[str, str]]:
     """The command that writes each missing artifact, so a resumed session need not guess.
 
     The editorial QA has none: the supervising editor writes it in Stage 3.
     """
-    ws = shlex.quote(state.workspace)
-    source = shlex.quote(state.source_media[0])
+    ws = _arg(state.workspace)
+    source = _arg(state.source_media[0])
     makers = {
         state.project_context_path: (
-            f"social-video-agent context refresh {shlex.quote(state.target_project_root)} -w {ws}"
+            f"social-video-agent context refresh {_arg(state.target_project_root)} -w {ws}"
         ),
         state.edit_plan_path: f"social-video-agent plan {source} -w {ws}",
         state.edl_path: f"social-video-agent compile -w {ws}",

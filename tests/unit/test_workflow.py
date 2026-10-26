@@ -378,3 +378,10 @@ def test_a_remotion_review_needs_measured_motion_qa(tmp_path: Path) -> None:
     save_artifact(QAReport(output="preview.mp4"), workspace.motion_qa)
     after = advance_workflow(workspace, WorkflowStage.EDITORIAL_REVIEW)
     assert after.current_stage is WorkflowStage.FINALIZATION
+
+
+def test_status_commands_quote_only_paths_that_need_it() -> None:
+    from social_video.workflow.service import _arg
+
+    assert _arg(r"C:\Users\ola\Temp\edit") == r"C:\Users\ola\Temp\edit"
+    assert _arg("/mnt/c/Projekty/rolka z placu/edit") == '"/mnt/c/Projekty/rolka z placu/edit"'
