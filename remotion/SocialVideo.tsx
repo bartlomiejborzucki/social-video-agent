@@ -670,6 +670,11 @@ const ExtendedGraphic: React.FC<{
               : {...card, padding: '30px 38px'}
           }
         >
+          {element.text ? (
+            <div style={{fontSize: top ? 46 * u : 46, fontWeight: 800, lineHeight: 1.15, marginBottom: top ? 18 * u : 18}}>
+              {element.text}
+            </div>
+          ) : null}
           {items.map((item, index) => {
             const at = (window / items.length) * index;
             const shown = spring({frame: frame - at, fps, config: {damping: 20, stiffness: 170}});
