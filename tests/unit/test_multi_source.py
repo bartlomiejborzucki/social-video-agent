@@ -19,7 +19,7 @@ from social_video.profiles import load_profile
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.brand import CaptionStyle
 from social_video.schemas.captions import CaptionCue, CaptionTrack, CaptionWord
-from social_video.schemas.edl import EDL, EDLRange, ReframeMode, ReframePlan
+from social_video.schemas.edl import EDL, EDLRange, ReframeMode, ReframePlan, SoundEffect
 from social_video.schemas.motion import MotionElement, MotionElementType
 from social_video.schemas.plan import EditPlan, PlanAction, PlanItem
 from social_video.schemas.transcript import TokenType, Transcript, TranscriptToken
@@ -323,3 +323,18 @@ def test_a_voice_longer_than_the_slowed_picture_says_which_speed_fits() -> None:
     )  # fmt: skip
     with pytest.raises(ValueError, match=r"set speed to 0\.\d+ or less"):
         compile_plan(plan, CHILD, PROFILE, source_id="plac", transcripts={"dziecko": CHILD})
+
+
+@requires_ffmpeg
+def test_a_forced_compile_says_it_dropped_the_sound_effects(tmp_path: Path) -> None:
+    ws, _ = _voice_only_workspace(tmp_path)
+    args = ["compile", "-w", str(ws.root), "--no-captions", "--word-edges"]
+    assert CliRunner().invoke(app, args).exit_code == 0
+    edl = load_artifact(EDL, ws.edl)
+    effect = SoundEffect(path="pop.wav", at=0.5, reason="a pop under the label")
+    save_artifact(edl.model_copy(update={"sound_effects": [effect]}), ws.edl)
+
+    result = CliRunner().invoke(app, [*args, "--force"])
+
+    assert result.exit_code == 0, result.output
+    assert "had 1 sound effect(s)" in " ".join(result.output.split())

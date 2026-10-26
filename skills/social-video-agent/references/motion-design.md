@@ -63,7 +63,9 @@ else's video to use as a reference.
    transition, a pop under each graphic, a hit under the hook card, from a
    folder of effects. Without LIBRARY it uses a small built-in CC0 set (whoosh,
    whip, click from `@remotion/sfx`), downloaded once into the cache and checked
-   against pinned hashes.
+   against pinned hashes. The effects live in `edl.json`: run it after the
+   last `compile --force` (which rebuilds the EDL from the plan, so an end
+   card's new `hold` reaches `end_hold`, and warns that it dropped them).
 5. Optionally `broll suggest SOURCE -w WORKSPACE` (the library is
    `broll_library` in the config, or `--library DIR`), then `broll accept`:
    the user's own clips cut in where their subject is said. See below.

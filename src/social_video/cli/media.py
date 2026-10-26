@@ -393,7 +393,7 @@ def compile_edl(
     )
     from social_video.profiles import load_profile
     from social_video.schemas.base import load_artifact
-    from social_video.schemas.edl import ReframeMode
+    from social_video.schemas.edl import EDL, ReframeMode
     from social_video.schemas.plan import EditPlan
     from social_video.transcribe.base import TranscriptionOptions
     from social_video.workspace.layout import Workspace
@@ -415,6 +415,12 @@ def compile_edl(
                 f"{ws.edl} already exists and may hold hand-made decisions; "
                 "pass --force to rebuild it from the plan"
             )
+        replaced = 0
+        if ws.edl.is_file():
+            try:
+                replaced = len(load_artifact(EDL, ws.edl).sound_effects)
+            except Exception:  # an unreadable EDL is being replaced anyway
+                replaced = 0
         try:
             mode = ReframeMode(reframe) if reframe else None
         except ValueError:
@@ -437,11 +443,16 @@ def compile_edl(
             stage_captions(heard or [transcript], edl, ws, load_workspace_brand(ws))
             for note in anchor_workspace_reactions(ws, edl):
                 err_console.print(f"[green]anchored[/green] {escape(note)}")
-        return edl, edges
+        return edl, edges, replaced
 
-    edl, edges = _guard(run)
+    edl, edges, replaced = _guard(run)
     shifts = [shift.describe() for shift in edges.shifts] if edges else []
     warnings = list(edges.warnings) if edges else []
+    if replaced and not edl.sound_effects:
+        warnings.append(
+            f"the replaced edl.json had {replaced} sound effect(s), which the plan does not "
+            f"carry; run `motion sfx -w {ws.root}` again"
+        )
     if ws.editorial_qa.is_file():
         from social_video.editorial.review import lost_editorial_fixes
         from social_video.schemas.editorial_qa import EditorialQA
