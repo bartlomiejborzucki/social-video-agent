@@ -48,6 +48,10 @@ export const useTransition = (transitions: Transition[]): TransitionState => {
 /**
  * The hue shift that turns the leak's own yellow-orange (about 35 degrees)
  * into the brand accent's hue. A grey accent keeps the warm default.
+ *
+ * The effect's shader builds its rotation with GLSL's column-major `mat3`,
+ * which turns the hue back by `hueShift`, not forward: a turquoise accent
+ * asked for as `hue - 35` came out violet. So the shift is `35 - hue`.
  */
 export const leakHueShift = (accent: string): number => {
   const value = accent.replace('#', '');
@@ -60,5 +64,5 @@ export const leakHueShift = (accent: string): number => {
   }
   const hue =
     max === r ? 60 * (((g - b) / chroma) % 6) : max === g ? 60 * ((b - r) / chroma + 2) : 60 * ((r - g) / chroma + 4);
-  return (((hue - 35) % 360) + 360) % 360;
+  return (((35 - hue) % 360) + 360) % 360;
 };
