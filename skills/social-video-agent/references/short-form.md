@@ -32,25 +32,40 @@ below is either measured by `reel-check` or a judgement for you to make.
 - **Test one change at a time.** `motion variants` renders opening variants
   along one axis and records what each tests:
   - `--axis text` (`--text LINE` or `--from-brief`): the opening line. A line
-    the speaker says word for word may become the first caption, with its real
-    timings; any other line appears as on-screen text over the opening and the
-    captions keep the transcript. The variants must share one audio track,
+    the speaker says word for word **within the first caption** may become
+    that caption, with its real timings; a fragment of it shortens the caption
+    and hides the rest of what is said there. Any other line, including a said
+    sentence that runs into the second caption, appears as on-screen text over
+    the opening (a label; the scene's own label gives way to it for those
+    seconds) and the captions keep the transcript. Under `label_style:
+    scene_frame` that text is the frame's title, so a line too long for the
+    tab is refused before anything renders, with the length that fits; a
+    brief's first sentence often is. A line equal to the first caption is the
+    control: it changes nothing. The variants must share one audio track,
     checked by hash.
   - `--axis first_shot` (`--first-shot SOURCE:START-END`): the first range is
     replaced, ranges two onwards stay identical, captions are rebuilt for the
-    variant and its motion is moved by the change in length. When no recorded
-    span can open that way, record `--pickup "what to film"` instead; it is
-    not rendered.
+    variant and its motion and sound effects are moved by the change in
+    length. A span that starts or ends mid-sentence is warned about, with the
+    end that finishes the sentence. A label that named the old first shot is
+    left off it (listed in `changes`); add one for the new shot if it needs
+    it. When no recorded span can open that way, record `--pickup "what to
+    film"` instead; it is not rendered.
 
   Give one `--hypothesis` per variant. Two variants is the default; more are
   harder to compare. Previews of the first 6 s come first
-  (`previews/opening-<name>-6s.mp4`); render the chosen one with
-  `--full --only NAME`, then `deliver --hook-variants` delivers it as
+  (`previews/opening-<axis>-<name>-6s.mp4`); their voice repair is decided on
+  the whole variant, so they sound like the full render. Render the chosen one
+  with `--full --only NAME` (at `final` quality unless `--quality` says
+  otherwise), then `deliver --hook-variants` delivers it as
   `final-hook-<name>.mp4` with its own opening QA. The record is
-  `analysis/hook-variants.json`: axis, base hashes, each variant's changes,
-  shared elements and warnings. Spoken opening, pacing and ending are not
-  built yet. Two different story structures are two concepts, not a test of
-  one change.
+  `analysis/hook-variants.json` (the set made last, the one delivered), and
+  each axis keeps its own `analysis/hook-variants-<axis>.json`, so a
+  first-shot run does not lose the text set: `--axis text --full --only a`
+  renders from it. Each record has the axis, base hashes, each variant's
+  changes, shared elements and warnings. Spoken opening, pacing and ending
+  are not built yet. Two different story structures are two concepts, not a
+  test of one change.
 - **Reading the results.** Two organic posts of two variants are not an A/B
   test: the date, the audience and the distribution differ. Say so whenever
   results are compared.

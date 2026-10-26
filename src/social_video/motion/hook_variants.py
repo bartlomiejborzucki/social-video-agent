@@ -203,21 +203,43 @@ def verbatim_first_caption(track: CaptionTrack, text: str) -> CaptionTrack | Non
     return None
 
 
-def with_opening_text(plan: MotionPlan, text: str, *, end: float) -> MotionPlan:
-    """The plan with ``text`` as a label over the opening, replacing an earlier one."""
-    elements = [
-        e
-        for e in plan.elements
-        if not (e.type is MotionElementType.LABEL and e.reason.startswith("Opening variant"))
-    ]
+#: A scene label shorter than this after the opening line takes its place is dropped.
+MIN_LABEL_SECONDS = 0.5
+
+
+def with_opening_text(plan: MotionPlan, text: str, *, end: float) -> tuple[MotionPlan, str]:
+    """The plan with ``text`` as a label over the opening, and the label it displaced.
+
+    Only one label is drawn at a time, so a scene label already on screen at
+    the start would hide the line. It gives way: it starts when the line ends,
+    or goes when too little of it would be left. Returns the plan and the text
+    the opening showed before ("" when it showed none).
+    """
+    end = round(end, 3)
+    elements = []
+    before = ""
+    for e in plan.elements:
+        if e.type is not MotionElementType.LABEL:
+            elements.append(e)
+            continue
+        if e.reason.startswith("Opening variant"):
+            continue
+        if e.start < end - 1e-6:
+            if e.start < 1e-6:
+                before = e.text
+            if e.end - end >= MIN_LABEL_SECONDS:
+                elements.append(e.model_copy(update={"start": end}))
+            continue
+        elements.append(e)
     elements.insert(
         0,
         MotionElement(
-            type=MotionElementType.LABEL, start=0.0, end=round(end, 3), text=text,
+            type=MotionElementType.LABEL, start=0.0, end=end, text=text,
             reason="Opening variant: the line is on screen only, not said.",
         ),
     )  # fmt: skip
-    return MotionPlan.model_validate(plan.model_copy(update={"elements": elements}).model_dump())
+    updated = plan.model_copy(update={"elements": elements})
+    return MotionPlan.model_validate(updated.model_dump()), before
 
 
 def opening_text_end(track: CaptionTrack | None) -> float:
@@ -261,6 +283,7 @@ def first_shot_edl(
                 f"the new first shot starts mid-sentence (after “{before[-1].text}”): "
                 "check the meaning still holds"
             )
+        warnings += _ends_mid_sentence(transcript, source, start, end)
     else:
         warnings.append("no transcript for this source: the words of the new opening are unchecked")
     old = edl.ranges[0]
@@ -280,10 +303,65 @@ def first_shot_edl(
     for number, rng in enumerate(edl.ranges[1:], start=2):
         if rng.source == source and rng.start < end and start < rng.end:
             warnings.append(f"the new first shot repeats footage used in range {number}")
+    old_first, new_first = old.output_duration, new.output_duration
+    effects = []
+    for effect in edl.sound_effects:
+        if effect.at >= old_first - 1e-6:
+            effects.append(
+                effect.model_copy(update={"at": round(effect.at - old_first + new_first, 4)})
+            )
+        elif effect.at < new_first - 0.05:
+            effects.append(effect)
+        else:
+            warnings.append(f"the sound effect at {effect.at:.2f}s fell past the new first shot")
     variant = edl.model_copy(
-        update={"ranges": [new, *edl.ranges[1:]], "name": f"{edl.name}-{name}"}
+        update={
+            "ranges": [new, *edl.ranges[1:]],
+            "name": f"{edl.name}-{name}",
+            "sound_effects": effects,
+        }
     )
     return EDL.model_validate(variant.model_dump()), warnings
+
+
+def _ends_mid_sentence(transcript: Transcript, source: str, start: float, end: float) -> list[str]:
+    """A warning when the span stops inside a sentence that carries on after it."""
+    inside = [w for w in transcript.words if w.start >= start - 1e-6 and w.end <= end + 1e-6]
+    after = [w for w in transcript.words if w.start >= end - 1e-6]
+    if not inside or not after:
+        return []
+    last = inside[-1].text.rstrip("\"')]}”")
+    if last.endswith(_SENTENCE_END) or after[0].start - end >= 0.6:
+        return []
+    closing = next((w for w in after if w.text.rstrip("\"')]}”").endswith(_SENTENCE_END)), None)
+    hint = (
+        f"; to finish it, end at {closing.end:.2f}s (after “{closing.text}”): "
+        f"--first-shot {source}:{start:g}-{closing.end:.2f}"
+        if closing is not None
+        else ""
+    )
+    return [f"the new first shot ends mid-sentence (on “{inside[-1].text}”){hint}"]
+
+
+def drop_first_scene_labels(
+    plan: MotionPlan, *, old_first: float, new_first: float
+) -> tuple[MotionPlan, list[str]]:
+    """The plan without the labels that named the replaced first shot.
+
+    A label that covered only the first shot goes; one that ran on over later
+    ranges starts at the new first cut. Returns the plan and the labels' texts.
+    """
+    kept = []
+    gone = []
+    for e in plan.elements:
+        if e.type is not MotionElementType.LABEL or e.start >= old_first - 1e-6:
+            kept.append(e)
+            continue
+        gone.append(e.text)
+        if e.end > old_first + MIN_LABEL_SECONDS:
+            kept.append(e.model_copy(update={"start": old_first}))
+    updated = plan.model_copy(update={"elements": kept})
+    return MotionPlan.model_validate(updated.model_dump()), gone
 
 
 def shift_plan(plan: MotionPlan, *, old_first: float, new_first: float) -> MotionPlan:
@@ -298,6 +376,9 @@ def shift_plan(plan: MotionPlan, *, old_first: float, new_first: float) -> Motio
         start = data["start"]
         if start >= old_first - 1e-6:
             data["start"] = round(start + delta, 4)
+            data[end_field] = round(data[end_field] + delta, 4)
+        elif data[end_field] > old_first + 1e-6:
+            # It runs on past the first cut, so its end moves with what follows.
             data[end_field] = round(data[end_field] + delta, 4)
         else:
             data[end_field] = round(min(data[end_field], new_first), 4)
@@ -354,8 +435,12 @@ def head_of(edl: EDL, plan: MotionPlan | None, seconds: float) -> tuple[EDL, Mot
             update["audio_end"] = round(rng.audio_start + left * rng.voice_speed, 4)
         ranges.append(rng.model_copy(update=update))
         left = 0
+    cut = sum(r.output_duration for r in ranges)
+    effects = [e for e in edl.sound_effects if e.at < cut - 0.05]
     head = EDL.model_validate(
-        edl.model_copy(update={"ranges": ranges, "end_hold": 0.0}).model_dump()
+        edl.model_copy(
+            update={"ranges": ranges, "end_hold": 0.0, "sound_effects": effects}
+        ).model_dump()
     )
     if plan is None:
         return head, None

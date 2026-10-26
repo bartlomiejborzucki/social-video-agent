@@ -258,7 +258,7 @@ def _hook_variant_items(
     """Full-length opening variants from `motion variants`, each with its own opening QA."""
     from social_video.motion.film import load_registry
     from social_video.motion.hook_variants import load_variant_set
-    from social_video.motion.variant_service import registry_path
+    from social_video.motion.variant_service import registry_path, variant_dir
     from social_video.qa.opening import check_opening
     from social_video.schemas.config import OpeningPolicy
 
@@ -287,7 +287,7 @@ def _hook_variant_items(
         report = check_opening(
             target, variant_edl, plan, track, policy, sources=sources,
             film_segments=load_registry(workspace).segments,
-            analysis_dir=workspace.analysis / "variants" / variant.name,
+            analysis_dir=variant_dir(workspace, found.axis, variant.name),
         )  # fmt: skip
         if report.ready is False:
             raise ValidationError(

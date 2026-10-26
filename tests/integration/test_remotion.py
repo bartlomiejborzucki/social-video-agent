@@ -413,6 +413,8 @@ def test_a_first_shot_variant_previews_renders_full_and_delivers(
     from types import SimpleNamespace
 
     from social_video.delivery import deliver_workspace
+    from social_video.errors import ValidationError
+    from social_video.motion.hook_variants import VariantAxis
     from social_video.motion.variant_service import VariantRequest, make_variants
     from social_video.schemas.base import load_artifact, save_artifact
 
@@ -431,9 +433,12 @@ def test_a_first_shot_variant_previews_renders_full_and_delivers(
         ws.edl,
     )  # fmt: skip
     save_artifact(
-        MotionPlan(rationale="r", font_family=font.family, font_path=str(font.path)),
+        MotionPlan(
+            rationale="r", font_family=font.family, font_path=str(font.path),
+            elements=[MotionElement(type="label", start=0, end=3, text="Kuchnia", reason="r")],
+        ),
         ws.motion_plan,
-    )
+    )  # fmt: skip
     edl_before = ws.edl.read_bytes()
     state = SimpleNamespace(
         renderer=Renderer.REMOTION,
@@ -459,6 +464,11 @@ def test_a_first_shot_variant_previews_renders_full_and_delivers(
     variant_edl = load_artifact(EDL, Path(shot.edl or ""))
     assert variant_edl.ranges[0].start == 4.0
     assert variant_edl.ranges[1:] == load_artifact(EDL, ws.edl).ranges[1:]
+    assert not load_artifact(MotionPlan, Path(shot.motion_plan or "")).elements
+    assert any(c.element == "scene label" and c.before == "Kuchnia" for c in shot.changes)
+    assert (ws.analysis / "hook-variants-first_shot.json").is_file()
+    with pytest.raises(ValidationError, match="no text variants recorded yet"):
+        make_variants(ws, VariantRequest(axis=VariantAxis.TEXT, only=["a"], seconds=None))
 
     whole, _ = make_variants(ws, VariantRequest(only=["a"], seconds=None))
     assert whole.chosen == "a"

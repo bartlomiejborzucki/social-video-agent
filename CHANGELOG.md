@@ -6,11 +6,39 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ### Fixed
 
-- `workflow status` and `workflow resume` take the workspace as `-w`, like the
-  other commands, as well as the argument.
+- `workflow status` and `workflow resume` take the workspace as `-w`, and
+  `workflow complete N` takes it as an argument, so every workflow command
+  accepts both.
 - `workflow status` names the command that makes each missing artifact
-  (`next_commands` in `--json`), so a resumed session does not have to guess
-  how to write, say, the motion plan.
+  (`next_commands` in `--json`) and lists what the stage already has, so a
+  resumed session does not have to guess how to write the motion plan or
+  whether to compile again.
+- `motion variants` previews no longer fail when the EDL has sound effects
+  after the preview's end; a first-shot variant moves the effects with the
+  change in length.
+- An on-screen opening line is no longer hidden behind the first scene's
+  label: the label gives way for the line's seconds, and `changes` records
+  the text it replaced. A line too long for the scene frame's title tab is
+  refused before any variant renders, not after the first one.
+- A first-shot span that ends mid-sentence is warned about, with the end that
+  finishes the sentence; the old first shot's label is left off the new one
+  and listed in `changes`; motion that runs past the first cut keeps its
+  length.
+- A second `motion variants` run on another axis no longer loses the first
+  set: each axis keeps `analysis/hook-variants-<axis>.json`, and previews are
+  named `opening-<axis>-<name>`.
+- `motion variants --full` renders at `final` quality unless `--quality`
+  says otherwise.
+- A variant equal to the edit's first caption is recorded as the control,
+  with no change.
+- Preview voice repair is decided on the whole variant, so a 6 s preview is
+  cleaned (or not) the way the full render is.
+- The `light_leak` transition takes the brand accent's hue; it was turned the
+  other way (a turquoise accent came out violet).
+- A `list` draws its `text` as a title, like steps and charts.
+- `compile --force` warns when it drops sound effects from `motion sfx`.
+- `style analyze --editorial` says when the reference has no speech and which
+  transcription model it used.
 
 ## [2.7.0] - 2026-10-25
 

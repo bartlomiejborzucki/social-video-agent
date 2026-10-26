@@ -275,7 +275,9 @@ def motion_variants(
         6.0, "--seconds", min=1.0, help="Preview length; ignored with --full."
     ),
     full: bool = typer.Option(False, "--full", help="Render full length instead of a preview."),
-    quality: str = typer.Option("preview", "--quality"),
+    quality: str | None = typer.Option(
+        None, "--quality", help="Default: final with --full, preview otherwise."
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Render opening variants that change one thing, with what they test.
@@ -283,8 +285,12 @@ def motion_variants(
     Previews of the first seconds come first; render the chosen one with
     `--full --only NAME`. A text line that is not said word for word appears
     as on-screen text and never as a caption, and text variants must share
-    one audio track. The set, with each variant's hypothesis, changes and
-    shared elements, is `analysis/hook-variants.json`.
+    one audio track. Word for word means within the first caption: a said
+    line that runs into the second is on-screen text. The set, with each
+    variant's hypothesis, changes and shared elements, is
+    `analysis/hook-variants.json`; each axis also keeps its own,
+    `hook-variants-AXIS.json`, so `--axis text --only a` finds the text set
+    after a first-shot run.
     """
     from social_video.errors import ValidationError
     from social_video.motion.hook_variants import VariantAxis
@@ -303,7 +309,8 @@ def motion_variants(
         request = VariantRequest(
             axis=chosen_axis, texts=list(texts), from_brief=from_brief,
             first_shots=list(first_shots), pickups=list(pickups), hypotheses=list(hypotheses),
-            only=list(only), seconds=None if full else seconds, quality=quality,
+            only=list(only), seconds=None if full else seconds,
+            quality=quality or ("final" if full else "preview"),
         )  # fmt: skip
         return make_variants(ws, request)
 

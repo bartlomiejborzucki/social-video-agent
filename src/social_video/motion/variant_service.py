@@ -24,6 +24,7 @@ from social_video.motion.hook_variants import (
     VariantBase,
     VariantChange,
     audio_sha256,
+    drop_first_scene_labels,
     first_shot_edl,
     head_of,
     load_variant_set,
@@ -59,7 +60,17 @@ class VariantRequest:
 
 
 def registry_path(ws: Workspace) -> Path:
+    """The set made last, which `deliver --hook-variants` delivers."""
     return ws.analysis / "hook-variants.json"
+
+
+def axis_registry_path(ws: Workspace, axis: VariantAxis) -> Path:
+    """Each axis keeps its own set, so varying another one does not lose it."""
+    return ws.analysis / f"hook-variants-{axis.value}.json"
+
+
+def variant_dir(ws: Workspace, axis: VariantAxis, name: str) -> Path:
+    return ws.analysis / "variants" / f"{axis.value}-{name}"
 
 
 def _content_first(ws: Workspace) -> bool:
@@ -76,10 +87,11 @@ def _proposals(
     """The variants to make, each with its hypothesis."""
     if request.only:
         if known is None:
-            raise ValidationError("no variants recorded yet; make previews first")
+            kind = f"{request.axis.value} " if request.axis is not None else ""
+            raise ValidationError(f"no {kind}variants recorded yet; make previews first")
         if request.axis is not None and request.axis is not known.axis:
             raise ValidationError(
-                f"the recorded variants vary {known.axis.value}, not {request.axis.value}"
+                f"no {request.axis.value} variants recorded yet; make previews first"
             )
         picked = []
         for name in request.only:
@@ -143,6 +155,37 @@ def _proposals(
     return axis, proposals
 
 
+def _check_labels_fit(
+    ws: Workspace, edl: EDL, plan: MotionPlan, track: CaptionTrack | None, lines: list[str]
+) -> None:
+    """Refuse, before any render, an on-screen line too long for the scene frame's tab."""
+    from social_video.motion.layout import scene_frame_geometry, tab_font_px
+    from social_video.schemas.config import BrandContract
+
+    if not ws.brand_contract.is_file():
+        return
+    contract = load_artifact(BrandContract, ws.brand_contract)
+    if contract.brand.label_style != "scene_frame":
+        return
+    geometry = scene_frame_geometry(
+        contract.brand.captions, width=edl.output_width,
+        height=edl.output_height, safe_margins=contract.safe_margins,
+    )  # fmt: skip
+    problems = []
+    for line in lines:
+        if track is not None and verbatim_first_caption(track, line) is not None:
+            continue
+        try:
+            tab_font_px(line, geometry, Path(plan.font_path) if plan.font_path else None)
+        except ValueError as error:
+            problems.append(str(error))
+    if problems:
+        raise ValidationError(
+            "a line not said word for word is shown as the scene frame's title, and "
+            + "; ".join(problems)
+        )
+
+
 def _transcripts(ws: Workspace, edl: EDL) -> list[Transcript]:
     found: list[Transcript] = []
     for rng in edl.ranges:
@@ -172,6 +215,12 @@ def make_variants(ws: Workspace, request: VariantRequest) -> tuple[OpeningVarian
         )
     registry = registry_path(ws)
     known = load_variant_set(registry)
+    if (
+        request.only
+        and request.axis is not None
+        and (known is None or known.axis is not request.axis)
+    ):
+        known = load_variant_set(axis_registry_path(ws, request.axis))
     axis, proposals = _proposals(ws, request, known)
     notes: list[str] = []
     if len(proposals) > 2 and not request.only:
@@ -201,6 +250,9 @@ def make_variants(ws: Workspace, request: VariantRequest) -> tuple[OpeningVarian
         raise ValidationError(
             "the edit changed since the previews were made; make the previews again"
         )
+
+    if axis is VariantAxis.TEXT and content_first:
+        _check_labels_fit(ws, edl, plan, track, [p.text for p, _ in proposals])
 
     made: list[OpeningVariant] = []
     for proposal, hypothesis in proposals:
@@ -240,7 +292,10 @@ def make_variants(ws: Workspace, request: VariantRequest) -> tuple[OpeningVarian
                     )
                 said = verbatim_first_caption(track, text)
                 before = track.cues[0].text if track.cues else ""
-                if said is not None:
+                if said is track:
+                    shown_as = "caption"
+                    shared += ["control: the edit's own first caption", "every cut", "audio"]
+                elif said is not None:
                     shown_as = "caption"
                     if said is not track:
                         captions = ws.captions / f"hook-{proposal.name}.ass"
@@ -257,10 +312,18 @@ def make_variants(ws: Workspace, request: VariantRequest) -> tuple[OpeningVarian
                     shared += ["captions after the first", "every cut", "audio"]
                 else:
                     shown_as = "on_screen_text"
-                    variant_plan = with_opening_text(plan, text, end=opening_text_end(track))
-                    changes.append(
-                        VariantChange(element="on-screen opening text", before="", after=text)
+                    variant_plan, displaced = with_opening_text(
+                        plan, text, end=opening_text_end(track)
                     )
+                    changes.append(
+                        VariantChange(
+                            element="on-screen opening text", before=displaced, after=text
+                        )
+                    )
+                    if displaced:
+                        warnings.append(
+                            f"the scene label “{displaced}” gives way to the line over the opening"
+                        )
                     shared += ["every caption (the transcript)", "every cut", "audio"]
                     notes.append(
                         f"{proposal.name}: “{text}” is not said word for word, so it is "
@@ -279,9 +342,18 @@ def make_variants(ws: Workspace, request: VariantRequest) -> tuple[OpeningVarian
                 edl, source, start, end, transcript, proposal.name
             )
             new_first = variant_edl.ranges[0]
-            variant_plan = shift_plan(
+            unlabelled, gone = drop_first_scene_labels(
                 plan, old_first=first.output_duration, new_first=new_first.output_duration
             )
+            variant_plan = shift_plan(
+                unlabelled, old_first=first.output_duration, new_first=new_first.output_duration
+            )
+            for label in gone:
+                changes.append(VariantChange(element="scene label", before=label, after=""))
+                warnings.append(
+                    f"the label “{label}” named the replaced first shot and is left off it; "
+                    "add a label for the new shot if it needs one"
+                )
             if caption_path is not None:
                 heard = _transcripts(ws, variant_edl)
                 if not heard:
@@ -290,7 +362,7 @@ def make_variants(ws: Workspace, request: VariantRequest) -> tuple[OpeningVarian
                     )
                 _, captions = stage_captions(heard, variant_edl, ws, brand, persist_edl=False)
                 own_captions = str(captions.with_suffix(".json"))
-            folder = ws.analysis / "variants" / proposal.name
+            folder = variant_dir(ws, axis, proposal.name)
             own_edl = str(save_artifact(variant_edl, folder / "edl.json"))
             own_plan = str(save_artifact(variant_plan, folder / "motion-plan.json"))
             changes.append(
@@ -305,12 +377,14 @@ def make_variants(ws: Workspace, request: VariantRequest) -> tuple[OpeningVarian
             render_edl, head_plan = head_of(variant_edl, variant_plan, request.seconds)
             render_plan = head_plan or variant_plan
         suffix = f"-{request.seconds:g}s" if request.seconds is not None else ""
-        output = ws.previews / f"opening-{proposal.name}{suffix}.mp4"
+        output = ws.previews / f"opening-{axis.value}-{proposal.name}{suffix}.mp4"
         stage_render(
             render_edl, manifest, ws, quality=request.quality, captions=captions, output=output,
             renderer=Renderer.REMOTION, motion_plan=render_plan,
             remotion_license_attestation=state.remotion_license_attestation,
-            persist_artifacts=False, base_name=f"variants/{proposal.name}/base-{request.quality}",
+            persist_artifacts=False,
+            base_name=f"variants/{axis.value}-{proposal.name}/base-{request.quality}",
+            voice_reference=variant_edl if request.seconds is not None else None,
         )  # fmt: skip
         made.append(
             OpeningVariant(
@@ -364,6 +438,7 @@ def make_variants(ws: Workspace, request: VariantRequest) -> tuple[OpeningVarian
         )
     else:
         result = OpeningVariantSet(axis=axis, base=base, variants=made)
+    save_artifact(result, axis_registry_path(ws, axis))
     save_artifact(result, registry)
     return result, notes
 
