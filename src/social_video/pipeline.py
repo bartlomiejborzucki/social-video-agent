@@ -25,7 +25,7 @@ from social_video.captions.features import (
 )
 from social_video.captions.srt import write_srt, write_vtt
 from social_video.editorial.acoustic import AcousticEdges, file_loader
-from social_video.editorial.compile import compile_plan
+from social_video.editorial.compile import compile_plan, fit_to_picture
 from social_video.editorial.draft import draft_edit_plan
 from social_video.edl.render import QUALITIES, Quality, render_edl
 from social_video.edl.timeline import Timeline
@@ -209,16 +209,23 @@ def stage_compile(
     reframe: ReframeMode | None = None,
     transcripts: dict[str, Transcript] | None = None,
     edges: AcousticEdges | None = None,
+    notes: list[str] | None = None,
 ) -> EDL:
     """Compile the plan, then pin the motion plan's labels to the scenes it made.
 
     ``transcripts`` are the other recordings a multi-source plan keeps words
     from; `plan_transcripts` loads them from the workspace. ``edges`` moves
-    range edges onto the heard speech; `speech_edges` builds one.
+    range edges onto the heard speech; `speech_edges` builds one. ``notes``
+    collects what was changed to keep each range inside its picture.
     """
     edl = compile_plan(
         plan, transcript, profile, reframe_mode=reframe, transcripts=transcripts, edges=edges
     )
+    edl, fitted = fit_to_picture(edl, picture_lengths(workspace, edl))
+    for note in fitted:
+        log.warning("%s", note)
+    if notes is not None:
+        notes += fitted
     if workspace.brand_contract.is_file():
         from social_video.project_config import apply_contract_to_edl
 
@@ -229,6 +236,28 @@ def stage_compile(
     edl = sync_end_hold(workspace, edl)
     record_stage(workspace, "compile", {"ranges": len(edl.ranges)})
     return edl
+
+
+def picture_lengths(workspace: Workspace, edl: EDL) -> dict[str, float]:
+    """How long the picture of each recording the edit shows runs, in seconds.
+
+    The video stream, not the file: a phone recording's sound can outlast it.
+    A recording missing from the manifest, or without a stated stream length,
+    is left out.
+    """
+    if not workspace.source_manifest.is_file():
+        return {}
+    manifest = load_artifact(SourceManifest, workspace.source_manifest)
+    lengths: dict[str, float] = {}
+    for source_id in {r.effective_video_source for r in edl.ranges}:
+        try:
+            path = manifest.by_id(source_id).resolved_path()
+        except KeyError:
+            continue
+        video = probe(path).video if path.is_file() else None
+        if video is not None and video.duration:
+            lengths[source_id] = video.duration
+    return lengths
 
 
 def speech_edges(workspace: Workspace, transcripts: list[Transcript]) -> AcousticEdges | None:

@@ -140,6 +140,13 @@ moved to the speech" and noted in the range's `reason`. A warning says when
 speech carries on past the final out-point. `--word-edges` keeps the
 transcript's edges.
 
+A phone often stops the picture a little before the sound. A range that runs
+past the last frame of its recording holds that frame under the rest of the
+words (up to 0.75 s, as `intentional_hold`); further than that, it ends with
+the picture and the words after it are cut. Either way `compile` prints a
+warning, and the render keeps the length of the EDL, so later shots and a
+held end card stay where they were planned.
+
 `zoom`, `speed` and `grade` on a plan item are carried onto every range it
 compiles to, so a fix such as a sharp 1.1 framing jump belongs in the plan,
 not in a hand edit of `edl.json`. `compile` lists any `qa-editorial.json` EDL

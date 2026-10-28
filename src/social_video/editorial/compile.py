@@ -10,7 +10,7 @@ from __future__ import annotations
 from social_video.editorial.acoustic import AcousticEdges
 from social_video.editorial.boundaries import snap_range, text_in
 from social_video.schemas.brand import OutputProfile
-from social_video.schemas.edl import EDL, EDLRange, ReframeMode
+from social_video.schemas.edl import EDL, EDLRange, ReframeMode, VisualFillStrategy
 from social_video.schemas.plan import EditPlan, PlanAction, PlanItem
 from social_video.schemas.transcript import Transcript
 
@@ -314,3 +314,65 @@ def _check_tail(
 def _describe(start_reason: str, end_reason: str) -> str:
     parts = [p for p in (start_reason, end_reason) if p and "left as requested" not in p]
     return "; ".join(parts) if parts else "kept"
+
+
+#: The longest frozen last frame `compile` adds on its own, in output seconds;
+#: the same as a range's default `max_static_hold`.
+FREEZE_LIMIT_S = 0.75
+
+
+def fit_to_picture(edl: EDL, picture: dict[str, float]) -> tuple[EDL, list[str]]:
+    """Keep every range inside its recording's picture; say what changed.
+
+    A phone often stops the picture a little before the sound, and an out-point
+    moved to the end of the speech can land past the last frame: the rendered
+    range comes out short and every later shot moves. ``picture`` holds each
+    source's video length. Up to `FREEZE_LIMIT_S` past it, the last frame is
+    held under the rest of the words; further than that, the range ends with
+    the picture.
+    """
+    ranges: list[EDLRange] = []
+    notes: list[str] = []
+    for rng in edl.ranges:
+        length = picture.get(rng.effective_video_source)
+        # A voice from another recording is checked against its picture already.
+        if (
+            length is None
+            or rng.effective_audio_source != rng.effective_video_source
+            or rng.visual_fill_strategy is not None
+            or rng.effective_video_end <= length + 1e-3
+            or length <= rng.effective_video_start
+        ):
+            ranges.append(rng)
+            continue
+        where = f"range {rng.start:.2f}-{rng.end:.2f}s of {rng.effective_video_source!r}"
+        over = rng.effective_video_end - length
+        held = rng.model_copy(update={"video_end": length})
+        gap = held.unfilled_visual_duration
+        if gap <= FREEZE_LIMIT_S:
+            ranges.append(
+                EDLRange.model_validate(
+                    held.model_copy(
+                        update={
+                            "freeze_at": length,
+                            "freeze_duration": round(gap, 3),
+                            "visual_fill_strategy": VisualFillStrategy.FREEZE,
+                            "visual_fill_reason": "The picture ends before the words do.",
+                        }
+                    ).model_dump()
+                )
+            )
+            notes.append(
+                f"{where} runs {over:.2f}s past the end of its picture ({length:.2f}s); "
+                f"the last frame is held {gap:.2f}s under the last words"
+            )
+            continue
+        cut = {"end": length, "video_end": None, "audio_end": None}
+        ranges.append(EDLRange.model_validate(rng.model_copy(update=cut).model_dump()))
+        notes.append(
+            f"{where} runs {over:.2f}s past the end of its picture ({length:.2f}s); "
+            "it now ends with the picture, and the words after it are cut"
+        )
+    if not notes:
+        return edl, []
+    return EDL.model_validate(edl.model_copy(update={"ranges": ranges}).model_dump()), notes

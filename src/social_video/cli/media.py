@@ -439,9 +439,11 @@ def compile_edl(
         plan = load_artifact(EditPlan, ws.edit_plan)
         transcript, others = compile_transcripts(plan, ws, source, options=options, backend=backend)
         edges = speech_edges(ws, [transcript, *others.values()]) if acoustic_edges else None
+        fitted: list[str] = []
         edl = stage_compile(
-            plan, transcript, ws, prof, reframe=mode, transcripts=others, edges=edges
-        )
+            plan, transcript, ws, prof, reframe=mode, transcripts=others, edges=edges,
+            notes=fitted,
+        )  # fmt: skip
         wanted = captions if captions is not None else ws.brand_contract.is_file()
         carried = []
         if wanted:
@@ -452,11 +454,11 @@ def compile_edl(
             for note in anchor_workspace_reactions(ws, edl):
                 err_console.print(f"[green]anchored[/green] {escape(note)}")
         lost = [f for f in fixes if f not in carried]
-        return edl, edges, replaced, lost
+        return edl, edges, replaced, lost, fitted
 
-    edl, edges, replaced, lost = _guard(run)
+    edl, edges, replaced, lost, fitted = _guard(run)
     shifts = [shift.describe() for shift in edges.shifts] if edges else []
-    warnings = list(edges.warnings) if edges else []
+    warnings = [*(edges.warnings if edges else []), *fitted]
     if replaced and not edl.sound_effects:
         warnings.append(
             f"the replaced edl.json had {replaced} sound effect(s), which the plan does not "

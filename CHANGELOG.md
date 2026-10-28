@@ -22,6 +22,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   variant) gets it back, and `compile` lists any fix whose words the new edit
   no longer says.
 - SRT files had no blank line between captions, which some platforms reject.
+- A range moved to the end of the speech could run past the end of a phone
+  recording's picture: the render came out shorter than the EDL, later shots
+  moved and a held `end_card` was refused. `compile` now holds the last frame
+  under the remaining words (up to 0.75 s) or ends the range with the picture,
+  and warns.
 
 ## [2.8.0] - 2026-10-28
 
