@@ -21,9 +21,11 @@ def _srt_time(seconds: float) -> str:
 def render_srt(track: CaptionTrack) -> str:
     blocks = []
     for number, cue in enumerate(sorted(track.cues, key=lambda c: c.start), start=1):
-        blocks.append(f"{number}\n{_srt_time(cue.start)} --> {_srt_time(cue.end)}\n{cue.text}\n")
-    # SRT conventionally uses CRLF; libass and every player accept it.
-    return "\r\n".join("\r\n".join(b.splitlines()) for b in blocks) + "\r\n"
+        lines = [str(number), f"{_srt_time(cue.start)} --> {_srt_time(cue.end)}"]
+        blocks.append("\r\n".join(lines + cue.text.splitlines()))
+    # SRT conventionally uses CRLF; libass and every player accept it. A blank
+    # line ends each block: without it platforms reject the file.
+    return "".join(block + "\r\n\r\n" for block in blocks)
 
 
 def write_srt(track: CaptionTrack, path: Path) -> Path:

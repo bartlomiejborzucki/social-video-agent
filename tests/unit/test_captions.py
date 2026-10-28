@@ -154,6 +154,18 @@ class TestSrt:
         assert "00:00:01,500 --> 00:00:02,250" in out
         assert "Cześć" in out
 
+    def test_a_blank_line_ends_every_block(self):
+        track = CaptionTrack(
+            cues=[
+                CaptionCue(index=1, start=0.0, end=1.0, text="Pierwszy"),
+                CaptionCue(index=2, start=1.0, end=2.0, text="Drugi\nw dwóch liniach"),
+            ]
+        )
+        assert render_srt(track) == (
+            "1\r\n00:00:00,000 --> 00:00:01,000\r\nPierwszy\r\n\r\n"
+            "2\r\n00:00:01,000 --> 00:00:02,000\r\nDrugi\r\nw dwóch liniach\r\n\r\n"
+        )
+
     def test_millisecond_rounding_does_not_produce_1000(self):
         track = CaptionTrack(cues=[CaptionCue(index=1, start=0.9999, end=2.0, text="x")])
         assert "00:00:01,000" in render_srt(track)
