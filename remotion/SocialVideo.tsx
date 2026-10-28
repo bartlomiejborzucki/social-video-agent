@@ -32,7 +32,7 @@ import type {
   Shake,
   SocialVideoProps,
 } from './types';
-import {DATA_GRAPHICS, DataGraphic} from './DataGraphics';
+import {DATA_GRAPHICS, DataGraphic, itemEntryFrame} from './DataGraphics';
 import {SceneFrame, rgba} from './SceneFrame';
 import {stylePack} from './stylePacks';
 import {leakHueShift, useTransition} from './Transitions';
@@ -676,7 +676,8 @@ const ExtendedGraphic: React.FC<{
             </div>
           ) : null}
           {items.map((item, index) => {
-            const at = (window / items.length) * index;
+            // On its spoken word when the plan anchors it; evenly otherwise.
+            const at = itemEntryFrame(element, index, fps) ?? (window / items.length) * index;
             const shown = spring({frame: frame - at, fps, config: {damping: 20, stiffness: 170}});
             return (
               <div

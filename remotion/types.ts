@@ -49,6 +49,8 @@ export type MotionElement = {
   /** Sticker centre as fractions of the output width and height. */
   x_pct?: number;
   y_pct?: number;
+  /** List/steps: when each item enters, on the output timeline (its spoken word). */
+  item_times?: number[] | null;
 };
 
 export type Shake = {start: number; end: number; amplitude_pct: number; frequency_hz: number};

@@ -36,6 +36,7 @@ from social_video.schemas.motion import (
     RangeZoom,
     Transition,
     TransitionStyle,
+    WordAnchor,
 )
 from social_video.schemas.plan import EditPlan, PlanAction, PlanItem
 from social_video.schemas.transcript import Transcript
@@ -290,6 +291,15 @@ def _candidate(kind: AccentKind, confidence: str, at: float, reason: str, quote:
     )
 
 
+def _anchor(words: list[Word], index: int) -> WordAnchor:
+    """The word at ``index`` as the captions will name it: its text and occurrence."""
+    from social_video.motion.anchors import word_key
+
+    key = word_key(words[index].text)
+    earlier = sum(1 for word in words[:index] if word_key(word.text) == key)
+    return WordAnchor(word=words[index].text.strip(",.;:!?\"'„”()"), occurrence=earlier + 1)
+
+
 def _hook(sentences: list[list[Word]]) -> list[AccentCandidate]:
     if not sentences:
         return []
@@ -360,6 +370,7 @@ def _steps(words: list[Word], duration: float) -> list[AccentCandidate]:
     if len(marks) < 2:
         return []
     items = []
+    anchors: list[WordAnchor] = []
     for (index, size), following in zip(marks, [*marks[1:], (len(words), 0)], strict=True):
         phrase: list[Word] = []
         for word in words[index + size : min(following[0], index + size + 4)]:
@@ -369,6 +380,8 @@ def _steps(words: list[Word], duration: float) -> list[AccentCandidate]:
         text = _text(phrase).strip(",.;:!?")
         if text:
             items.append(text[:60])
+            # Each step enters on the first word that names it.
+            anchors.append(_anchor(words, index + size))
     if len(items) < 2:
         return []
     start = words[marks[0][0]].start
@@ -380,7 +393,8 @@ def _steps(words: list[Word], duration: float) -> list[AccentCandidate]:
             quote=_text(words[marks[0][0] : marks[-1][0] + 5]),
             element=MotionElement(
                 type=MotionElementType.STEPS, start=round(start, 3), end=round(end, 3),
-                items=items[:5], reason="The speaker counts the points; the viewer sees them.",
+                items=items[:5], item_at_words=anchors[:5],
+                reason="The speaker counts the points; the viewer sees each as it is said.",
             ),
         )
     ]  # fmt: skip

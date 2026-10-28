@@ -6,7 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from social_video.edl.render import ShakeWindow, shake_graph
-from social_video.motion.stickers import anchor_to_words, sticker_problems
+from social_video.motion.anchors import anchor_to_words
+from social_video.motion.stickers import sticker_problems
 from social_video.qa.motion import check_motion
 from social_video.schemas.captions import CaptionCue, CaptionTrack, CaptionWord
 from social_video.schemas.edl import EDL, EDLRange

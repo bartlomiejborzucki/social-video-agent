@@ -28,6 +28,16 @@ const chartValue = (item: string): {label: string; value: number; shown: string}
   return {label, value: match ? Number(match[0].replace(',', '.')) : 0, shown: raw};
 };
 
+/**
+ * The frame, counted from the element's start, at which item ``index`` enters
+ * on its spoken word; ``null`` when the items have no word times and are
+ * revealed evenly.
+ */
+export const itemEntryFrame = (element: MotionElement, index: number, fps: number): number | null => {
+  const at = element.item_times?.[index];
+  return at === undefined || at === null ? null : (at - element.start) * fps;
+};
+
 const splitLabel = (item: string): {label: string; body: string} => {
   const cut = item.indexOf(':');
   return {label: item.slice(0, cut).trim(), body: item.slice(cut + 1).trim()};
@@ -223,7 +233,11 @@ export const DataGraphic: React.FC<Props> = ({
   // steps
   return wrap(
     items.map((item, index) => {
-      const shown = reveal(index, items.length);
+      const entry = itemEntryFrame(element, index, fps);
+      const shown =
+        entry === null
+          ? reveal(index, items.length)
+          : spring({frame: frame - entry, fps, config: {damping: 20, stiffness: 170}});
       return (
         <div
           key={`${index}-${item}`}

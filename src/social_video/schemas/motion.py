@@ -6,7 +6,7 @@ from enum import Enum
 from itertools import pairwise
 from pathlib import Path
 
-from pydantic import Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from social_video.schemas.base import Artifact
 
@@ -91,6 +91,19 @@ POSITIONS: dict[MotionElementType, tuple[ElementPosition, ...]] = {
 }
 
 
+#: Types whose points may each enter on the word that names them.
+ITEM_ANCHORED = frozenset({MotionElementType.LIST, MotionElementType.STEPS})
+
+
+class WordAnchor(BaseModel):
+    """One spoken word: its text and which time it is said (1 = the first)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    word: str = Field(min_length=1, max_length=60)
+    occurrence: int = Field(default=1, ge=1)
+
+
 #: Types drawn without words of their own.
 TEXTLESS = frozenset(
     {MotionElementType.PROGRESS, MotionElementType.LOGO_REVEAL, MotionElementType.STICKER}
@@ -146,6 +159,20 @@ class MotionElement(Artifact):
     #: Centre of the sticker, as fractions of the output width and height.
     x_pct: float = Field(default=0.78, ge=0.0, le=1.0)
     y_pct: float = Field(default=0.3, ge=0.0, le=1.0)
+    #: A list's or steps' points, each entering on the word that names it: one
+    #: entry per item, a word (its first occurrence) or ``{word, occurrence}``.
+    item_at_words: list[WordAnchor] | None = None
+    #: When each item enters, on the output timeline. Set from
+    #: ``item_at_words`` by `compile` and the render; without either, the
+    #: items are revealed evenly, as before.
+    item_times: list[float] | None = None
+
+    @field_validator("item_at_words", mode="before")
+    @classmethod
+    def _anchor_entries(cls, value):
+        if isinstance(value, list):
+            return [{"word": entry} if isinstance(entry, str) else entry for entry in value]
+        return value
 
     @property
     def placement(self) -> ElementPosition | None:
@@ -215,6 +242,7 @@ class MotionElement(Artifact):
             self._check_sticker()
         elif self.emoji is not None or self.at_word is not None or self.animated_emoji:
             raise ValueError("emoji, animated_emoji and at_word are only used by a sticker")
+        self._check_item_anchors()
         if self.layout is EndCardLayout.IMAGE_TOP and self.image_asset is None:
             raise ValueError("layout image_top needs an image_asset to put above the text")
         if self.image_asset is not None and self.type is not MotionElementType.STICKER:
@@ -227,6 +255,29 @@ class MotionElement(Artifact):
             if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
                 raise ValueError("image_asset must be a .png, .jpg, .jpeg or .webp file")
         return self
+
+    def _check_item_anchors(self) -> None:
+        if self.item_at_words is None and self.item_times is None:
+            return
+        kind = self.type.value
+        if self.type not in ITEM_ANCHORED:
+            names = ", ".join(sorted(t.value for t in ITEM_ANCHORED))
+            raise ValueError(f"item_at_words and item_times are used by {names}, not a {kind}")
+        given = (("item_at_words", self.item_at_words), ("item_times", self.item_times))
+        for name, values in given:
+            if values is not None and len(values) != len(self.items):
+                raise ValueError(
+                    f"a {kind} with {len(self.items)} items needs {len(self.items)} {name}, "
+                    f"one per item; got {len(values)}"
+                )
+        if self.item_times is not None:
+            if any(b < a for a, b in pairwise(self.item_times)):
+                raise ValueError(f"a {kind}'s items enter in order; item_times go backwards")
+            if self.item_times[0] < self.start - 1e-3 or self.item_times[-1] > self.end + 1e-3:
+                raise ValueError(
+                    f"a {kind}'s items enter while it is on screen, "
+                    f"{self.start:.2f}-{self.end:.2f}s"
+                )
 
     def _check_sticker(self) -> None:
         if (self.emoji is None) == (self.image_asset is None):

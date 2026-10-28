@@ -490,7 +490,7 @@ def stage_render(
         reactive = load_artifact(MotionPlan, workspace.motion_plan)
     ffmpeg_shakes = None
     if reactive is not None:
-        from social_video.motion.stickers import anchor_to_words
+        from social_video.motion.anchors import anchor_to_words
 
         anchored, notes = anchor_to_words(reactive, _caption_json(captions, edl))
         if notes:
@@ -1015,8 +1015,8 @@ def stage_qa(
 
 
 def anchor_workspace_reactions(workspace: Workspace, edl: EDL) -> list[str]:
-    """Put the motion plan's stickers and shakes on their words; say what moved."""
-    from social_video.motion.stickers import anchor_to_words
+    """Put the motion plan's word-anchored graphics and shakes on their words; say what moved."""
+    from social_video.motion.anchors import anchor_to_words
 
     if not workspace.motion_plan.is_file():
         return []

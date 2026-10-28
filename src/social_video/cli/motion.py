@@ -414,7 +414,7 @@ def motion_qa(
         if edl.captions and Path(edl.captions).with_suffix(".json").is_file():
             track = load_artifact(CaptionTrack, Path(edl.captions).with_suffix(".json"))
         if plan is not None:
-            from social_video.motion.stickers import anchor_to_words
+            from social_video.motion.anchors import anchor_to_words
 
             plan, _notes = anchor_to_words(plan, track)
         # The Remotion base render has no graphics over the faces.
