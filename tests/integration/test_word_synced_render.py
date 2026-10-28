@@ -142,3 +142,28 @@ def test_a_strike_is_crossed_out_in_the_accent_then_replaced(tmp_path: Path) -> 
     # The replacement takes the line's place, and the stroke goes with it.
     assert change(1.9, 3.0) > 0.3
     assert accent(frame(3.0)) < 5
+
+
+def test_a_bubble_pops_in_over_the_head_on_its_word(tmp_path: Path) -> None:
+    bubble = MotionElement(
+        type="bubble", start=1.0, end=3.0, text="Jeszcze jedna bajka!", tail="left",
+        reason="The child's line.",
+    )  # fmt: skip
+    message = MotionElement(
+        type="bubble", start=3.0, end=4.3, variant="message", text="Co robić, gdy krzyczy?",
+        secondary_text="pytanie od obserwatorki", reason="The question that opens a Q&A.",
+    )  # fmt: skip
+    plan = MotionPlan(rationale="Bubbles.", accent_color="#D23150", elements=[bubble, message])
+    frame, _ = _render(tmp_path, plan, seconds=4.5)
+
+    def white(pixels: np.ndarray, rows: slice) -> int:
+        return int((pixels[rows].min(axis=-1) > 230).sum())
+
+    upper, lower = slice(0, HEIGHT // 3), slice(HEIGHT // 3, HEIGHT)
+    assert white(frame(0.8), upper) == 0
+    assert white(frame(1.6), upper) > 2000
+    # Over the head only: nothing reaches the middle or the caption band.
+    assert white(frame(1.6), lower) == 0
+    # The message shows its notification dot in the accent.
+    shown = frame(3.8)[upper]
+    assert ((shown[..., 0] > 170) & (shown[..., 1] < 90) & (shown[..., 2] < 120)).sum() > 20

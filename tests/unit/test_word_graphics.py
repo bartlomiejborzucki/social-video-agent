@@ -114,3 +114,47 @@ def test_the_compositor_and_the_sound_get_the_stroke_moment(tmp_path) -> None:
     edl = EDL(ranges=[EDLRange(source="a", start=0, end=8)])
     _updated, added = sync_sfx(edl, MotionPlan(rationale="r", elements=[strike]), tmp_path)
     assert [effect.at for effect in added] == [1.0, 2.0]
+
+
+def _bubble(**fields) -> MotionElement:
+    values = {"start": 1.0, "end": 3.0, "text": "Jeszcze jedna bajka!",
+              "reason": "The child's line, as a bubble."}  # fmt: skip
+    values.update(fields)
+    return MotionElement(type=MotionElementType.BUBBLE, **values)
+
+
+def test_a_bubble_is_something_said_or_written_over_the_head() -> None:
+    speech = _bubble(tail="left")
+    assert speech.bubble_variant.value == "speech"
+    assert speech.placement is not None and speech.placement.value == "top"
+    message = _bubble(variant="message", secondary_text="pytanie od obserwatorki")
+    payload = _element_payload(message, MotionPlan(rationale="r"), {})
+    assert (payload["variant"], payload["tail"], payload["position"]) == ("message", None, "top")
+    assert _element_payload(_bubble(), MotionPlan(rationale="r"), {})["tail"] == "speaker"
+    with pytest.raises(ValidationError, match="at most 60 characters"):
+        _bubble(text="x" * 61)
+    with pytest.raises(ValidationError, match="note of at most 40"):
+        _bubble(secondary_text="x" * 41)
+    with pytest.raises(ValidationError, match="no tail"):
+        _bubble(variant="message", tail="left")
+    with pytest.raises(ValidationError, match=r"1\.2-6 s"):
+        _bubble(end=9.0)
+    # Never in the opening frame: the first caption carries the situation there.
+    with pytest.raises(ValidationError, match="opening frame"):
+        _bubble(start=0.1, end=2.0)
+    with pytest.raises(ValidationError, match="accepts position: top"):
+        _bubble(position="center")
+    with pytest.raises(ValidationError, match="only used by a bubble"):
+        _strike(variant="speech")
+    with pytest.raises(ValidationError, match="remove bubble"):
+        MotionPlan(rationale="r", sensitive_topic=True, elements=[_bubble()])
+
+
+def test_a_bubble_pops_in_on_its_word_in_the_top_zone() -> None:
+    plan = MotionPlan(rationale="r", elements=[_bubble(at_word="płacz!")])
+    anchored, notes = anchor_to_words(plan, _track())
+    bubble = anchored.elements[0]
+    assert (bubble.start, bubble.end) == pytest.approx((1.2, 3.2))
+    assert notes == ["bubble on 'płacz!' placed at 1.20s"]
+    top, bottom = element_band(bubble, height=1920, margins={"top": 10})
+    assert top == pytest.approx(0.1 + 10 / 1920) and bottom < 0.35

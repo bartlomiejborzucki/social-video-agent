@@ -11,7 +11,7 @@ import {rgba} from './SceneFrame';
  * unless the plan says otherwise, and moves on the times Python resolved
  * from the caption words, never on a timer of its own.
  */
-export const WORD_GRAPHICS = new Set(['strike']);
+export const WORD_GRAPHICS = new Set(['strike', 'bubble']);
 
 type Props = {
   element: MotionElement;
@@ -48,6 +48,9 @@ const Scissors: React.FC<{size: number; colour: string}> = ({size, colour}) => (
 export const WordGraphic: React.FC<Props> = (props) => {
   if (props.element.type === 'strike') {
     return <Strike {...props} />;
+  }
+  if (props.element.type === 'bubble') {
+    return <Bubble {...props} />;
   }
   return null;
 };
@@ -158,6 +161,97 @@ const Strike: React.FC<Props> = ({element, accent, secondary, font, durationInFr
             ✗
           </div>
         ) : null}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/**
+ * A line said (speech, with a tail at the speaker or out of the frame) or a
+ * message received (with a notification dot), popping in over the head on
+ * its word. A fixed-size bubble in the top zone: never a card over the shot.
+ */
+const Bubble: React.FC<Props> = ({element, accent, secondary, font, durationInFrames, safeMargins, holdToEnd = false}) => {
+  const {width, height} = useVideoConfig();
+  const {frame, fps, exit} = useEnvelope(durationInFrames, holdToEnd);
+  const u = height / 1920;
+  const pop = spring({frame, fps, config: {damping: 10, stiffness: 210}});
+  const message = element.variant === 'message';
+  const tail = element.tail ?? 'speaker';
+  const tailSize = 34 * u;
+  const pad = {
+    top: (height * safeMargins.top) / 100,
+    left: (width * safeMargins.left) / 100,
+    right: (width * safeMargins.right) / 100,
+  };
+  // The tail grows from the bubble's lower edge: centred over the speaker,
+  // or at a corner when the voice comes from off the frame on that side.
+  const tailLeft = tail === 'left' ? '14%' : tail === 'right' ? '86%' : '50%';
+  const tailSkew = tail === 'left' ? -28 : tail === 'right' ? 28 : 0;
+  const dot = 32 * u;
+  return (
+    <AbsoluteFill
+      style={{
+        justifyContent: 'flex-start',
+        alignItems: 'center',
+        paddingTop: pad.top + 10 * u,
+        paddingLeft: pad.left,
+        paddingRight: pad.right,
+        fontFamily: font,
+        opacity: exit * Math.min(1, pop * 2),
+      }}
+    >
+      <div
+        style={{
+          position: 'relative',
+          maxWidth: '100%',
+          background: '#FFFFFF',
+          color: secondary,
+          borderRadius: (message ? 26 : 44) * u,
+          padding: `${28 * u}px ${36 * u}px`,
+          boxShadow: `0 ${10 * u}px ${30 * u}px ${rgba(secondary, 0.3)}`,
+          transform: `scale(${interpolate(pop, [0, 1], [0.55, 1])})`,
+          transformOrigin: tail === 'left' ? '14% 100%' : tail === 'right' ? '86% 100%' : '50% 100%',
+          textAlign: message ? 'left' : 'center',
+          borderLeft: message ? `${8 * u}px solid ${accent}` : undefined,
+        }}
+      >
+        {element.secondary_text ? (
+          <div style={{fontSize: 30 * u, fontWeight: 700, lineHeight: 1.3, opacity: 0.7, marginBottom: 6 * u}}>
+            {element.secondary_text}
+          </div>
+        ) : null}
+        <div style={{fontSize: 46 * u, fontWeight: 800, lineHeight: 1.2}}>{element.text}</div>
+        {message ? (
+          <div
+            style={{
+              position: 'absolute',
+              top: -dot / 3,
+              right: -dot / 3,
+              width: dot,
+              height: dot,
+              borderRadius: dot,
+              background: accent,
+              border: `${4 * u}px solid #FFFFFF`,
+              transform: `scale(${interpolate(frame / fps, [0.15, 0.35], [0, 1], clamp)})`,
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: tailLeft,
+              width: 0,
+              height: 0,
+              borderLeft: `${tailSize * 0.6}px solid transparent`,
+              borderRight: `${tailSize * 0.6}px solid transparent`,
+              borderTop: `${tailSize}px solid #FFFFFF`,
+              marginTop: -1,
+              transform: `translateX(-50%) skewX(${tailSkew}deg)`,
+            }}
+          />
+        )}
       </div>
     </AbsoluteFill>
   );

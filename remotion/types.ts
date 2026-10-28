@@ -17,7 +17,8 @@ export type MotionElement = {
     | 'steps'
     | 'label'
     | 'sticker'
-    | 'strike';
+    | 'strike'
+    | 'bubble';
   start: number;
   end: number;
   text: string;
@@ -58,6 +59,9 @@ export type MotionElement = {
   strike_at?: number | null;
   replace_at?: number | null;
   strike_mark?: 'none' | 'scissors' | 'cross';
+  /** Bubble: something said or written, and where a speech tail points. */
+  variant?: 'speech' | 'message' | null;
+  tail?: 'speaker' | 'left' | 'right' | null;
 };
 
 export type Shake = {start: number; end: number; amplitude_pct: number; frequency_hz: number};

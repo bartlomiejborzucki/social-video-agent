@@ -51,6 +51,9 @@ class MotionElementType(str, Enum):
     #: A habit crossed out and replaced: the line appears, a stroke in the
     #: accent crosses it out on a word, and ``replacement`` takes its place.
     STRIKE = "strike"
+    #: A line someone says, or a message someone sent, as a bubble over the
+    #: head: ``variant`` speech or message, entering on its word with a pop.
+    BUBBLE = "bubble"
 
 
 class EndCardLayout(str, Enum):
@@ -92,17 +95,37 @@ POSITIONS: dict[MotionElementType, tuple[ElementPosition, ...]] = {
     MotionElementType.LIST: (ElementPosition.CENTER, ElementPosition.TOP),
     MotionElementType.STEPS: (ElementPosition.CENTER, ElementPosition.TOP),
     MotionElementType.STRIKE: (ElementPosition.TOP, ElementPosition.CENTER),
+    MotionElementType.BUBBLE: (ElementPosition.TOP,),
 }
 
 
 #: Types placed on a spoken word with `at_word`: it sets their start, except a
 #: strike's, which it sets the moment of crossing out.
-AT_WORD_TYPES = frozenset({MotionElementType.STICKER, MotionElementType.STRIKE})
+AT_WORD_TYPES = frozenset(
+    {MotionElementType.STICKER, MotionElementType.STRIKE, MotionElementType.BUBBLE}
+)
 #: Graphics that play with the words. A reel on a sensitive subject (death,
 #: illness, grief) takes none of them; see `MotionPlan.sensitive_topic`.
-PLAYFUL = frozenset({MotionElementType.STICKER, MotionElementType.STRIKE})
+PLAYFUL = frozenset({MotionElementType.STICKER, MotionElementType.STRIKE, MotionElementType.BUBBLE})
 #: Playful graphics never share the opening frame with the first caption.
 PLAYFUL_EARLIEST = 0.3
+
+
+class BubbleVariant(str, Enum):
+    #: Something said: a child's or a parent's line, with a tail.
+    SPEECH = "speech"
+    #: Something written: a message or a comment, with a notification dot.
+    MESSAGE = "message"
+
+
+class BubbleTail(str, Enum):
+    """Where a speech bubble's tail points."""
+
+    #: Down, at the person talking under it.
+    SPEAKER = "speaker"
+    #: Out of the frame on that side, at someone off camera.
+    LEFT = "left"
+    RIGHT = "right"
 
 
 class StrikeMark(str, Enum):
@@ -200,6 +223,10 @@ class MotionElement(Artifact):
     replace_at: float | None = Field(default=None, ge=0)
     #: What crosses the line out besides the stroke: scissors or a cross.
     strike_mark: StrikeMark = StrikeMark.NONE
+    #: A bubble: something said (speech) or written (message), and where a
+    #: speech bubble's tail points.
+    variant: BubbleVariant | None = None
+    tail: BubbleTail | None = None
 
     @field_validator("item_at_words", mode="before")
     @classmethod
@@ -283,6 +310,10 @@ class MotionElement(Artifact):
             raise ValueError(
                 f"a {kind} never shares the opening frame: start at {PLAYFUL_EARLIEST} s or later"
             )
+        if self.type is MotionElementType.BUBBLE:
+            self._check_bubble()
+        elif self.variant is not None or self.tail is not None:
+            raise ValueError("variant and tail are only used by a bubble")
         if self.type is MotionElementType.STRIKE:
             self._check_strike()
         elif (
@@ -309,6 +340,21 @@ class MotionElement(Artifact):
             if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
                 raise ValueError("image_asset must be a .png, .jpg, .jpeg or .webp file")
         return self
+
+    def _check_bubble(self) -> None:
+        if len(self.text) > 60 or len(self.secondary_text or "") > 40:
+            raise ValueError(
+                "a bubble holds a line of at most 60 characters and a note of at most 40"
+            )
+        length = self.end - self.start
+        if not 1.2 - 1e-6 <= length <= 6.0 + 1e-6:
+            raise ValueError(f"a bubble stays 1.2-6 s on screen, not {length:.2f} s")
+        if self.tail is not None and self.variant is BubbleVariant.MESSAGE:
+            raise ValueError("a message bubble has no tail; only speech points at its speaker")
+
+    @property
+    def bubble_variant(self) -> BubbleVariant:
+        return self.variant or BubbleVariant.SPEECH
 
     def _check_strike(self) -> None:
         if len(self.text) > 40 or not (self.replacement or "").strip():

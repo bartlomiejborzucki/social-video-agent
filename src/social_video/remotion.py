@@ -324,6 +324,10 @@ def _element_payload(
         payload["fitted"] = end_card_text(item, width=width, height=height, font=font)
     if item.type is MotionElementType.STRIKE:
         payload["strike_at"], payload["replace_at"] = item.strike_moments
+    if item.type is MotionElementType.BUBBLE:
+        payload["variant"] = item.bubble_variant.value
+        speech = item.bubble_variant.value == "speech"
+        payload["tail"] = (item.tail.value if item.tail else "speaker") if speech else None
     return payload
 
 

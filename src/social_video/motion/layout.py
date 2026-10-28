@@ -209,6 +209,11 @@ def element_band(
             start = top + 10 * u
             return start / height, (start + card) / height
         return None
+    if kind is MotionElementType.BUBBLE:
+        # Up to three lines of 46 px type, a note above them, padding and tail.
+        start = top + 10 * u
+        card = (3 * 46 * 1.2 + 30 * 1.3 + 2 * 28 + 34) * u
+        return start / height, (start + card) / height
     if kind is MotionElementType.STRIKE:
         # Two lines of 50 px type at most, with the card's padding.
         card = (2 * 50 * 1.2 + 2 * 26 + 8) * u
