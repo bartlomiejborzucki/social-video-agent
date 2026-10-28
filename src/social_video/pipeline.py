@@ -527,14 +527,14 @@ def stage_render(
             energy=contract.brand.motion_energy if contract else "lively",
             allowlist=contract.brand.sticker_allowlist if contract else [],
         )
-        from social_video.motion.icons import icon_problems
+        from social_video.motion.energy import word_graphic_problems
 
-        problems += icon_problems(
+        problems += word_graphic_problems(
             motion_plan, energy=contract.brand.motion_energy if contract else "lively"
         )
         if problems:
             raise ValidationError(
-                "the motion plan's stickers and icons break the brand: " + "; ".join(problems)
+                "the motion plan's word graphics break the brand: " + "; ".join(problems)
             )
     if contract is not None:
         _check_remotion_only(contract, renderer, captions=captions is not None)

@@ -209,6 +209,10 @@ def element_band(
             start = top + 10 * u
             return start / height, (start + card) / height
         return None
+    if kind is MotionElementType.KINETIC_WORD:
+        # One line of 130 px letters with room for the sparks around it.
+        start = top + 20 * u
+        return start / height, (start + (130 * 1.1 + 60) * u) / height
     if kind is MotionElementType.PROCESS:
         # Title, bar, labels and the closing state, with the card's padding.
         start = top + 10 * u

@@ -59,6 +59,8 @@ class MotionElementType(str, Enum):
     #: A process as a bar of 2-5 coloured stages, each entering on its word;
     #: a pointer then runs through it, and ``done_text`` closes it with a tick.
     PROCESS = "process"
+    #: One key word built letter by letter with small sparks, on its word.
+    KINETIC_WORD = "kinetic_word"
 
 
 class EndCardLayout(str, Enum):
@@ -83,6 +85,8 @@ STICKER_LIMIT = {"calm": 0, "lively": 1, "bold": 2}
 STICKER_EARLIEST = 0.3
 #: Icons allowed in one reel, by `motion_energy`; counted apart from stickers.
 ICON_LIMIT = {"calm": 0, "lively": 2, "bold": 4}
+#: Words built letter by letter allowed in one reel, by `motion_energy`.
+KINETIC_LIMIT = {"calm": 0, "lively": 1, "bold": 1}
 #: Where an icon sits unless the plan says: centred over the head, in the top zone.
 ICON_PLACE = {"size_pct": 9.0, "x_pct": 0.5, "y_pct": 0.17}
 
@@ -117,6 +121,7 @@ AT_WORD_TYPES = frozenset(
         MotionElementType.STRIKE,
         MotionElementType.BUBBLE,
         MotionElementType.ICON,
+        MotionElementType.KINETIC_WORD,
     }
 )
 #: Graphics that play with the words. A reel on a sensitive subject (death,
@@ -128,6 +133,7 @@ PLAYFUL = frozenset(
         MotionElementType.BUBBLE,
         MotionElementType.ICON,
         MotionElementType.PROCESS,
+        MotionElementType.KINETIC_WORD,
     }
 )
 #: Playful graphics never share the opening frame with the first caption.
@@ -369,6 +375,14 @@ class MotionElement(Artifact):
                 raise ValueError("a process needs at least 2.5 s for its stages and pointer")
         elif self.done_text is not None:
             raise ValueError("done_text is only used by a process")
+        if self.type is MotionElementType.KINETIC_WORD:
+            word = self.text.strip()
+            if len(word) > 12 or any(ch.isspace() for ch in word):
+                raise ValueError("a kinetic_word is one word of at most 12 characters")
+            if not 0.8 - 1e-6 <= self.end - self.start <= 2.5 + 1e-6:
+                raise ValueError(
+                    f"a kinetic_word stays 0.8-2.5 s on screen, not {self.end - self.start:.2f} s"
+                )
         if self.type is MotionElementType.BUBBLE:
             self._check_bubble()
         elif self.variant is not None or self.tail is not None:

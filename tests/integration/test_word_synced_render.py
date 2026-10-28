@@ -225,3 +225,19 @@ def test_a_process_fills_stage_by_stage_then_closes_with_a_tick(tmp_path: Path) 
         return float(np.abs(frame(a) - frame(b)).mean())
 
     assert change(2.3, 4.0) > 0.3
+
+
+def test_a_kinetic_word_is_built_letter_by_letter(tmp_path: Path) -> None:
+    word = MotionElement(type="kinetic_word", start=0.5, end=2.3, text="SPOKÓJ",
+                         reason="The key word.")  # fmt: skip
+    plan = MotionPlan(rationale="Word.", accent_color="#28BCA5", elements=[word])
+    frame, _ = _render(tmp_path, plan, seconds=2.5, brand_colours=["#28BCA5", "#D23150"])
+
+    def teal(at: float) -> int:
+        top = frame(at)[: HEIGHT // 4]
+        return int((np.abs(top - [40, 188, 165]).sum(axis=-1) < 70).sum())
+
+    assert teal(0.4) == 0
+    # Letters keep arriving, then the whole word holds.
+    assert 0 < teal(0.6) < teal(1.4)
+    assert teal(2.0) == pytest.approx(teal(1.6), rel=0.1)

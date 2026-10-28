@@ -20,7 +20,8 @@ export type MotionElement = {
     | 'strike'
     | 'bubble'
     | 'icon'
-    | 'process';
+    | 'process'
+    | 'kinetic_word';
   start: number;
   end: number;
   text: string;

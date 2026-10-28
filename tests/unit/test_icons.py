@@ -12,11 +12,11 @@ from pydantic import ValidationError as PydanticValidationError
 
 from social_video.errors import SocialVideoError, ValidationError
 from social_video.motion import icons
+from social_video.motion.energy import word_graphic_problems
 from social_video.motion.icons import (
     icon_evidence,
     icon_file,
     icon_library,
-    icon_problems,
     load_icon_dictionary,
 )
 from social_video.project_config import compile_brand_contract
@@ -159,11 +159,13 @@ def test_icons_have_their_own_limit_per_energy() -> None:
     plan = MotionPlan(
         rationale="r", elements=[_icon(start=1.0 + 2 * n, end=2.0 + 2 * n) for n in range(3)]
     )
-    assert icon_problems(plan, energy="bold") == []
-    assert icon_problems(plan, energy="lively") == [
+    assert word_graphic_problems(plan, energy="bold") == []
+    assert word_graphic_problems(plan, energy="lively") == [
         "3 icon(s); motion_energy lively allows 2 per reel"
     ]
-    assert icon_problems(plan, energy="calm") == ["3 icon(s); motion_energy calm allows 0 per reel"]
+    assert word_graphic_problems(plan, energy="calm") == [
+        "3 icon(s); motion_energy calm allows 0 per reel"
+    ]
 
 
 def test_motion_qa_measures_an_icon_against_faces_and_captions() -> None:

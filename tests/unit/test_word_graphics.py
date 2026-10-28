@@ -194,3 +194,32 @@ def test_each_stage_enters_on_its_word() -> None:
     )
     anchored, _notes = anchor_to_words(plan, _track())
     assert anchored.elements[0].item_times == pytest.approx([1.2, 3.6])
+
+
+def test_a_kinetic_word_is_one_short_word_once_a_reel_and_never_calm() -> None:
+    from social_video.motion.energy import word_graphic_problems
+
+    word = MotionElement(type="kinetic_word", start=2.0, end=3.5, text="SPOKÓJ",
+                         at_word="smutno.", reason="The key word, built.")  # fmt: skip
+    with pytest.raises(ValidationError, match="one word of at most 12"):
+        MotionElement(type="kinetic_word", start=2, end=3, text="dwa słowa", reason="r")
+    with pytest.raises(ValidationError, match="one word of at most 12"):
+        MotionElement(type="kinetic_word", start=2, end=3, text="niesamowicieee", reason="r")
+    with pytest.raises(ValidationError, match=r"0\.8-2\.5 s"):
+        MotionElement(type="kinetic_word", start=2, end=6, text="SPOKÓJ", reason="r")
+    with pytest.raises(ValidationError, match="remove kinetic_word"):
+        MotionPlan(rationale="r", sensitive_topic=True, elements=[word])
+    once = MotionPlan(rationale="r", elements=[word])
+    later = word.model_copy(update={"start": 4.0, "end": 5.0})
+    twice = MotionPlan(rationale="r", elements=[word, later])
+    assert word_graphic_problems(once, energy="bold") == []
+    assert word_graphic_problems(twice, energy="bold") == [
+        "2 kinetic_word(s); motion_energy bold allows 1 per reel"
+    ]
+    assert word_graphic_problems(once, energy="calm") == [
+        "1 kinetic_word(s); motion_energy calm allows 0 per reel"
+    ]
+    anchored, _ = anchor_to_words(once, _track())
+    assert anchored.elements[0].start == pytest.approx(5.0)
+    top, bottom = element_band(word, height=1920, margins={"top": 10})
+    assert 0.1 < top < bottom < 0.22

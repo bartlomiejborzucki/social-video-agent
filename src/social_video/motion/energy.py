@@ -41,3 +41,21 @@ STYLE_PACKS = ("editorial", "bold-social", "tech-minimal")
 
 def energy_preset(name: str | None) -> EnergyPreset:
     return ENERGY.get((name or "calm").strip().casefold(), ENERGY["calm"])
+
+
+def word_graphic_problems(plan, *, energy: str) -> list[str]:
+    """Where the plan uses more icons or kinetic words than the energy level allows."""
+    from social_video.schemas.motion import ICON_LIMIT, KINETIC_LIMIT, MotionElementType
+
+    problems = []
+    for kind, limits in (
+        (MotionElementType.ICON, ICON_LIMIT),
+        (MotionElementType.KINETIC_WORD, KINETIC_LIMIT),
+    ):
+        count = sum(1 for e in plan.elements if e.type is kind)
+        limit = limits.get(energy, 0)
+        if count > limit:
+            problems.append(
+                f"{count} {kind.value}(s); motion_energy {energy} allows {limit} per reel"
+            )
+    return problems

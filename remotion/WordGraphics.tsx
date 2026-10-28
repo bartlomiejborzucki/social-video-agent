@@ -11,7 +11,7 @@ import {rgba} from './SceneFrame';
  * unless the plan says otherwise, and moves on the times Python resolved
  * from the caption words, never on a timer of its own.
  */
-export const WORD_GRAPHICS = new Set(['strike', 'bubble', 'icon', 'process']);
+export const WORD_GRAPHICS = new Set(['strike', 'bubble', 'icon', 'process', 'kinetic_word']);
 
 type Props = {
   element: MotionElement;
@@ -58,6 +58,9 @@ export const WordGraphic: React.FC<Props> = (props) => {
   }
   if (props.element.type === 'process') {
     return <Process {...props} />;
+  }
+  if (props.element.type === 'kinetic_word') {
+    return <KineticWord {...props} />;
   }
   return null;
 };
@@ -444,6 +447,90 @@ const Process: React.FC<Props> = ({element, accent, secondary, brandColors = [],
             <span>{element.done_text}</span>
           </div>
         ) : null}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/** Seconds between one letter landing and the next. */
+const LETTER_STEP = 0.06;
+
+/**
+ * One key word built letter by letter on its word: each letter drops in and
+ * settles, and when the last one lands a ring of small sparks in the brand
+ * colours bursts around it. The sparks sit at fixed angles, so every render
+ * of a frame is the same.
+ */
+const KineticWord: React.FC<Props> = ({element, accent, secondary, brandColors = [], font, durationInFrames, safeMargins, holdToEnd = false}) => {
+  const {width, height} = useVideoConfig();
+  const {t, frame, fps, exit} = useEnvelope(durationInFrames, holdToEnd);
+  const u = height / 1920;
+  const letters = Array.from(element.text);
+  const size = 130 * u;
+  const landed = letters.length * LETTER_STEP + 0.15;
+  const burst = interpolate(t, [landed, landed + 0.5], [0, 1], {...clamp, easing: Easing.out(Easing.cubic)});
+  const colours = brandColors.length > 0 ? brandColors : [accent, secondary];
+  const sparks = 12;
+  const top = (height * safeMargins.top) / 100 + 20 * u;
+  return (
+    <AbsoluteFill style={{opacity: exit, fontFamily: font}}>
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top,
+          height: size * 1.1 + 60 * u,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {burst > 0 && burst < 1
+          ? Array.from({length: sparks}, (_, index) => {
+              const angle = (index / sparks) * Math.PI * 2 + 0.3;
+              const reach = (width * 0.18 + (index % 3) * 18 * u) * burst;
+              return (
+                <div
+                  key={`spark-${index}`}
+                  style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: '50%',
+                    width: (index % 2 ? 12 : 18) * u,
+                    height: (index % 2 ? 12 : 18) * u,
+                    borderRadius: 999,
+                    background: colours[index % colours.length],
+                    opacity: 1 - burst,
+                    transform: `translate(-50%, -50%) translate(${Math.cos(angle) * reach}px, ${Math.sin(angle) * reach * 0.55}px)`,
+                  }}
+                />
+              );
+            })
+          : null}
+        {letters.map((letter, index) => {
+          const drop = spring({frame: frame - index * LETTER_STEP * fps, fps, config: {damping: 11, stiffness: 240}});
+          return (
+            <span
+              key={`${index}-${letter}`}
+              style={{
+                display: 'inline-block',
+                fontSize: size,
+                fontWeight: 900,
+                lineHeight: 1.1,
+                color: accent,
+                WebkitTextStroke: `${4 * u}px #FFFFFF`,
+                paintOrder: 'stroke fill',
+                textShadow: `0 ${8 * u}px ${24 * u}px ${rgba(secondary, 0.45)}`,
+                opacity: Math.min(1, drop * 2),
+                transform: `translateY(${interpolate(drop, [0, 1], [-size * 0.8, 0])}px) scale(${interpolate(drop, [0, 1], [1.4, 1])}) rotate(${interpolate(drop, [0, 1], [index % 2 ? 12 : -12, 0])}deg)`,
+                whiteSpace: 'pre',
+              }}
+            >
+              {letter}
+            </span>
+          );
+        })}
       </div>
     </AbsoluteFill>
   );

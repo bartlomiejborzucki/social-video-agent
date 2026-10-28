@@ -32,7 +32,6 @@ from pathlib import Path
 import yaml
 
 from social_video.errors import SocialVideoError, ValidationError
-from social_video.schemas.motion import ICON_LIMIT, MotionElementType, MotionPlan
 
 ICON_SET = "Tabler Icons"
 ICON_VERSION = "3.48.0"
@@ -156,12 +155,3 @@ def load_icon_dictionary(path: Path) -> IconDictionary:
         names = ", ".join(sorted(unknown))
         raise ValidationError(f"{path}: synonyms for words with no icon: {names}")
     return IconDictionary(icons=icons, synonyms=synonyms)
-
-
-def icon_problems(plan: MotionPlan, *, energy: str) -> list[str]:
-    """Every brand rule the plan's icons break, one line each."""
-    icons = [e for e in plan.elements if e.type is MotionElementType.ICON]
-    limit = ICON_LIMIT.get(energy, 0)
-    if len(icons) > limit:
-        return [f"{len(icons)} icon(s); motion_energy {energy} allows {limit} per reel"]
-    return []
