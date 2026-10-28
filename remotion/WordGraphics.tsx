@@ -1,5 +1,5 @@
 import React from 'react';
-import {AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Easing, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import type {MotionElement, SocialVideoProps} from './types';
 import {rgba} from './SceneFrame';
 
@@ -11,7 +11,7 @@ import {rgba} from './SceneFrame';
  * unless the plan says otherwise, and moves on the times Python resolved
  * from the caption words, never on a timer of its own.
  */
-export const WORD_GRAPHICS = new Set(['strike', 'bubble']);
+export const WORD_GRAPHICS = new Set(['strike', 'bubble', 'icon']);
 
 type Props = {
   element: MotionElement;
@@ -51,6 +51,9 @@ export const WordGraphic: React.FC<Props> = (props) => {
   }
   if (props.element.type === 'bubble') {
     return <Bubble {...props} />;
+  }
+  if (props.element.type === 'icon') {
+    return <Icon {...props} />;
   }
   return null;
 };
@@ -252,6 +255,59 @@ const Bubble: React.FC<Props> = ({element, accent, secondary, font, durationInFr
             }}
           />
         )}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/**
+ * The thing just named, as a small flat icon over the head: a white disc with
+ * an accent rim, the icon's strokes in the brand's second colour. The SVG is
+ * the set's own file, painted through a mask so it takes the brand colour.
+ */
+const Icon: React.FC<Props> = ({element, accent, secondary, durationInFrames}) => {
+  const {width, height} = useVideoConfig();
+  const {frame, fps} = useEnvelope(durationInFrames, false);
+  const size = ((element.size_pct ?? 9) / 100) * height;
+  const pop = spring({frame, fps, config: {damping: 9, stiffness: 230}});
+  const leave = interpolate(frame, [Math.max(0, durationInFrames - Math.round(fps * 0.15)), durationInFrames], [1, 0], clamp);
+  const source = element.icon_source ? `url(${staticFile(element.icon_source)})` : undefined;
+  const u = height / 1920;
+  return (
+    <AbsoluteFill>
+      <div
+        style={{
+          position: 'absolute',
+          left: (element.x_pct ?? 0.5) * width - size / 2,
+          top: (element.y_pct ?? 0.17) * height - size / 2,
+          width: size,
+          height: size,
+          borderRadius: size,
+          background: '#FFFFFF',
+          border: `${8 * u}px solid ${accent}`,
+          boxShadow: `0 ${8 * u}px ${24 * u}px ${rgba(secondary, 0.35)}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: leave * Math.min(1, pop * 3),
+          transform: `scale(${interpolate(pop, [0, 1], [0.2, 1])}) rotate(${interpolate(pop, [0, 1], [-14, 0])}deg)`,
+        }}
+      >
+        <div
+          style={{
+            width: size * 0.62,
+            height: size * 0.62,
+            backgroundColor: secondary,
+            WebkitMaskImage: source,
+            maskImage: source,
+            WebkitMaskSize: 'contain',
+            maskSize: 'contain',
+            WebkitMaskRepeat: 'no-repeat',
+            maskRepeat: 'no-repeat',
+            WebkitMaskPosition: 'center',
+            maskPosition: 'center',
+          }}
+        />
       </div>
     </AbsoluteFill>
   );

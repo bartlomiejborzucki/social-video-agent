@@ -164,6 +164,10 @@ class ProjectVideoConfig(BaseModel):
     #: The emoji a `sticker` may show. Empty means stickers show only images
     #: from the project; an emoji outside the list is refused.
     sticker_allowlist: list[str] = Field(default_factory=list, max_length=50)
+    #: The project's word-to-icon dictionary (YAML, relative to the project
+    #: root), e.g. `.social-video/icons.yaml`. `motion suggest` proposes an
+    #: `icon` only for a word it lists; see `motion.icons`.
+    icon_dictionary: str | None = None
     music_policy: Literal["none", "optional", "required"] = "none"
     sfx_policy: Literal["none", "optional", "required"] = "none"
     #: Voice cleanup. `measured` is the default: the render measures this

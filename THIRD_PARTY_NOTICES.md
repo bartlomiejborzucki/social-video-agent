@@ -152,6 +152,17 @@ shows one must credit Google; the render manifest records the credit line.
 
 ---
 
+## Icons
+
+An `icon` element downloads the Tabler Icons package (`@tabler/icons`, pinned
+version and SHA-256, from the npm registry) into the user's cache and keeps
+only its outline SVGs; none is bundled. Tabler Icons is released under the MIT
+License, Copyright (c) 2020-2026 Paweł Kuna, https://github.com/tabler/tabler-icons.
+The render manifest records the set, version, licence, source and file hash of
+every icon drawn (`icons_applied`).
+
+---
+
 ## Fonts
 
 No fonts are bundled. Captions use a font discovered on the host system.

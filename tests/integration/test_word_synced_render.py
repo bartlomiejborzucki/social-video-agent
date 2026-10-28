@@ -167,3 +167,33 @@ def test_a_bubble_pops_in_over_the_head_on_its_word(tmp_path: Path) -> None:
     # The message shows its notification dot in the accent.
     shown = frame(3.8)[upper]
     assert ((shown[..., 0] > 170) & (shown[..., 1] < 90) & (shown[..., 2] < 120)).sum() > 20
+
+
+def test_an_icon_pops_in_over_the_head_in_the_brand_colours(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A local stand-in for the downloaded set: tests never fetch.
+    svg = tmp_path / "bath.svg"
+    svg.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+        'stroke="currentColor" stroke-width="4"><path d="M3 12h18M12 3v18"/></svg>',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("social_video.motion.icons.icon_file", lambda name, directory=None: svg)
+    icon = MotionElement(type="icon", start=1.0, end=2.0, icon="bath", reason="The bath.")
+    frame, _ = _render(tmp_path, MotionPlan(rationale="Icon.", accent_color="#D23150",
+                                            elements=[icon]), seconds=2.5)  # fmt: skip
+
+    def drawn(pixels: np.ndarray) -> np.ndarray:
+        return pixels.max(axis=-1) > 60
+
+    assert not drawn(frame(0.8)).any()
+    shown = frame(1.6)
+    rows = np.flatnonzero(drawn(shown).any(axis=1))
+    # A disc over the head: in the top zone only, with the icon's strokes in
+    # the brand's second colour (dark) on white, inside an accent rim.
+    assert rows.min() > 0.1 * HEIGHT and rows.max() < 0.25 * HEIGHT
+    disc = shown[rows.min() : rows.max() + 1]
+    assert ((disc[..., 0] > 170) & (disc[..., 1] < 90) & (disc[..., 2] < 120)).sum() > 20
+    centre = shown[int(0.17 * HEIGHT) - 2 : int(0.17 * HEIGHT) + 3, WIDTH // 2 - 2 : WIDTH // 2 + 3]
+    assert centre.max() < 120  # the stroke crossing the middle, not the white disc

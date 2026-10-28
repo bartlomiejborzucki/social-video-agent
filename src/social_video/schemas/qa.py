@@ -141,3 +141,6 @@ class RenderManifest(Artifact):
     #: Each sticker drawn: its emoji with the font, licence and source that
     #: drew it, or the project image.
     stickers_applied: list[dict] = Field(default_factory=list)
+    #: Each icon drawn: its name, the set, version, licence and source, and the
+    #: SHA-256 of the SVG file that drew it.
+    icons_applied: list[dict] = Field(default_factory=list)

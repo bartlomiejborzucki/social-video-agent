@@ -34,7 +34,15 @@ from social_video.schemas.brand import CaptionPosition, CaptionStyle
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.config import BrandContract
 from social_video.schemas.edl import EDL
-from social_video.schemas.motion import TEXTLESS, MotionElement, MotionElementType, MotionPlan
+from social_video.schemas.motion import (
+    BOXED,
+    ICON_LIMIT,
+    STICKER_LIMIT,
+    TEXTLESS,
+    MotionElement,
+    MotionElementType,
+    MotionPlan,
+)
 from social_video.schemas.motion_film import FilmSegment
 from social_video.schemas.qa import QACheck, QAReport, QASeverity
 
@@ -102,8 +110,8 @@ def check_motion(
     place = _Placement.of(contract, margins)
 
     for item in shown:
-        if item.element.type is MotionElementType.STICKER:
-            _sticker(report, item.element, style, captions, place, faces, energy)
+        if item.element.type in BOXED:
+            _boxed(report, item.element, style, captions, place, faces, energy)
             continue
         _readable(report, item, pack)
         if style is not None and captions is not None and not item.film:
@@ -137,7 +145,7 @@ def _overlap(a: tuple[float, float, float, float], b: tuple[float, float, float,
     return width * height / area
 
 
-def _sticker(
+def _boxed(
     report: QAReport,
     element: MotionElement,
     style: CaptionStyle | None,
@@ -146,25 +154,28 @@ def _sticker(
     faces: FaceProvider | None,
     energy: EnergyPreset,
 ) -> None:
-    """A sticker answers one word: off the face, the captions and the frame."""
-    from social_video.schemas.motion import STICKER_LIMIT
-
+    """A sticker or an icon answers one word: off the face, the captions and the frame."""
     box = element.box
-    name = f"sticker at {element.start:.2f}s"
+    kind = element.type.value
+    name = f"{kind} at {element.start:.2f}s"
     on_screen = element.end - element.start
+    icon = element.type is MotionElementType.ICON
+    longest = 1.2 if icon else 1.5
     _add(
         report,
         f"{name} on screen",
-        0.6 <= on_screen <= 1.5,
-        f"{on_screen:.2f}s; a reaction reads in 0.6-1.5 s",
+        0.6 <= on_screen <= longest + 1e-6,
+        f"{on_screen:.2f}s; "
+        + ("an icon pops in for" if icon else "a reaction reads in")
+        + f" 0.6-{longest:g} s",
         measured=round(on_screen, 2),
     )
-    limit = STICKER_LIMIT.get(energy.name, 0)
+    limit = (ICON_LIMIT if icon else STICKER_LIMIT).get(energy.name, 0)
     _add(
         report,
         f"{name} within the energy's limit",
         limit > 0,
-        f"{energy.name} allows {limit} sticker(s) per reel",
+        f"{energy.name} allows {limit} {kind}(s) per reel",
     )
     if faces is not None:
         middle = (element.start + element.end) / 2
@@ -206,7 +217,7 @@ def _sticker(
             report,
             f"{name} clear of the scene frame",
             hit == 0,
-            f"{hit:.0%} of the sticker lies on the frame",
+            f"{hit:.0%} of the {kind} lies on the frame",
             at=element.start,
         )
 

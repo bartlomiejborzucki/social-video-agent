@@ -92,6 +92,12 @@ def render_motion_design(
 
             name = require_name(element.emoji)
             animations.setdefault(name, fetch_animation(name))
+    icons: dict[str, Path] = {}
+    for element in plan.elements:
+        if element.type is MotionElementType.ICON and element.icon:
+            from social_video.motion.icons import icon_file
+
+            icons.setdefault(element.icon, icon_file(element.icon))
     emoji = None
     if any(
         e.type is MotionElementType.STICKER and e.emoji and not e.animated_emoji
@@ -199,6 +205,10 @@ def render_motion_design(
             shutil.copy2(plates[asset], public / name)
         if emoji is not None:
             shutil.copy2(emoji.path, public / f"emoji-font{emoji.path.suffix.casefold()}")
+        if icons:
+            (public / "icons").mkdir()
+            for name, svg in icons.items():
+                shutil.copy2(svg, public / "icons" / f"{name}.svg")
         if animations:
             (public / "animated-emoji").mkdir()
             for name, clip in animations.items():
@@ -324,6 +334,8 @@ def _element_payload(
         payload["fitted"] = end_card_text(item, width=width, height=height, font=font)
     if item.type is MotionElementType.STRIKE:
         payload["strike_at"], payload["replace_at"] = item.strike_moments
+    if item.type is MotionElementType.ICON:
+        payload["icon_source"] = f"icons/{item.icon}.svg"
     if item.type is MotionElementType.BUBBLE:
         payload["variant"] = item.bubble_variant.value
         speech = item.bubble_variant.value == "speech"

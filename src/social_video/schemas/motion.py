@@ -54,6 +54,8 @@ class MotionElementType(str, Enum):
     #: A line someone says, or a message someone sent, as a bubble over the
     #: head: ``variant`` speech or message, entering on its word with a pop.
     BUBBLE = "bubble"
+    #: A small flat icon of the thing just named, over the head, 0.6-1.2 s.
+    ICON = "icon"
 
 
 class EndCardLayout(str, Enum):
@@ -76,6 +78,10 @@ class StickerAnimation(str, Enum):
 STICKER_LIMIT = {"calm": 0, "lively": 1, "bold": 2}
 #: A sticker never shares frame 0 with the opening.
 STICKER_EARLIEST = 0.3
+#: Icons allowed in one reel, by `motion_energy`; counted apart from stickers.
+ICON_LIMIT = {"calm": 0, "lively": 2, "bold": 4}
+#: Where an icon sits unless the plan says: centred over the head, in the top zone.
+ICON_PLACE = {"size_pct": 9.0, "x_pct": 0.5, "y_pct": 0.17}
 
 
 class ElementPosition(str, Enum):
@@ -102,11 +108,23 @@ POSITIONS: dict[MotionElementType, tuple[ElementPosition, ...]] = {
 #: Types placed on a spoken word with `at_word`: it sets their start, except a
 #: strike's, which it sets the moment of crossing out.
 AT_WORD_TYPES = frozenset(
-    {MotionElementType.STICKER, MotionElementType.STRIKE, MotionElementType.BUBBLE}
+    {
+        MotionElementType.STICKER,
+        MotionElementType.STRIKE,
+        MotionElementType.BUBBLE,
+        MotionElementType.ICON,
+    }
 )
 #: Graphics that play with the words. A reel on a sensitive subject (death,
 #: illness, grief) takes none of them; see `MotionPlan.sensitive_topic`.
-PLAYFUL = frozenset({MotionElementType.STICKER, MotionElementType.STRIKE, MotionElementType.BUBBLE})
+PLAYFUL = frozenset(
+    {
+        MotionElementType.STICKER,
+        MotionElementType.STRIKE,
+        MotionElementType.BUBBLE,
+        MotionElementType.ICON,
+    }
+)
 #: Playful graphics never share the opening frame with the first caption.
 PLAYFUL_EARLIEST = 0.3
 
@@ -151,8 +169,15 @@ class WordAnchor(BaseModel):
 
 #: Types drawn without words of their own.
 TEXTLESS = frozenset(
-    {MotionElementType.PROGRESS, MotionElementType.LOGO_REVEAL, MotionElementType.STICKER}
+    {
+        MotionElementType.PROGRESS,
+        MotionElementType.LOGO_REVEAL,
+        MotionElementType.STICKER,
+        MotionElementType.ICON,
+    }
 )
+#: Types placed by a box (``size_pct``, ``x_pct``, ``y_pct``) rather than a band.
+BOXED = frozenset({MotionElementType.STICKER, MotionElementType.ICON})
 #: Types built from `items` rather than from `text` alone.
 ITEMISED = frozenset(
     {
@@ -227,6 +252,17 @@ class MotionElement(Artifact):
     #: speech bubble's tail points.
     variant: BubbleVariant | None = None
     tail: BubbleTail | None = None
+    #: An icon: its name in the icon set (Tabler Icons, e.g. ``bath``).
+    icon: str | None = Field(default=None, max_length=40)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _icon_place(cls, data):
+        # An icon sits over the head unless the plan places it; a sticker
+        # keeps the defaults above.
+        if isinstance(data, dict) and data.get("type") in ("icon", MotionElementType.ICON):
+            data = {**ICON_PLACE, **data}
+        return data
 
     @field_validator("item_at_words", mode="before")
     @classmethod
@@ -310,6 +346,10 @@ class MotionElement(Artifact):
             raise ValueError(
                 f"a {kind} never shares the opening frame: start at {PLAYFUL_EARLIEST} s or later"
             )
+        if self.type is MotionElementType.ICON:
+            self._check_icon()
+        elif self.icon is not None:
+            raise ValueError("icon is only used by an icon")
         if self.type is MotionElementType.BUBBLE:
             self._check_bubble()
         elif self.variant is not None or self.tail is not None:
@@ -340,6 +380,18 @@ class MotionElement(Artifact):
             if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
                 raise ValueError("image_asset must be a .png, .jpg, .jpeg or .webp file")
         return self
+
+    def _check_icon(self) -> None:
+        if not self.icon or self.image_asset is not None:
+            raise ValueError("an icon names one icon of the set, e.g. icon: bath")
+        length = self.end - self.start
+        if not 0.6 - 1e-6 <= length <= 1.2 + 1e-6:
+            raise ValueError(f"an icon pops in for 0.6-1.2 s, not {length:.2f} s")
+        if self.animation is not StickerAnimation.POP:
+            raise ValueError("an icon pops in; animation is pop")
+        left, top, right, bottom = self.box
+        if left < 0 or top < 0 or right > 1 or bottom > 1:
+            raise ValueError("an icon must lie wholly inside the frame")
 
     def _check_bubble(self) -> None:
         if len(self.text) > 60 or len(self.secondary_text or "") > 40:
@@ -426,7 +478,7 @@ class MotionElement(Artifact):
 
     @property
     def box(self) -> tuple[float, float, float, float]:
-        """A sticker's (left, top, right, bottom), as fractions of a 9:16 frame."""
+        """A sticker's or icon's (left, top, right, bottom), as fractions of a 9:16 frame."""
         half_h = self.size_pct / 100 / 2
         half_w = half_h * 16 / 9
         return (self.x_pct - half_w, self.y_pct - half_h, self.x_pct + half_w, self.y_pct + half_h)

@@ -289,6 +289,9 @@ def compile_brand_contract(
         ),
         broll_synonyms={k.casefold(): list(v) for k, v in config.broll_synonyms.items()},
         sticker_allowlist=list(config.sticker_allowlist),
+        icon_dictionary=(
+            str(_resolve_asset(config.icon_dictionary, root)) if config.icon_dictionary else None
+        ),
         music_enabled=config.music_policy != "none",
         sfx_enabled=config.sfx_policy != "none",
     )

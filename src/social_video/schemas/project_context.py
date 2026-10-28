@@ -121,6 +121,7 @@ class ProjectConfig(BaseModel):
     broll_library: str | None = None
     broll_synonyms: dict[str, list[str]] = Field(default_factory=dict)
     sticker_allowlist: list[str] = Field(default_factory=list)
+    icon_dictionary: str | None = None
     music_policy: str | None = None
     sfx_policy: str | None = None
     audio_cleanup_policy: str | None = None

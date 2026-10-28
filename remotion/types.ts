@@ -18,7 +18,8 @@ export type MotionElement = {
     | 'label'
     | 'sticker'
     | 'strike'
-    | 'bubble';
+    | 'bubble'
+    | 'icon';
   start: number;
   end: number;
   text: string;
@@ -62,6 +63,9 @@ export type MotionElement = {
   /** Bubble: something said or written, and where a speech tail points. */
   variant?: 'speech' | 'message' | null;
   tail?: 'speaker' | 'left' | 'right' | null;
+  /** Icon: its name, and the SVG staged as icons/<name>.svg. */
+  icon?: string | null;
+  icon_source?: string | null;
 };
 
 export type Shake = {start: number; end: number; amplitude_pct: number; frequency_hz: number};

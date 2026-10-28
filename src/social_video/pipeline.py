@@ -527,9 +527,14 @@ def stage_render(
             energy=contract.brand.motion_energy if contract else "lively",
             allowlist=contract.brand.sticker_allowlist if contract else [],
         )
+        from social_video.motion.icons import icon_problems
+
+        problems += icon_problems(
+            motion_plan, energy=contract.brand.motion_energy if contract else "lively"
+        )
         if problems:
             raise ValidationError(
-                "the motion plan's stickers break the brand: " + "; ".join(problems)
+                "the motion plan's stickers and icons break the brand: " + "; ".join(problems)
             )
     if contract is not None:
         _check_remotion_only(contract, renderer, captions=captions is not None)
@@ -685,6 +690,7 @@ def stage_render(
         manifest_obj.tool_versions["remotion"] = runtime.locked_version if runtime else "unknown"
         manifest_obj.base_render = str(render_target)
         manifest_obj.stickers_applied = _sticker_evidence(render_plan)
+        manifest_obj.icons_applied = _icon_evidence(render_plan)
     else:
         # libass draws the ASS track; it honours the same contracted features.
         # A plain track wraps inside libass, so there is no measured layout to
@@ -1036,6 +1042,17 @@ def _caption_json(captions: Path | None, edl: EDL) -> CaptionTrack | None:
         return None
     path = source.with_suffix(".json")
     return load_artifact(CaptionTrack, path) if path.is_file() else None
+
+
+def _icon_evidence(plan: MotionPlan) -> list[dict]:
+    """Each icon drawn, with the set, version, licence, source and file hash."""
+    from social_video.motion.icons import icon_evidence, icon_file
+
+    return [
+        icon_evidence(element.icon, icon_file(element.icon), element.start)
+        for element in plan.elements
+        if element.type is MotionElementType.ICON and element.icon
+    ]
 
 
 def _sticker_evidence(plan: MotionPlan) -> list[dict]:
