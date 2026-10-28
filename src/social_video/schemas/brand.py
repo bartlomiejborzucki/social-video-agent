@@ -101,6 +101,9 @@ class CaptionStyle(Artifact):
     #: How the spoken word moves: none, pop (it springs up) or box (a highlight
     #: box slides behind it). Drawn by Remotion.
     animation: str = "none"
+    #: Opacity of the cue's words not spoken yet; 1.0 draws them like the
+    #: rest. Needs word timings. Drawn by Remotion.
+    upcoming_word_opacity: float = Field(default=1.0, ge=0.3, le=1.0)
     speaker_colours: dict[str, str] = Field(default_factory=dict)
     #: Within one scene a cue stays until the next one starts; see
     #: ``captions.chunk.hold_through_pauses``.

@@ -11,6 +11,7 @@ from social_video.captions.features import (
     CAPTION_ANIMATION_UNAVAILABLE,
     EMPHASIS_MARK,
     KEYWORD_EMPHASIS,
+    UPCOMING_WORDS_DIMMED,
 )
 from social_video.edl.voice import (
     DEESSER_MAX,
@@ -148,6 +149,20 @@ def check_brand(
                 if EMPHASIS_MARK in applied
                 else f"the contract marks emphasis words ({style.emphasis_mark}) but "
                 f"{render.caption_renderer or 'the renderer'} did not draw the mark"
+            ),
+        )
+        dimmed = style.upcoming_word_opacity < 1.0
+        add(
+            "caption upcoming words dimmed",
+            not dimmed or UPCOMING_WORDS_DIMMED in applied,
+            (
+                "not requested by the contract"
+                if not dimmed
+                else "applied"
+                if UPCOMING_WORDS_DIMMED in applied
+                else f"the contract dims words not yet spoken to {style.upcoming_word_opacity:g} "
+                f"but {render.caption_renderer or 'the renderer'} did not draw it (it needs "
+                "Remotion and word timings)"
             ),
         )
         add(

@@ -32,6 +32,8 @@ CAPTION_LAYOUT_MEASURED = "caption_layout_measured"
 #: glyph width was used instead. Captions are still never truncated; they are
 #: just laid out with less precision, so QA reports it.
 CAPTION_LAYOUT_ESTIMATED = "caption_layout_estimated"
+#: Recorded when a cue's words not spoken yet were drawn dimmed.
+UPCOMING_WORDS_DIMMED = "upcoming_words_dimmed"
 #: Recorded when labels were drawn as the title of a frame around the captions.
 SCENE_FRAME = "scene_frame"
 
@@ -67,6 +69,9 @@ def caption_features(
         applied.append(KEYWORD_EMPHASIS)
         if animated and style.emphasis_mark != "none":
             applied.append(EMPHASIS_MARK)
+    timed = any(cue.words for cue in captions.cues)
+    if animated and timed and style.upcoming_word_opacity < 1.0:
+        applied.append(UPCOMING_WORDS_DIMMED)
     if style.background_style.value != "none":
         applied.append(f"background_{style.background_style.value}")
     if style.bold:

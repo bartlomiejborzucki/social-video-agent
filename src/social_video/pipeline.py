@@ -868,6 +868,8 @@ def _check_remotion_only(contract: BrandContract, renderer: Renderer, *, caption
         problems.append("caption background_style: rounded_lines")
     if captions and style.emphasis_words and style.emphasis_mark != "none":
         problems.append(f"caption emphasis_mark: {style.emphasis_mark}")
+    if captions and style.upcoming_word_opacity < 1.0:
+        problems.append(f"caption upcoming_word_opacity: {style.upcoming_word_opacity:g}")
     if problems:
         raise ValidationError(
             "the brand contract asks for what only the Remotion route draws: "

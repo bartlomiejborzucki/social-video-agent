@@ -262,6 +262,7 @@ def compile_brand_contract(
             emphasis_colour=style.emphasis_color,
             emphasis_mark=style.emphasis_mark,
             animation=style.animation or energy.caption_animation,
+            upcoming_word_opacity=style.upcoming_word_opacity,
             first_cue_full_sentence=config.first_cue_full_sentence,
             first_cue_max_words=config.first_cue_max_words,
             hold_through_pauses=config.hold_through_pauses,

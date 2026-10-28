@@ -187,6 +187,8 @@ export type CaptionStyle = {
   emphasis_colour: string;
   emphasis_mark?: EmphasisMark;
   animation: 'none' | 'pop' | 'box';
+  /** Opacity of the cue's words not spoken yet; 1 draws them like the rest. */
+  upcoming_word_opacity?: number;
 };
 
 export type EmphasisMark = 'none' | 'highlight' | 'underline' | 'circle';

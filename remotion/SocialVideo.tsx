@@ -144,6 +144,7 @@ const Caption: React.FC<{
                 animation={highlight ? style.animation ?? 'none' : 'none'}
                 boxText={boxed ? style.background_colour : '#111111'}
                 mark={style.emphasis_mark ?? 'none'}
+                upcoming={style.upcoming_word_opacity ?? 1}
               />
             ) : (
               line.text
@@ -207,6 +208,8 @@ const LineBoxes: React.FC<{cue: CaptionCue; layout: CaptionLayout; colour: strin
  * keyword rests in the emphasis colour. The FFmpeg route draws the same thing
  * with timed ASS colour transforms. An emphasis mark (Remotion only) draws a
  * hand-made highlight, underline or circle on the keyword as it is spoken.
+ * Words not spoken yet are drawn at ``upcoming`` opacity (Remotion only), so
+ * the eye does not read ahead of the voice.
  */
 const ActiveWords: React.FC<{
   words: CaptionWord[];
@@ -216,7 +219,8 @@ const ActiveWords: React.FC<{
   animation?: 'none' | 'pop' | 'box';
   boxText?: string;
   mark?: EmphasisMark;
-}> = ({words, cueStart, highlight, emphasis, animation = 'none', boxText = '#111111', mark = 'none'}) => {
+  upcoming?: number;
+}> = ({words, cueStart, highlight, emphasis, animation = 'none', boxText = '#111111', mark = 'none', upcoming = 1}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   // The sequence is offset to the cue, so add the cue start back to compare
@@ -249,6 +253,8 @@ const ActiveWords: React.FC<{
               })
             : 0;
         const boxed = active && animation === 'box';
+        // A start after the end means no timing: such a word is never "to come".
+        const waiting = upcoming < 1 && word.start <= word.end && now < word.start;
         return (
           <React.Fragment key={`${word.start}-${index}`}>
             {index === 0 ? '' : ' '}
@@ -256,6 +262,7 @@ const ActiveWords: React.FC<{
               style={{
                 display: 'inline-block',
                 color: boxed ? boxText : colour,
+                opacity: waiting ? upcoming : undefined,
                 transform: `translateY(${-0.14 * popped}em) scale(${1 + 0.06 * popped})`,
                 background: boxed ? highlight : undefined,
                 boxShadow: boxed ? `0 0 0 0.14em ${highlight}` : undefined,

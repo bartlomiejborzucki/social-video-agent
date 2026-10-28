@@ -60,6 +60,10 @@ class CaptionConfig(BaseModel):
     emphasis_mark: Literal["none", "highlight", "underline", "circle"] = "none"
     #: How the spoken word moves. Empty means "what motion_energy implies".
     animation: Literal["", "none", "pop", "box"] = ""
+    #: Opacity of the words of the caption on screen that are not spoken yet,
+    #: so the eye reads ahead of the voice no further than the voice goes.
+    #: 1.0 (the default) draws them like the rest. Drawn by Remotion only.
+    upcoming_word_opacity: float = Field(default=1.0, ge=0.3, le=1.0)
     #: Within one scene, keep a caption on screen until the next one starts,
     #: so a pause in the speech never leaves the scene frame empty. A cut to
     #: another range, or a pause of more than two seconds, still clears it.

@@ -370,6 +370,8 @@ def _caption_payload(
     if layout is None or captions is None:
         return []
     keys = emphasis_keys(caption_style.emphasis_words if caption_style else [])
+    # Dimming the words still to come needs each word's time, like the highlight.
+    dimmed = caption_style is not None and caption_style.upcoming_word_opacity < 1.0
     by_index = {cue.index: cue for cue in captions.cues}
     payload: list[dict] = []
     for drawn in layout.cues:
@@ -383,7 +385,7 @@ def _caption_payload(
             # Transcribed word times also place an emphasis mark; without a
             # highlight the compositor never treats a word as the spoken one.
             # The layout estimates times for a cue without them; those are not used.
-            if line.words and (highlight or (keys and cue.words)):
+            if line.words and (highlight or ((keys or dimmed) and cue.words)):
                 entry["words"] = [
                     {
                         "text": apply_case(word.text, case),
