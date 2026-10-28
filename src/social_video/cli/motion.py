@@ -30,6 +30,37 @@ def _energy(ws):
     return energy_preset("lively")
 
 
+def _semantic_inputs(ws):
+    """The project's accent words and icon dictionary, the brief's quoted lines,
+    and whether the motion plan already marks the reel as sensitive."""
+    import re
+
+    from social_video.motion.icons import load_icon_dictionary
+    from social_video.motion.semantic import load_accent_words
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.config import BrandContract
+    from social_video.schemas.motion import MotionPlan
+
+    root, icons = None, None
+    if ws.brand_contract.is_file():
+        contract = load_artifact(BrandContract, ws.brand_contract)
+        root = Path(contract.project_root)
+        if contract.brand.icon_dictionary:
+            icons = load_icon_dictionary(Path(contract.brand.icon_dictionary))
+    quotes: list[str] = []
+    brief_path = ws.brief
+    if brief_path.is_file():
+        from social_video.schemas.brief import Brief
+
+        brief = load_artifact(Brief, brief_path)
+        for row in brief.rows:
+            quotes += re.findall(r"[„\"“]([^”\"„“]+)[”\"“]", row.said)
+            if row.voice_off_screen and row.said.strip():
+                quotes.append(row.said.strip())
+    tender = ws.motion_plan.is_file() and load_artifact(MotionPlan, ws.motion_plan).sensitive_topic
+    return load_accent_words(root), icons, quotes, tender
+
+
 @motion_app.command("suggest")
 def motion_suggest(
     source: Path = typer.Argument(..., help="Source video the EDL cuts."),
@@ -44,12 +75,21 @@ def motion_suggest(
         "--hook-punch",
         help="Also propose a 1.16 push-in on the first key word at 1.0-1.5 s.",
     ),
+    sensitive: bool = typer.Option(
+        False,
+        "--sensitive",
+        help="The reel is about death, illness or grief: no strike, bubble, process or icon "
+        "(also implied by sensitive_topic in motion-plan.json).",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """List where the edit should move -- hook card, figures, steps, punch-ins, transitions.
 
-    Sized to the energy level and spaced out; on a licensed music bed, punch-ins
-    land on its beats. Nothing changes until you run `motion accept`.
+    Also what the words mean as they are said: a habit replaced (strike), a
+    quoted line (bubble), a sequence of stages (process) and words the
+    project's icon dictionary lists (icon). Sized to the energy level and
+    spaced out; on a licensed music bed, punch-ins land on its beats. Nothing
+    changes until you run `motion accept`.
     """
     from social_video.analysis.beats import detect_beats
     from social_video.errors import ValidationError
@@ -93,9 +133,11 @@ def motion_suggest(
             opening = opening_in_point(
                 edl, load_artifact(SourceManifest, ws.source_manifest), heard
             )
+        words, icons, quotes, tender = _semantic_inputs(ws)
         found = find_accents(
             transcript, edl, preset, beats=beats, content_first=_content_first(ws),
             transcripts=others, opening=opening, hook_punch=hook_punch,
+            accent_words=words, icons=icons, quotes=quotes, sensitive=sensitive or tender,
         )  # fmt: skip
         save_artifact(found, ws.accent_candidates)
         return found

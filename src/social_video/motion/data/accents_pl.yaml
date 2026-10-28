@@ -1,0 +1,60 @@
+# Słowa, po których `motion suggest` rozpoznaje akcenty semantyczne: zamianę
+# (przekreślenie, `strike`), cytat (dymek, `bubble`) i sekwencję (pasek etapów,
+# `process`). Wpis to jedno słowo albo krótka fraza, małymi literami, bez
+# interpunkcji; porównywane są całe słowa.
+#
+# Te listy są ogólne. Projekt może je podmienić plikiem
+# `.social-video/accent-words.yaml` w swoim katalogu: każda kategoria podana tam
+# zastępuje tę stąd, pozostałe zostają.
+
+# Odruch, który zaraz zostanie zastąpiony: „zamiast X…”, „nie mów X…”.
+replace_from:
+  - zamiast
+  - nie mów
+  - nie mówmy
+  - nie krzycz
+  - nie pytaj
+  - nie strasz
+
+# To, co mówimy w zamian: „…powiedz Y”, „lepiej: Y”, „spróbuj: Y”.
+replace_with:
+  - powiedz
+  - powiedzmy
+  - lepiej
+  - spróbuj
+  - zapytaj
+  - mów
+
+# Czasowniki, po których pada cytat: „mówi: …”, „pyta: …”.
+quote_verbs:
+  - mówi
+  - mówią
+  - powiedział
+  - powiedziała
+  - powiedziało
+  - pyta
+  - zapytał
+  - zapytała
+  - zapytało
+  - krzyczy
+  - woła
+  - słyszę
+  - usłyszałam
+  - usłyszałem
+  - napisała
+  - napisał
+
+# Kolejne etapy: „najpierw…, potem…, na końcu…”.
+sequence_first:
+  - najpierw
+  - na początku
+sequence_then:
+  - potem
+  - następnie
+  - a potem
+  - później
+sequence_last:
+  - na końcu
+  - na koniec
+  - w końcu
+  - wreszcie

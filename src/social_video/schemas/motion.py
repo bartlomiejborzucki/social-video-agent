@@ -768,6 +768,14 @@ class AccentKind(str, Enum):
     OPENING = "opening"
     #: A strong push-in on the first key word, 1.0-1.5 s in: never frame 0.
     HOOK_PUNCH = "hook_punch"
+    #: "Zamiast X powiedz Y": the habit crossed out and replaced (a strike).
+    REPLACEMENT = "replacement"
+    #: A line someone said, quoted: a speech bubble on it.
+    QUOTE = "quote"
+    #: "Najpierw..., potem..., na końcu...": a process bar of the stages.
+    SEQUENCE = "sequence"
+    #: A word the project's icon dictionary lists: its icon over the head.
+    ICON = "icon"
 
 
 class RangeStart(Artifact):

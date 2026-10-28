@@ -23,8 +23,11 @@ from social_video.captions.emphasis import normalise
 from social_video.edl.timeline import Timeline
 from social_video.errors import ValidationError
 from social_video.motion.energy import EnergyPreset
+from social_video.motion.icons import IconDictionary
+from social_video.motion.semantic import AccentWords, load_accent_words
 from social_video.schemas.edl import EDL, EDLRange
 from social_video.schemas.motion import (
+    ICON_LIMIT,
     AccentCandidate,
     AccentCandidateSet,
     AccentKind,
@@ -71,6 +74,10 @@ def find_accents(
     transcripts: dict[str, Transcript] | None = None,
     opening: RangeStart | None = None,
     hook_punch: bool = False,
+    accent_words: AccentWords | None = None,
+    icons: IconDictionary | None = None,
+    quotes: list[str] | None = None,
+    sensitive: bool = False,
 ) -> AccentCandidateSet:
     """Accents found in what is said.
 
@@ -80,6 +87,12 @@ def find_accents(
 
     ``transcripts`` are the other recordings the EDL takes sound from, so a
     cut can be judged by whether someone is talking across it.
+
+    Semantic accents illustrate what is said as it is said: a habit replaced
+    (``strike``), a quoted line, from the speech or ``quotes`` from the brief
+    (``bubble``), a sequence of stages (``process``) and a word the project's
+    ``icons`` dictionary lists (``icon``). None is proposed for a
+    ``sensitive`` reel, and no icon at the calm energy, which allows none.
     """
     words = _output_words(transcript, edl)
     duration = edl.total_duration
@@ -92,6 +105,13 @@ def find_accents(
     found += _questions(sentences, duration)
     found += _punchlines(sentences, energy)
     found += _contrasts(words, energy, duration)
+    if not sensitive:
+        vocab = accent_words or load_accent_words()
+        found += _replacements(words, sentences, vocab, duration)
+        found += _quotes(words, vocab, duration, quotes or [])
+        found += _sequences(words, vocab, duration)
+        if icons is not None and ICON_LIMIT.get(energy.name, 0) > 0:
+            found += _icons(words, icons, duration)
     heard = {transcript.source_id: transcript, **(transcripts or {})}
     found += _transitions(edl, energy, heard)
     if opening is not None:
@@ -470,6 +490,260 @@ def _contrasts(words: list[Word], energy: EnergyPreset, duration: float) -> list
     return found
 
 
+# -- semantic accents ---------------------------------------------------------
+
+#: Words a stage label skips to reach the one that names it.
+FILLER = frozenset({"a", "i", "w", "z", "na", "do", "się", "to", "jest", "że", "go", "ją", "je"})
+#: Graphics that play with the words never share the opening frame.
+EARLIEST = 0.3
+
+
+def _matches(keys: list[str], index: int, phrases: tuple[tuple[str, ...], ...]) -> int:
+    """How many words of the longest phrase match at ``index``; 0 for none."""
+    for phrase in phrases:
+        if tuple(keys[index : index + len(phrase)]) == phrase:
+            return len(phrase)
+    return 0
+
+
+SENTENCE_END = (".", "!", "?", "…")
+
+
+def _clause(words: list[Word], index: int, most: int, ends=SENTENCE_END) -> list[Word]:
+    """Words from ``index`` to the end of the sentence (or of ``ends``), at most ``most``."""
+    clause: list[Word] = []
+    for word in words[index : index + most]:
+        clause.append(word)
+        if word.text.rstrip().endswith(ends):
+            break
+    return clause
+
+
+def _line(words: list[Word]) -> str:
+    """Words as an on-screen line: no edge punctuation, a capital first letter."""
+    text = _text(words).strip(",;:.\u2013- ")
+    return text[:1].upper() + text[1:]
+
+
+def _replacements(
+    words: list[Word], sentences: list[list[Word]], vocab: AccentWords, duration: float
+) -> list[AccentCandidate]:
+    """ "Zamiast X powiedz Y", "nie mów X... lepiej Y", "Lepiej: Y" after a habit."""
+    keys = [normalise(w.text) for w in words]
+    found: list[AccentCandidate] = []
+    index = 0
+    while index < len(words):
+        size = _matches(keys, index, vocab.replace_from)
+        if size:
+            # The habit runs to the end of its clause or to the word replacing it.
+            habit = []
+            for at in range(index + size, min(len(words), index + size + 8)):
+                if _matches(keys, at, vocab.replace_with):
+                    break
+                habit.append(words[at])
+                if words[at].text.rstrip().endswith((",", ".", "!", "?", ";", ":", "…")):
+                    break
+            after = index + size + len(habit)
+            say = next(
+                (k for k in range(after, min(len(words), after + 6))
+                 if _matches(keys, k, vocab.replace_with)),
+                None,
+            )  # fmt: skip
+            start_word = words[index]
+        elif keys[index] == "lepiej" or (
+            _matches(keys, index, vocab.replace_with) and words[index].text.rstrip().endswith(":")
+        ):
+            # "Lepiej: Y" with the habit said in the sentence before.
+            before = [s for s in sentences if s[-1].end <= words[index].start]
+            habit = before[-1] if before else []
+            say = index
+            start_word = habit[0] if habit else words[index]
+        else:
+            index += 1
+            continue
+        if not habit or say is None:
+            index += 1
+            continue
+        said = say
+        while said < len(words) and (step := _matches(keys, said, vocab.replace_with)):
+            said += step  # "lepiej powiedz ..." says what to say after both
+        instead = _clause(words, said, 8)
+        text, replacement = _line(habit), _line(instead)
+        if not instead or not 0 < len(text) <= 40 or not 0 < len(replacement) <= 40:
+            index = said
+            continue
+        start = max(EARLIEST, start_word.start - 0.2)
+        crossed, replaced = words[say].start, instead[0].start
+        end = min(duration, max(instead[-1].end + 1.2, start + 1.5))
+        if not start < crossed < replaced < end:
+            index = said
+            continue
+        cross_anchor, replace_anchor = _anchor(words, say), _anchor(words, said)
+        found.append(
+            _candidate(
+                AccentKind.REPLACEMENT, "medium", start,
+                f"'{text}' is replaced by '{replacement}': crossed out and replaced as it is said",
+                quote=_text(words[words.index(start_word) : said + len(instead)]),
+                element=MotionElement(
+                    type=MotionElementType.STRIKE, start=round(start, 3), end=round(end, 3),
+                    text=text, replacement=replacement,
+                    at_word=cross_anchor.word, occurrence=cross_anchor.occurrence,
+                    replace_at_word=replace_anchor.word,
+                    replace_occurrence=replace_anchor.occurrence,
+                    strike_at=round(crossed, 3), replace_at=round(replaced, 3),
+                    reason="The habit crossed out on the word that replaces it.",
+                ),
+            )
+        )  # fmt: skip
+        index = said + len(instead)
+    return found
+
+
+def _quotes(
+    words: list[Word], vocab: AccentWords, duration: float, quotes: list[str]
+) -> list[AccentCandidate]:
+    """A line after "mówi:", "pyta:"..., or a line the brief puts in quotes."""
+    keys = [normalise(w.text) for w in words]
+    spans: list[tuple[int, int, str]] = []
+    for index in range(len(words)):
+        size = _matches(keys, index, vocab.quote_verbs)
+        if not size:
+            continue
+        # Direct speech after a colon ("mówi: ..."), reported speech after
+        # "że" ("mówi, że ..."); a verb on its own ("krzyczy głośno") is not.
+        verb = words[index + size - 1].text.rstrip()
+        first = index + size
+        if first < len(words) and keys[first] == "że":
+            first += 1
+        elif not verb.endswith(":"):
+            continue
+        line = _clause(words, first, 12)
+        if len(line) >= 2:
+            spans.append((first, first + len(line), "said after a verb of speech"))
+    for quoted in quotes:
+        wanted = [k for k in (normalise(part) for part in quoted.split()) if k]
+        for index in range(len(words) - len(wanted) + 1):
+            if wanted and keys[index : index + len(wanted)] == wanted:
+                spans.append((index, index + len(wanted), "quoted in the brief"))
+                break
+    found = []
+    for first, last, why in spans:
+        line = words[first:last]
+        text = _line(line)
+        start = max(EARLIEST, line[0].start)
+        end = min(duration, start + 6.0, max(line[-1].end + 0.8, start + 1.5))
+        if not 0 < len(text) <= 60 or end - start < 1.2:
+            continue
+        anchor = _anchor(words, first)
+        found.append(
+            _candidate(
+                AccentKind.QUOTE, "medium", start, f"a quoted line, {why}: a speech bubble",
+                quote=_text(line),
+                element=MotionElement(
+                    type=MotionElementType.BUBBLE, start=round(start, 3), end=round(end, 3),
+                    text=text, at_word=anchor.word, occurrence=anchor.occurrence,
+                    reason="Someone's words, seen as they are heard.",
+                ),
+            )
+        )  # fmt: skip
+    return found
+
+
+def _sequences(words: list[Word], vocab: AccentWords, duration: float) -> list[AccentCandidate]:
+    """ "Najpierw kolacja, potem kąpiel, na koniec bajka": the stages as a bar."""
+    keys = [normalise(w.text) for w in words]
+    marks: list[tuple[int, int, str]] = []
+    index = 0
+    while index < len(words):
+        for kind, phrases in (
+            ("first", vocab.sequence_first),
+            ("then", vocab.sequence_then),
+            ("last", vocab.sequence_last),
+        ):
+            size = _matches(keys, index, phrases)
+            if size:
+                marks.append((index, size, kind))
+                index += size
+                break
+        else:
+            index += 1
+    found: list[AccentCandidate] = []
+    run: list[tuple[int, int, str]] = []
+    for mark in [*marks, (len(words) + 99, 0, "end")]:
+        close = run and mark[0] - (run[-1][0] + run[-1][1]) <= 12 and mark[2] != "first"
+        if mark[2] != "end" and (close or (not run and mark[2] == "first")):
+            run.append(mark)
+            continue
+        if len(run) >= 2:
+            candidate = _process(words, run, duration)
+            if candidate is not None:
+                found.append(candidate)
+        run = [mark] if mark[2] == "first" else []
+    return found
+
+
+def _process(
+    words: list[Word], run: list[tuple[int, int, str]], duration: float
+) -> AccentCandidate | None:
+    labels: list[str] = []
+    anchors: list[WordAnchor] = []
+    times: list[float] = []
+    for index, size, _kind in run[:5]:
+        at = index + size
+        while at < len(words) and normalise(words[at].text) in FILLER:
+            at += 1
+        if at >= len(words):
+            return None
+        label = words[at].text.strip(",.;:!?\"'„”()…")
+        if not label or len(label) > 12:
+            return None
+        labels.append(label)
+        anchors.append(_anchor(words, at))
+        times.append(round(words[at].start, 3))
+    start = max(EARLIEST, words[run[0][0]].start)
+    end = min(duration, max(times[-1] + 2.5, start + 2.5))
+    if end - start < 2.5 or times[0] < start:
+        return None
+    return _candidate(
+        AccentKind.SEQUENCE, "medium", start,
+        f"a sequence of {len(labels)} stages, each entering the bar as it is said",
+        quote=_text(words[run[0][0] : run[-1][0] + run[-1][1] + 2]),
+        element=MotionElement(
+            type=MotionElementType.PROCESS, start=round(start, 3), end=round(end, 3),
+            items=labels, item_at_words=anchors, item_times=times,
+            reason="The stages, one by one, then the pointer through them.",
+        ),
+    )  # fmt: skip
+
+
+def _icons(words: list[Word], icons: IconDictionary, duration: float) -> list[AccentCandidate]:
+    """An icon over the head on a word the project's dictionary lists, once per entry."""
+    found = []
+    seen: set[str] = set()
+    for index, word in enumerate(words):
+        hit = icons.lookup(word.text)
+        if hit is None or hit[0] in seen or word.start < EARLIEST:
+            continue
+        if word.start + 1.0 > duration:
+            continue
+        seen.add(hit[0])
+        anchor = _anchor(words, index)
+        found.append(
+            _candidate(
+                AccentKind.ICON, "medium", word.start,
+                f"'{word.text}' names {hit[0]!r}: its icon, {hit[1]}, over the head",
+                quote=word.text,
+                element=MotionElement(
+                    type=MotionElementType.ICON, start=round(word.start, 3),
+                    end=round(word.start + 1.0, 3), icon=hit[1],
+                    at_word=anchor.word, occurrence=anchor.occurrence,
+                    reason=f"The {hit[0]} the speaker names, seen.",
+                ),
+            )
+        )  # fmt: skip
+    return found
+
+
 #: Silence at a cut up to this long still counts as talking through it.
 TALKING_GAP = 0.3
 #: The framing a sharp jump goes to, inside the 1.08-1.12 band that reads as a
@@ -579,8 +853,13 @@ def _space(
         AccentKind.HOOK: 0,
         AccentKind.STAT: 1,
         AccentKind.STEPS: 2,
+        # What the words mean, shown as they are said, before emphasis moves.
+        AccentKind.REPLACEMENT: 2,
+        AccentKind.SEQUENCE: 2,
+        AccentKind.QUOTE: 3,
         AccentKind.PUNCHLINE: 3,
         AccentKind.QUESTION: 4,
+        AccentKind.ICON: 5,
         AccentKind.CONTRAST: 5,
         AccentKind.TRANSITION: 6,
     }
