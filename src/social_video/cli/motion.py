@@ -7,7 +7,7 @@ from pathlib import Path
 import typer
 from rich.markup import escape
 
-from social_video.cli._apps import motion_app
+from social_video.cli._apps import custom_app, motion_app
 from social_video.cli._common import _guard, console
 
 
@@ -444,3 +444,84 @@ def motion_qa(
         mark = "[green]ok[/green]  " if check.passed else "[yellow]warn[/yellow]"
         console.print(f"  {mark} {escape(check.name)}: {escape(check.message)}", soft_wrap=True)
     console.print(f"[green]written[/green] {ws.motion_qa}", soft_wrap=True)
+
+
+@custom_app.command("init")
+def motion_custom_init(
+    component: str = typer.Argument(..., help="The component's id, e.g. evening-clock."),
+    workspace_dir: Path = typer.Option(..., "--workspace", "-w"),
+    force: bool = typer.Option(False, "--force", help="Replace an existing component."),
+) -> None:
+    """Write a component template to motion/custom/ID.tsx, with the props it receives."""
+    import re
+
+    from social_video.errors import ValidationError
+    from social_video.motion.custom import TEMPLATE, component_path
+    from social_video.workspace.layout import Workspace
+
+    ws = Workspace.at(workspace_dir)
+
+    def run():
+        if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", component):
+            raise ValidationError(f"{component!r}: use lowercase letters, digits and dashes")
+        path = component_path(ws.root, component)
+        if path.exists() and not force:
+            raise ValidationError(f"{path} exists; pass --force to replace it")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(TEMPLATE, encoding="utf-8")
+        return path
+
+    path = _guard(run)
+    console.print(f"[green]written[/green] {path}", soft_wrap=True)
+
+
+@custom_app.command("check")
+def motion_custom_check(
+    component: str = typer.Argument(..., help="The component's id."),
+    workspace_dir: Path = typer.Option(..., "--workspace", "-w"),
+    video: Path | None = typer.Option(
+        None, "--video", help="Render to preview over (default: the base render or preview)."
+    ),
+    render: bool = typer.Option(True, "--render/--no-render", help="Render its range."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Check a component (imports, forbidden calls, tsc) and render its range to qa/."""
+    from social_video.errors import ValidationError
+    from social_video.motion.custom import check_components, preview_component
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.motion import MotionPlan
+    from social_video.workspace.layout import Workspace
+
+    ws = Workspace.at(workspace_dir)
+
+    def run():
+        if not ws.motion_plan.is_file():
+            raise ValidationError(f"no motion plan at {ws.motion_plan}")
+        plan = load_artifact(MotionPlan, ws.motion_plan)
+        mine = [e for e in plan.elements if e.component == component]
+        if not mine:
+            raise ValidationError(f"no custom element with component {component!r} in the plan")
+        checked = check_components(plan.model_copy(update={"elements": mine}), ws.root)
+        problems = checked.problems.get(component, [])
+        preview = None
+        if not problems and render:
+            preview = preview_component(ws, plan, mine[0], video=video)
+        return problems, preview
+
+    problems, preview = _guard(run)
+    if as_json:
+        console.print_json(
+            data={"component": component, "ok": not problems, "problems": problems,
+                  "preview": str(preview) if preview else None}
+        )  # fmt: skip
+        if problems:
+            raise typer.Exit(1)
+        return
+    if problems:
+        for problem in problems:
+            console.print(f"  [red]refused[/red] {escape(problem)}", soft_wrap=True)
+        console.print(f"{component}: left out of the render until fixed")
+        raise typer.Exit(1)
+    console.print(f"[green]ok[/green] {component}: imports, calls and types pass")
+    if preview is not None:
+        console.print(f"[green]written[/green] {preview}", soft_wrap=True)

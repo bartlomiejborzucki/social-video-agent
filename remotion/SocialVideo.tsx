@@ -37,6 +37,7 @@ import {SceneFrame, rgba} from './SceneFrame';
 import {stylePack} from './stylePacks';
 import {leakHueShift, useTransition} from './Transitions';
 import {WORD_GRAPHICS, WordGraphic} from './WordGraphics';
+import {CUSTOM_GRAPHICS} from './customGraphics';
 
 const useProjectFont = (family: string, source: string | null): void => {
   const [handle] = useState(() => delayRender('Load project motion-design font'));
@@ -963,6 +964,40 @@ const Sticker: React.FC<{element: MotionElement; durationInFrames: number}> = ({
   );
 };
 
+/**
+ * A component written for this reel, clipped to its zone. It gets the brand's
+ * tokens and its words' times; a component the checks refused never reaches
+ * the registry, so it is simply not drawn.
+ */
+const CustomGraphic: React.FC<{element: MotionElement; props: SocialVideoProps}> = ({element, props}) => {
+  const Component = CUSTOM_GRAPHICS[element.component ?? ''];
+  const zone = element.zone;
+  if (!Component || !zone) {
+    return null;
+  }
+  return (
+    <AbsoluteFill>
+      <div style={{position: 'absolute', left: zone.left, top: zone.top, width: zone.width, height: zone.height, overflow: 'hidden'}}>
+        <Component
+          brand={{
+            accent: props.accentColor,
+            secondary: props.secondaryColor,
+            text: props.textColor,
+            background: props.backgroundColor,
+            colors: props.brandColors ?? [props.accentColor, props.secondaryColor],
+            font: props.fontFamily,
+          }}
+          width={zone.width}
+          height={zone.height}
+          frame={{width: props.width, height: props.height}}
+          safeMargins={props.safeMargins}
+          words={element.custom_words ?? []}
+        />
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
   useProjectFont(props.fontFamily, props.fontSource);
   useProjectFont(EMOJI_FAMILY, props.emojiFontSource ?? null);
@@ -1020,6 +1055,8 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
           <Sequence key={`${element.type}-${index}`} from={from} durationInFrames={duration}>
             {element.type === 'sticker' ? (
               <Sticker element={element} durationInFrames={duration} />
+            ) : element.type === 'custom' ? (
+              <CustomGraphic element={element} props={props} />
             ) : element.type === 'label' && props.labelStyle === 'scene_frame' && props.sceneFrame ? (
               <SceneFrame
                 text={element.text}

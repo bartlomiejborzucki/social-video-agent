@@ -144,3 +144,7 @@ class RenderManifest(Artifact):
     #: Each icon drawn: its name, the set, version, licence and source, and the
     #: SHA-256 of the SVG file that drew it.
     icons_applied: list[dict] = Field(default_factory=list)
+    #: Each component written for this reel that passed its checks and was
+    #: drawn (with its SHA-256), and each one left out with the reasons.
+    custom_applied: list[dict] = Field(default_factory=list)
+    custom_rejected: list[dict] = Field(default_factory=list)

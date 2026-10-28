@@ -209,6 +209,9 @@ def element_band(
             start = top + 10 * u
             return start / height, (start + card) / height
         return None
+    if kind is MotionElementType.CUSTOM:
+        zone = custom_zone(element, width=round(height * 9 / 16), height=height, margins=margins)
+        return zone[1] / height, (zone[1] + zone[3]) / height
     if kind is MotionElementType.KINETIC_WORD:
         # One line of 130 px letters with room for the sparks around it.
         start = top + 20 * u
@@ -231,6 +234,26 @@ def element_band(
             return start / height, (start + card) / height
         return (height - card) / 2 / height, (height + card) / 2 / height
     return None
+
+
+def custom_zone(
+    element: MotionElement, *, width: int, height: int, margins: dict[str, float] | None = None
+) -> tuple[float, float, float, float]:
+    """Where a custom component may draw: (left, top, width, height) in pixels.
+
+    The top zone sits over the head, under the top safe margin; the centre zone
+    is the middle of the frame. Both keep the side margins and end well above
+    the captions. The compositor clips the component to this box.
+    """
+    margins = margins or {}
+    left = width * margins.get("left", 6.0) / 100.0
+    right = width * margins.get("right", 6.0) / 100.0
+    if element.placement is ElementPosition.CENTER:
+        top, zone_h = 0.36 * height, 0.26 * height
+    else:
+        top = height * margins.get("top", 6.0) / 100.0 + 10 * unit(height)
+        zone_h = 0.24 * height
+    return left, top, width - left - right, zone_h
 
 
 #: How far a label edge may move to meet a cut. Further than this, the label

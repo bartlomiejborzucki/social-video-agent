@@ -37,6 +37,10 @@ film_app = typer.Typer(
     help="Full-frame segments authored in Claude Motion: write the spec, import the export."
 )
 motion_app.add_typer(film_app, name="film")
+custom_app = typer.Typer(
+    help="A graphic written for one sentence: a checked Remotion component in motion/custom/."
+)
+motion_app.add_typer(custom_app, name="custom")
 broll_app = typer.Typer(help="Match clips from your own library to what is said, and cut them in.")
 app.add_typer(broll_app, name="broll")
 style_app = typer.Typer(

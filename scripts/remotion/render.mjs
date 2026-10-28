@@ -1,12 +1,12 @@
-import {bundle} from '@remotion/bundler';
+import {bundle, webpack} from '@remotion/bundler';
 import {renderMedia, selectComposition} from '@remotion/renderer';
 import path from 'node:path';
 import process from 'node:process';
 import {readFile, rm} from 'node:fs/promises';
 
-const [entryPoint, publicDir, propsPath, output] = process.argv.slice(2);
+const [entryPoint, publicDir, propsPath, output, customRegistry] = process.argv.slice(2);
 if (!entryPoint || !publicDir || !propsPath || !output) {
-  throw new Error('usage: render.mjs ENTRY PUBLIC_DIR PROPS_JSON OUTPUT');
+  throw new Error('usage: render.mjs ENTRY PUBLIC_DIR PROPS_JSON OUTPUT [CUSTOM_REGISTRY]');
 }
 
 const inputProps = JSON.parse(await readFile(propsPath, 'utf8'));
@@ -36,7 +36,23 @@ const chromiumOptions = gl ? {gl} : {};
 
 // The bundle is a ~30 MB webpack build written to the system temp directory,
 // which is often RAM-backed tmpfs. Remotion never removes it, so this does.
-const serveUrl = await bundle({entryPoint: path.resolve(entryPoint), publicDir: path.resolve(publicDir)});
+// Components written for one reel (`custom` elements) were checked in Python
+// and come with a registry of their own, which replaces the empty one.
+const webpackOverride = (config) =>
+  customRegistry
+    ? {
+        ...config,
+        plugins: [
+          ...(config.plugins ?? []),
+          new webpack.NormalModuleReplacementPlugin(/^\.\/customGraphics$/, path.resolve(customRegistry)),
+        ],
+      }
+    : config;
+const serveUrl = await bundle({
+  entryPoint: path.resolve(entryPoint),
+  publicDir: path.resolve(publicDir),
+  webpackOverride,
+});
 try {
   const composition = await selectComposition({
     serveUrl,

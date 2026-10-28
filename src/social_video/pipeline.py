@@ -656,6 +656,20 @@ def stage_render(
             render_plan.text_color = contract.brand.captions.primary_colour
             render_plan.background_color = contract.brand.background_colour
             render_plan.style = contract.brand.style_pack
+        custom_files: dict[str, Path] = {}
+        if any(e.type is MotionElementType.CUSTOM for e in render_plan.elements):
+            from social_video.motion.custom import check_components, without_rejected
+
+            checked = check_components(render_plan, workspace.root)
+            custom_files = checked.accepted()
+            manifest_obj.custom_applied, manifest_obj.custom_rejected = checked.evidence()
+            for rejected in manifest_obj.custom_rejected:
+                log.warning(
+                    "custom element %r left out: %s",
+                    rejected["component"],
+                    "; ".join(rejected["problems"]),
+                )
+            render_plan = without_rejected(render_plan, checked)
         _rendered, applied_caption_features, caption_layout = render_motion_design(
             render_target,
             output,
@@ -677,6 +691,7 @@ def stage_render(
             label_style=contract.brand.label_style if contract else "chip",
             secondary_colour=contract.brand.secondary_colour if contract else "#1F2430",
             brand_colours=contract.brand.brand_colours if contract else None,
+            custom_components=custom_files,
         )
         final_info = probe(output)
         manifest_obj.output = str(output)

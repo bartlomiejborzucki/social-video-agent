@@ -278,3 +278,60 @@ def test_an_inset_card_shows_a_picture_and_a_trimmed_clip(tmp_path: Path) -> Non
     assert (rows.max() - rows.min()) / HEIGHT == pytest.approx(card_height, abs=0.02)
     middle = frame(3.0)[HEIGHT // 2 - 5 : HEIGHT // 2 + 5, WIDTH // 2 - 5 : WIDTH // 2 + 5]
     assert middle[..., 2].mean() > 150 and middle[..., 0].mean() < 80  # blue: trimmed in
+
+
+def test_a_custom_component_is_drawn_in_its_zone_and_a_failing_one_left_out(
+    tmp_path: Path,
+) -> None:
+    from social_video.motion.custom import TEMPLATE, component_path
+    from social_video.pipeline import stage_render
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.edl import EDL, EDLRange
+    from social_video.schemas.qa import RenderManifest
+    from social_video.schemas.workflow import RemotionLicenseAttestation, Renderer
+    from social_video.sources import build_manifest
+    from social_video.workspace.layout import Workspace
+
+    source = _black(tmp_path, 3.0)
+    ws = Workspace.at(tmp_path / "edit")
+    ws.ensure()
+    opening = "<AbsoluteFill style={{alignItems: 'center', justifyContent: 'center', "
+    block = TEMPLATE.replace(
+        opening + "fontFamily: brand.font}}>", "<AbsoluteFill style={{background: brand.accent}}>"
+    )
+    for name, text in (("block", block), ("bad", TEMPLATE + "\nconst u = 'https://x.y/z';\n")):
+        path = component_path(ws.root, name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    plan = MotionPlan(
+        rationale="Custom.", accent_color="#D23150",
+        elements=[
+            MotionElement(type="custom", start=0.5, end=2.5, component="block", reason="r"),
+            MotionElement(type="custom", start=0.5, end=2.5, component="bad", position="center",
+                          reason="r"),
+        ],
+    )  # fmt: skip
+    manifest = build_manifest([source])
+    edl = EDL(output_width=WIDTH, output_height=HEIGHT, output_fps="30/1", normalize_audio=False,
+              ranges=[EDLRange(source=manifest.ids[0], start=0, end=3)])  # fmt: skip
+    output = tmp_path / "final.mp4"
+    stage_render(
+        edl, manifest, ws, quality="preview", output=output, renderer=Renderer.REMOTION,
+        motion_plan=plan,
+        remotion_license_attestation=RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE,
+    )  # fmt: skip
+
+    evidence = load_artifact(RenderManifest, ws.renders / "final.manifest.json")
+    assert [a["component"] for a in evidence.custom_applied] == ["block"]
+    assert evidence.custom_rejected[0]["component"] == "bad"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "1.5", "-i", str(output),
+                    "-frames:v", "1", str(tmp_path / "c.png")], check=True)  # fmt: skip
+    with Image.open(tmp_path / "c.png") as image:
+        pixels = np.asarray(image.convert("RGB")).astype(int)
+    red = (pixels[..., 0] > 170) & (pixels[..., 1] < 90) & (pixels[..., 2] < 120)
+    rows = np.flatnonzero(red.any(axis=1))
+    # The good block fills its top zone and nothing else; the refused one,
+    # in the centre zone, is not drawn.
+    assert rows.min() / HEIGHT == pytest.approx(0.06 + 10 / 1920, abs=0.01)
+    assert (rows.max() - rows.min()) / HEIGHT == pytest.approx(0.24, abs=0.01)
+    assert not red[HEIGHT // 2].any()

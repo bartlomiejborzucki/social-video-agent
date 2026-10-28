@@ -64,6 +64,9 @@ class MotionElementType(str, Enum):
     #: A picture or a short clip from the project (a comment, a book page, an
     #: earlier reel) as a card over the speaker, who stays in the shot.
     INSET = "inset"
+    #: A Remotion component written for this one reel (motion/custom/<id>.tsx),
+    #: drawn inside its zone with the brand tokens and its words' times.
+    CUSTOM = "custom"
 
 
 class EndCardLayout(str, Enum):
@@ -118,6 +121,7 @@ POSITIONS: dict[MotionElementType, tuple[ElementPosition, ...]] = {
     MotionElementType.BUBBLE: (ElementPosition.TOP,),
     MotionElementType.PROCESS: (ElementPosition.TOP,),
     MotionElementType.INSET: (ElementPosition.TOP, ElementPosition.CENTER),
+    MotionElementType.CUSTOM: (ElementPosition.TOP, ElementPosition.CENTER),
 }
 
 
@@ -131,6 +135,7 @@ AT_WORD_TYPES = frozenset(
         MotionElementType.ICON,
         MotionElementType.KINETIC_WORD,
         MotionElementType.INSET,
+        MotionElementType.CUSTOM,
     }
 )
 #: Graphics that play with the words. A reel on a sensitive subject (death,
@@ -144,6 +149,7 @@ PLAYFUL = frozenset(
         MotionElementType.PROCESS,
         MotionElementType.KINETIC_WORD,
         MotionElementType.INSET,
+        MotionElementType.CUSTOM,
     }
 )
 #: Playful graphics never share the opening frame with the first caption.
@@ -198,6 +204,7 @@ TEXTLESS = frozenset(
         MotionElementType.STICKER,
         MotionElementType.ICON,
         MotionElementType.INSET,
+        MotionElementType.CUSTOM,
     }
 )
 #: Types placed by a box (``size_pct``, ``x_pct``, ``y_pct``) rather than a band.
@@ -293,6 +300,9 @@ class MotionElement(Artifact):
     #: may be shown. A picture with a child's face is never shown.
     rights: str | None = Field(default=None, max_length=200)
     child_face_visible: bool = False
+    #: A custom element: the id of its component, ``motion/custom/<id>.tsx`` in
+    #: the edit workspace.
+    component: str | None = Field(default=None, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
     @model_validator(mode="before")
     @classmethod
@@ -414,6 +424,15 @@ class MotionElement(Artifact):
                 "video_asset, source_start, source_end, corner_radius, rights and "
                 "child_face_visible are only used by an inset"
             )
+        if self.type is MotionElementType.CUSTOM:
+            if not self.component:
+                raise ValueError("a custom element names its component, motion/custom/<id>.tsx")
+            if not 0.6 - 1e-6 <= self.end - self.start <= 8.0 + 1e-6:
+                raise ValueError(
+                    f"a custom element stays 0.6-8 s on screen, not {self.end - self.start:.2f} s"
+                )
+        elif self.component is not None:
+            raise ValueError("component is only used by a custom element")
         if self.type is MotionElementType.KINETIC_WORD:
             word = self.text.strip()
             if len(word) > 12 or any(ch.isspace() for ch in word):

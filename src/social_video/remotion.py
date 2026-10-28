@@ -54,6 +54,7 @@ def render_motion_design(
     label_style: str = "chip",
     secondary_colour: str = "#1F2430",
     brand_colours: list[str] | None = None,
+    custom_components: dict[str, Path] | None = None,
 ) -> tuple[Path, list[str], CaptionLayout | None]:
     if base_video.resolve() == output.resolve():
         raise ValidationError("Remotion output must not overwrite its technical base video")
@@ -220,6 +221,9 @@ def render_motion_design(
             shutil.copy2(plates[asset], public / name)
         if emoji is not None:
             shutil.copy2(emoji.path, public / f"emoji-font{emoji.path.suffix.casefold()}")
+        registry = None
+        if custom_components:
+            registry = _stage_custom(work / "custom-graphics", custom_components)
         if icons:
             (public / "icons").mkdir()
             for name, svg in icons.items():
@@ -249,6 +253,7 @@ def render_motion_design(
                     font=font,
                     tab_sizes=tab_sizes,
                     margins=safe_margins,
+                    captions=captions,
                 )
                 for item in plan.elements
             ],
@@ -296,7 +301,8 @@ def render_motion_design(
         props_path.write_text(json.dumps(props, ensure_ascii=False), encoding="utf-8")
         staged = work / "rendered.mp4"
         proc = subprocess.run(
-            [node, str(script), str(entry), str(public), str(props_path), str(staged)],
+            [node, str(script), str(entry), str(public), str(props_path), str(staged)]
+            + ([str(registry)] if registry is not None else []),
             cwd=project_root,
             capture_output=True,
             text=True,
@@ -333,6 +339,7 @@ def _element_payload(
     font: Path | None = None,
     tab_sizes: dict[str, float] | None = None,
     margins: dict[str, float] | None = None,
+    captions: CaptionTrack | None = None,
 ) -> dict:
     """One element as the compositor reads it, its placement resolved."""
     payload = item.model_dump(
@@ -362,6 +369,18 @@ def _element_payload(
             item, inset_aspect(item), width=width, height=height, margins=margins
         )
         payload["box"] = {"left": left, "top": top, "width": right - left, "height": bottom - top}
+    if item.type is MotionElementType.CUSTOM:
+        from social_video.motion.layout import custom_zone
+
+        left, top, zone_w, zone_h = custom_zone(item, width=width, height=height, margins=margins)
+        payload["zone"] = {"left": left, "top": top, "width": zone_w, "height": zone_h}
+        payload["custom_words"] = [
+            {"text": w.text, "start": round(w.start - item.start, 3),
+             "end": round(w.end - item.start, 3)}
+            for cue in (captions.cues if captions else [])
+            for w in cue.words
+            if item.start <= w.start < item.end
+        ]  # fmt: skip
     if item.type is MotionElementType.ICON:
         payload["icon_source"] = f"icons/{item.icon}.svg"
     if item.type is MotionElementType.BUBBLE:
@@ -369,6 +388,23 @@ def _element_payload(
         speech = item.bubble_variant.value == "speech"
         payload["tail"] = (item.tail.value if item.tail else "speaker") if speech else None
     return payload
+
+
+def _stage_custom(directory: Path, components: dict[str, Path]) -> Path:
+    """Copy the checked components and write the registry that bundles them."""
+    directory.mkdir(parents=True)
+    lines = []
+    entries = []
+    for index, (name, path) in enumerate(sorted(components.items())):
+        shutil.copy2(path, directory / f"{name}.tsx")
+        lines.append(f"import C{index} from './{name}';")
+        entries.append(f"  {json.dumps(name)}: C{index},")
+    registry = directory / "registry.tsx"
+    registry.write_text(
+        "\n".join([*lines, "export const CUSTOM_GRAPHICS = {", *entries, "};", ""]),
+        encoding="utf-8",
+    )
+    return registry
 
 
 def end_card_text(item, *, width: int, height: int, font: Path | None) -> dict:

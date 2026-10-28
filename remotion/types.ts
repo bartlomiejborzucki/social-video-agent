@@ -22,7 +22,8 @@ export type MotionElement = {
     | 'icon'
     | 'process'
     | 'kinetic_word'
-    | 'inset';
+    | 'inset'
+    | 'custom';
   start: number;
   end: number;
   text: string;
@@ -75,6 +76,10 @@ export type MotionElement = {
   source_end?: number | null;
   corner_radius?: number | null;
   box?: {left: number; top: number; width: number; height: number} | null;
+  /** Custom: its component's id, the zone it is clipped to, and its props. */
+  component?: string | null;
+  zone?: {left: number; top: number; width: number; height: number} | null;
+  custom_words?: {text: string; start: number; end: number}[] | null;
   /** Process: the state it ends in, shown with a tick. */
   done_text?: string | null;
 };
@@ -220,3 +225,17 @@ export type CaptionStyle = {
 };
 
 export type EmphasisMark = 'none' | 'highlight' | 'underline' | 'circle';
+
+/**
+ * What a `custom` component written for one reel receives, and nothing else:
+ * the brand's tokens, its zone's size, the frame and its safe margins, and the
+ * words said while it is on screen (seconds from its start).
+ */
+export type CustomGraphicProps = {
+  brand: {accent: string; secondary: string; text: string; background: string; colors: string[]; font: string};
+  width: number;
+  height: number;
+  frame: {width: number; height: number};
+  safeMargins: {top: number; right: number; bottom: number; left: number};
+  words: {text: string; start: number; end: number}[];
+};
