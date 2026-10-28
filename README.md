@@ -57,6 +57,11 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
   licensed music bed.
 - Fifteen brand-driven graphics in three style packs, from hook cards and lower
   thirds to charts, before/after comparisons and logo reveals.
+- Graphics on the spoken word: list points that enter as they are said, a
+  habit crossed out and replaced, speech and message bubbles, licensed icons
+  over the head, a process bar, a word built letter by letter, an image card
+  over the speaker, and, when nothing else fits, a checked Remotion component
+  written for one sentence.
 - Scene labels that never look like captions: a chip in the top zone, or the
   title of a frame around the scene's captions that flips when the next scene
   takes over -- the same layout on both renderers.
@@ -330,6 +335,7 @@ ellipsised later. A cue that does not fit is wrapped, then shrunk (to at most
 | `outline_or_shadow` | `none` | an outline on a box costs line width |
 | `emphasis_mark` | `none` | `highlight`, `underline` or `circle` on emphasis words (Remotion only) |
 | `background_style` | `rounded_box` | `rounded_lines` gives each line its own joined box (Remotion only) |
+| `upcoming_word_opacity` | `1.0` | below 1, the words not spoken yet are dimmed (Remotion only) |
 
 Brand QA checks what was drawn: lost text, an added ellipsis, a line wider than
 the box, a missing highlight, emphasis or animation.
@@ -436,7 +442,10 @@ social-video-agent motion accept -w edit acc-001 acc-003 --kind transition
 `hook_card`, `hook`, `lower_third`, `callout`, `quote`, `stat`, `chart`,
 `compare`, `list`, `steps`, `chapter`, `cta`, `progress`, `logo_reveal` and
 `end_card`. `style_pack` — `editorial`, `bold-social` or `tech-minimal` — sets
-their look in the brand's colours and font. Transitions (`zoom`, `slide`,
+their look in the brand's colours and font. Graphics on the spoken word —
+`strike`, `bubble`, `icon`, `process`, `kinetic_word`, `inset` and `custom` —
+are anchored to caption words and sit over the speaker's head; list points
+can enter on their words too. Transitions (`zoom`, `slide`,
 `flash`, `light_leak`) sit on cuts; punch-ins move the picture while captions and graphics
 stay put.
 

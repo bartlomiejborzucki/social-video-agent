@@ -4,6 +4,55 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+Graphics on the spoken word: each accent illustrates what is said at the
+moment it is said, within the same accent budget.
+
+### Added
+
+- `item_at_words` on `list`, `steps` and `process`: each point enters on the
+  word that names it. `motion suggest` anchors the steps it proposes;
+  `compile` and the render move every anchor to its caption word and print
+  each move. A word the captions do not hold is an error.
+- `caption_style.upcoming_word_opacity` (0.3–1.0, default 1.0): the words of
+  the caption on screen that are not spoken yet are drawn dimmed, with the
+  active-word highlight, emphasis marks and `rounded_lines`. Remotion only;
+  the FFmpeg route refuses it and brand QA checks it was drawn.
+- `strike`: a habit crossed out in the accent on one word and replaced on
+  another, with an optional scissors or cross mark.
+- `bubble`: a speech bubble (tail at the speaker or off frame) or a message
+  with a notification dot, popping in over the head on its word.
+- `icon`: a small flat icon over the head on the word that names it, from
+  Tabler Icons (MIT), downloaded once at a pinned version and hash. The render
+  manifest records set, version, licence, source and file hash
+  (`icons_applied`). A project maps words to icons in `icon_dictionary`. At
+  most 0, 2 or 4 per reel by energy.
+- `process`: 2–5 stages in the brand colours entering on their words, a
+  pointer through them and a closing state with a tick.
+- `kinetic_word`: one key word built letter by letter with sparks in the brand
+  colours; one per reel, never at `calm`.
+- `inset`: a project picture or short clip as a card over the speaker, with
+  its rights declared and never a child's face; `motion qa` warns when it
+  hides a talking mouth for more than 2 s.
+- `custom`: a Remotion component written for one sentence in
+  `motion/custom/<id>.tsx`, given only the brand tokens, its zone, the safe
+  margins and its words' times, and allowed only `react` and a list of
+  `remotion` names. Every render checks its imports, forbidden calls and types
+  (`tsc --noEmit`); one that fails is left out and recorded in
+  `custom_rejected`, and the rest of the reel renders. `motion custom init`
+  writes the template; `motion custom check` checks it and renders its range
+  to `qa/`.
+- `motion suggest` proposes a `strike` for "zamiast X powiedz Y", "nie mów X",
+  "lepiej: Y"; a `bubble` for a quote ("mówi: …", "mówi, że …", a line the
+  brief quotes); a `process` for "najpierw… potem… na końcu"; and an `icon`
+  for a word in the icon dictionary. The Polish words are in a data file a
+  project replaces by category with `.social-video/accent-words.yaml`.
+- `sensitive_topic: true` in the motion plan refuses every playful graphic
+  (stickers and the word graphics above) for a reel about death, illness or
+  grief; `motion suggest --sensitive` proposes none.
+- `motion qa` measures the word graphics where they are drawn (top zone by
+  default) against faces, the caption band and the scene frame, and counts
+  each as an accent.
+
 ## [2.7.1] - 2026-10-26
 
 Fixes from the first manual run of reference analysis and opening variants.

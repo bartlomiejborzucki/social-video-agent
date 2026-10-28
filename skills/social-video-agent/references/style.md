@@ -63,6 +63,13 @@ Caption settings worth knowing:
   did not draw it. A highlighted keyword keeps the caption colour, so the
   marker in `emphasis_color` does not hide it.
 
+- `upcoming_word_opacity` (0.3–1.0, default 1.0 = as before) draws the
+  words of the caption on screen that are not spoken yet at that opacity: the
+  said words stay full, the spoken one takes the highlight, the rest wait,
+  dimmed. It works with `active_word_highlight`, `emphasis_mark` and
+  `rounded_lines`. Remotion only; the FFmpeg route refuses it, and brand QA
+  fails a render that did not draw it. It needs word timings.
+
 Captions are never truncated to fit. Layout is measured against the project
 font in Python and handed to Remotion as explicit lines, so nothing is wrapped
 or clamped in the browser. A cue that does not fit is wrapped, then shrunk to
@@ -84,6 +91,25 @@ brand QA warns). See [motion-design.md](motion-design.md). To match a
 reference video, `style analyze` measures its rhythm; `--editorial` prepares
 stills and its timed transcript for a read of how it tells the story
 ([reference-analysis.md](reference-analysis.md)).
+
+## The icon dictionary
+
+`icon_dictionary` in the project config names a YAML file (relative to the
+project root) that maps spoken words to icons, with the other words that say
+the same:
+
+```yaml
+icons:
+  kąpiel: bath
+  bajka: book
+synonyms:
+  kąpiel: [wanna]
+```
+
+`motion suggest` proposes an `icon` only for a word listed here, with Polish
+endings handled ("kąpieli", "bajkę", "wannie"). The names are Tabler Icons
+outline icons (https://tabler.io/icons); an unknown name is refused when the
+reel is rendered.
 
 ## Captions
 

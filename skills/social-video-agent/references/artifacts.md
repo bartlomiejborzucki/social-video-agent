@@ -40,6 +40,8 @@ edit/
   qa/qa-report.json       canonical technical QA report
   qa/qa-brand.json        blocking brand-contract QA
   qa/qa-motion.json       measured motion QA, required at Stage 3 on Remotion
+  qa/custom-<id>.mp4      preview of one custom component (`motion custom check`)
+  motion/custom/<id>.tsx  components written for this reel (`custom` elements)
   qa/opening-contact-sheet.png
   qa/ending-contact-sheet.png
   cache/                  content-addressed; safe to delete
@@ -232,10 +234,41 @@ Allowed element types:
   `at_word` + `occurrence`, `animation`
   (`pop`, `shake`, `pulse`, `drop`), `size_pct`, `x_pct`, `y_pct`.
 
+- `list`, `steps` — optional `item_at_words`: one entry per item, a word or
+  `{word, occurrence}`; `compile` and the render set `item_times` (output
+  seconds) from the captions. Without it the items are revealed evenly.
+- `strike` — `text` and `replacement` (each ≤ 40 characters), `at_word` +
+  `occurrence` (the stroke), optional `replace_at_word` + `replace_occurrence`;
+  `strike_at`/`replace_at` are set from them. `strike_mark`: `none`,
+  `scissors`, `cross`. 1.5–10 s, from 0.3 s, `position` `top` or `center`.
+- `bubble` — `text` ≤ 60, `secondary_text` ≤ 40, `variant` `speech`
+  (default) or `message`, `tail` (`speaker`, `left`, `right`; speech only),
+  `at_word`. 1.2–6 s, from 0.3 s, top only.
+- `icon` — `icon` (a Tabler Icons outline name), `at_word`, 0.6–1.2 s,
+  `animation: pop`; `size_pct`/`x_pct`/`y_pct` default to 9 / 0.5 / 0.17
+  (over the head). Limit per reel: 0 / 2 / 4 by energy.
+- `process` — 2–5 `items` of at most 12 characters, optional
+  `item_at_words`, `text` (title, ≤ 40), `done_text` (≤ 24). At least 2.5 s,
+  top only.
+- `kinetic_word` — `text`: one word of at most 12 characters, `at_word`,
+  0.8–2.5 s. One per reel; none at `calm`.
+- `inset` — `image_asset` (PNG, JPEG, WebP) or `video_asset` (MP4, MOV, M4V,
+  WebM) with `source_start`/`source_end`; `rights` (required),
+  `child_face_visible` (must be false), `size_pct` (30–90 % of the width),
+  `corner_radius`, `position` `top` or `center`, `at_word`. 1.5–8 s.
+- `custom` — `component`: the id of `motion/custom/<id>.tsx` in the
+  workspace; `at_word`; `position` `top` or `center`; 0.6–8 s. No text of
+  its own.
+
+`sensitive_topic: true` on the plan refuses `sticker`, `strike`, `bubble`,
+`icon`, `process`, `kinetic_word`, `inset` and `custom`. Every one of them
+starts at 0.3 s or later.
+
 `shakes` lists moments the picture shakes: `start`, `end` (0.15–2 s),
 `amplitude_pct`, `frequency_hz`, optional `at_word` + `occurrence`, `reason`.
 
-`position` is only accepted by `cta`, `list` and `steps`. The plan's colours,
+`position` is only accepted by `cta`, `list`, `steps`, `strike`, `bubble`,
+`process`, `inset` and `custom`. The plan's colours,
 font and style are replaced by the brand contract's at render; the render logs
 each value it replaced.
 

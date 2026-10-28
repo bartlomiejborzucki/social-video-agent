@@ -52,8 +52,15 @@ else's video to use as a reference.
    **questions** (a callout), **punchlines** (a push-in after a pause),
    **turns** ("ale", "zamiast", "but": a push-in), **jumping cuts** (a
    transition) and **mid-speech cuts in one take** (a `jump`: a sharp change
-   of framing, see below). Each has an id and a confidence, spaced to the energy level;
-   over a licensed music bed punch-ins land on the beat.
+   of framing, see below). It also reads what the words mean as they are said:
+   **replacements** ("zamiast X powiedz Y", "nie mów X", "lepiej: Y": a
+   `strike`), **quotes** ("mówi: …", "mówi, że …", a line the brief puts in
+   quotes: a `bubble`), **sequences** ("najpierw… potem… na końcu": a
+   `process`) and **words from the icon dictionary** (an `icon`); suggested
+   steps and stages come anchored to their words. Each has an id and a
+   confidence, spaced to the energy level; over a licensed music bed punch-ins
+   land on the beat. `--sensitive` (or `sensitive_topic: true` in the plan)
+   leaves the word graphics out.
 2. Read each against the transcript and the story. Accept by id
    (`motion accept -w WORKSPACE acc-001 acc-004`) or by kind
    (`--kind stat --kind transition`). Reject what repeats the obvious.
@@ -87,7 +94,7 @@ already carries the hook. See [opening.md](opening.md).
 | `stat` | one figure worth seeing | `text` ≤ 12 chars, `secondary_text` label |
 | `chart` | figures compared | 2–6 `items` "Label: number" |
 | `compare` | before/after, us/them | 2 `items` "Label: text" |
-| `steps` / `list` | a process / points | 2–5 `items`; `position` `center` or `top` |
+| `steps` / `list` | a process / points | 2–5 `items`; `position` `center` or `top`; `item_at_words` puts each on its word |
 | `quote` | a line worth keeping | `text`, `secondary_text` attribution |
 | `callout` | a question, a key claim | `text` |
 | `chapter` | a new part of the argument | `text`, `secondary_text` kicker |
@@ -95,6 +102,13 @@ already carries the hook. See [opening.md](opening.md).
 | `lower_third` | who is speaking | `text`, `secondary_text` role |
 | `label` | names the scene ("Spróbuj tak"), drawn per `label_style` | `text` that fits the frame tab |
 | `sticker` | a reaction on one word: an allowlisted emoji or a project PNG/WebP/SVG | `emoji` or `image_asset`, `at_word`, 0.6–1.5 s |
+| `strike` | a habit crossed out and replaced ("Nie płacz!" → "Widzę, że ci smutno.") | `text` and `replacement` ≤ 40, `at_word` (the stroke), `replace_at_word` |
+| `bubble` | a line said (`variant: speech`) or a message received (`message`) | `text` ≤ 60, `secondary_text` ≤ 40, `at_word`; top only |
+| `icon` | the thing just named, over the head | `icon` (Tabler name), `at_word`, 0.6–1.2 s |
+| `process` | stages of a routine as a bar, a pointer, a closing state | 2–5 `items` ≤ 12 chars, `item_at_words`, `text` title, `done_text` |
+| `kinetic_word` | one key word built letter by letter | `text`: one word ≤ 12, `at_word`; one per reel, not `calm` |
+| `inset` | a picture or clip from the project over the speaker | `image_asset` or `video_asset`, `rights`, `size_pct`, `at_word` |
+| `custom` | a sentence no type above can say | `component` (`motion/custom/<id>.tsx`); see below |
 | `progress`, `logo_reveal`, `end_card`, `hook` | as named | see artifacts.md |
 
 `shakes` (in the plan, beside `punch_ins`) shake the whole picture for a
@@ -215,6 +229,108 @@ trzęsie". That is one sticker and one shake, both on the word:
 - Place it in the safe zone off the face, the caption band and the scene frame:
   `motion qa` measures each sticker against faces (box overlap), the captions
   while one is up, and the frame, plus its time on screen.
+
+## Graphics on the word
+
+A reel that holds attention illustrates what is said at the moment it is
+said: an icon on the noun, a bubble on the quote, each point of a list on its
+word, a habit crossed out on the word that replaces it. That is a different
+thing from more motion: the energy's accent budget is unchanged and every word
+graphic counts as one accent, like any other graphic.
+
+**Where things sit.** Graphics go in the **top zone, over the head**; the
+captions sit at **chest height** (the lower safe zone); **the face stays
+free**. Every word graphic is drawn in the top zone unless the plan puts a
+`strike`, `inset` or `custom` element at `position: center`, and `motion qa` measures it against faces, the
+caption band and the scene frame where it is actually drawn.
+
+**Anchored to the word.** `at_word` + `occurrence` sets a `bubble`, `icon`,
+`kinetic_word`, `inset` or `custom` element's start, as for a sticker. A
+`strike`'s `at_word` is the moment of the stroke and `replace_at_word` the
+moment the replacement enters. `item_at_words` (one entry per item, a word or
+`{word, occurrence}`) enters each point of a `list`, `steps` or `process` on
+its word; without it the items are revealed evenly, as before. `compile` and
+the render move every anchor to its caption word and print each move; a word
+the captions do not hold is an error. A list or strike stays until its last
+line has been read, but never past the end of the edit.
+
+```json
+{"type": "list", "start": 3.0, "end": 9.0, "text": "Spróbuj tak",
+ "items": ["Kąpiel", "Bajka"], "item_at_words": ["kąpiel", {"word": "bajka", "occurrence": 2}],
+ "position": "top", "reason": "Each point as it is said."},
+{"type": "strike", "start": 10.0, "end": 15.0, "text": "Nie płacz!",
+ "replacement": "Widzę, że ci smutno.", "at_word": "zamiast", "replace_at_word": "widzę",
+ "strike_mark": "cross", "reason": "The habit, crossed out."},
+{"type": "bubble", "start": 1.0, "end": 3.0, "variant": "message",
+ "text": "Co robić, gdy dziecko krzyczy?", "secondary_text": "pytanie od obserwatorki",
+ "at_word": "krzyczy", "reason": "The question this Q&A answers."}
+```
+
+- **`strike`**: the line appears, a stroke in the accent crosses it out on its
+  word (`strike_mark`: `scissors` or `cross` adds a mark), then `replacement`
+  takes its place. 1.5–10 s; `position` `top` (default) or `center`.
+- **`bubble`**: `variant: speech` has a tail at the speaker (`tail:
+  speaker`) or out of the frame (`left`, `right`); `message` has a
+  notification dot. It pops in with a sound from `motion sfx`. Never a card
+  over the shot, never in the opening frame (from 0.3 s), and it never stands
+  in for the situation's first caption. No names or logins in
+  `secondary_text`.
+- **`icon`**: a flat icon from Tabler Icons (MIT), downloaded once into the
+  cache at a pinned version and hash; the manifest's `icons_applied` records
+  set, version, licence, source and hash. `motion suggest` proposes one only
+  for a word in the project's `icon_dictionary` (style.md). At most 0 (`calm`),
+  2 (`lively`) or 4 (`bold`) per reel, counted apart from stickers.
+- **`process`**: 2–5 stages in the brand colours (never the card's own),
+  each entering on its word; a pointer runs through them and `done_text`
+  closes it with a tick ("✓ gotowe do snu"). Top only.
+- **`kinetic_word`**: one word assembled letter by letter with sparks in the
+  brand colours. At most one per reel, none at `calm`.
+- **`inset`**: a picture or a short clip (`source_start`/`source_end`, muted)
+  from the project — a comment's screenshot, a book page, an earlier reel — as
+  a card with rounded corners (`corner_radius`) and a soft shadow, `size_pct`
+  of the width (30–90), its height from the picture, capped at 42 % of the
+  frame. It needs `rights` and never shows a child's face, as for b-roll;
+  `motion qa` warns when it covers a talking mouth for more than 2 s.
+
+**Sensitive subjects.** For a reel about death, illness or grief set
+`sensitive_topic: true` in `motion-plan.json`: the plan then refuses every
+playful graphic (sticker, strike, bubble, icon, process, kinetic word, inset,
+custom) and `motion suggest` proposes none. Points on their words and dimmed
+caption words (`upcoming_word_opacity`) stay allowed.
+
+## A component written for one sentence (`custom`)
+
+When no type of the vocabulary says what a sentence means, write the
+animation for it. This is the exception, not the default: try the table
+first, and keep it to one or two in a reel.
+
+```bash
+social-video-agent motion custom init evening-clock -w WORKSPACE   # writes the template
+# edit motion/custom/evening-clock.tsx, add the element to motion-plan.json:
+#   {"type": "custom", "start": 6.2, "end": 8.4, "component": "evening-clock",
+#    "at_word": "wieczór", "reason": "The evening running out, as a clock."}
+social-video-agent motion custom check evening-clock -w WORKSPACE  # checks, renders qa/custom-evening-clock.mp4
+```
+
+- The component is the file's default export and receives only
+  `CustomGraphicProps`: `brand` (accent, secondary, text, background, colors,
+  font), `width`/`height` of its zone, the `frame` size, `safeMargins` and the
+  `words` said while it is on screen (seconds from its start). Draw only in
+  those colours and that font.
+- It may import only `react` and these names from `remotion`:
+  `AbsoluteFill`, `Easing`, `Freeze`, `Loop`, `Sequence`, `Series`,
+  `interpolate`, `interpolateColors`, `measureSpring`, `random`, `spring`,
+  `useCurrentFrame`, `useVideoConfig`. No network, no files (`staticFile`,
+  `Img`, `Video`), no URLs, no storage, no dynamic import.
+- It is clipped to its zone: `position: top` (over the head) or `center`.
+  `motion qa` measures that zone against faces and captions, and it counts as
+  an accent.
+- Every render checks it again (imports, forbidden calls, `tsc --noEmit`
+  against the props). A component that fails is left out with the reason
+  (`custom_rejected` in the render manifest); the rest of the reel renders.
+- Remotion's own agent skills are a good reference for the API: install them
+  in your session (`npx skills add remotion-dev/skills`), never into this
+  repository.
 
 ## Colours and font come from the brand
 

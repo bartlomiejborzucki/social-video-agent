@@ -157,6 +157,12 @@ Never work around the tool by hand; each of these is a feature:
   copied untouched, and QA holds A/V to the base render within 20 ms.
 - A reaction on a word is a `sticker` (allowlisted emoji or project image) and
   a `shake`, both `at_word`; never in frame 0, never on the end card.
+- A graphic illustrates the word as it is said: list, steps and `process`
+  points on their words (`item_at_words`), `strike`, `bubble`, `icon`,
+  `kinetic_word`, `inset`, and a `custom` component only when no type says
+  it. Over the head, captions at chest height, the face free; each counts as
+  an accent. For death, illness or grief set `sensitive_topic: true`: only
+  anchored points and dimmed caption words remain.
 - Judge the opening with `hook check`; open on movement and `--hook-punch`,
   never with a card. Test an opening with `motion variants` along one axis
   (`text` or `first_shot`), two previews with a `--hypothesis` each, then
@@ -272,7 +278,7 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 | The opening, the cover and the montage brief | [opening.md](references/opening.md) |
 | Short-form practices, length, reach | [short-form.md](references/short-form.md) |
 | How a reference video holds attention | [reference-analysis.md](references/reference-analysis.md) |
-| Hook card, graphics, punch-ins, transitions, b-roll | [motion-design.md](references/motion-design.md) |
+| Hook card, graphics, graphics on the word, punch-ins, transitions, b-roll | [motion-design.md](references/motion-design.md) |
 | Hook, chapter or end card designed in Claude Motion | [motion-film.md](references/motion-film.md) |
 
 After project rules and user overrides, work in this order: meaning, clarity,
