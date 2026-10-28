@@ -198,7 +198,9 @@ social-video-agent captions fix -w WORKSPACE --at 6.9 --from "sam." --to "już."
 ```
 
 It updates the cue and its words (the karaoke highlight draws from the words)
-and rewrites the JSON, SRT, VTT and ASS. `caption_hold_through_pauses: true`
+and rewrites the JSON, SRT, VTT and ASS. The fix is recorded in the track, so
+`compile --force` applies it again; a fix whose words the new edit no longer
+says is printed as a warning. `caption_hold_through_pauses: true`
 keeps each caption up through a pause within one range.
 
 Generate captions from the compiled brand contract. The EDL stores its

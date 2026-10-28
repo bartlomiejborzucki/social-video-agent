@@ -17,6 +17,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   Effects are now checked against the whole edit, hold included; the effect on
   the card's entrance moves with the card, and one the shorter edit no longer
   plays is dropped with a note.
+- `compile --force` silently dropped every `captions fix`. Each fix is now
+  recorded in the caption track; a rebuilt track (a recompile or an opening
+  variant) gets it back, and `compile` lists any fix whose words the new edit
+  no longer says.
+- SRT files had no blank line between captions, which some platforms reject.
 
 ## [2.8.0] - 2026-10-28
 

@@ -15,7 +15,12 @@ from dataclasses import dataclass
 from social_video.captions.chunk import apply_case
 from social_video.errors import ValidationError
 from social_video.schemas.brand import CaptionCase
-from social_video.schemas.captions import CaptionCue, CaptionTrack, CaptionWord
+from social_video.schemas.captions import (
+    CaptionCue,
+    CaptionFixRecord,
+    CaptionTrack,
+    CaptionWord,
+)
 
 #: How far from a cue ``--at`` may land and still mean that cue, in seconds.
 NEAR_S = 1.0
@@ -77,10 +82,46 @@ def fix_words(
         raise ValidationError("the fix would leave the cue empty; remove the cue instead")
     updated = cue.model_copy(update={"text": text, "words": words})
     cues = [updated if c.index == cue.index else c for c in track.cues]
+    record = CaptionFixRecord(at=round((cue.start + cue.end) / 2, 3), old=old, new=new)
     return (
-        track.model_copy(update={"cues": cues, "corrected": True}),
+        track.model_copy(update={"cues": cues, "corrected": True, "fixes": [*track.fixes, record]}),
         CaptionFix(cue=cue.index, before=cue.text, after=text),
     )
+
+
+def carry_fixes(
+    track: CaptionTrack,
+    fixes: list[CaptionFixRecord],
+    *,
+    case: CaptionCase = CaptionCase.AS_SPOKEN,
+) -> tuple[CaptionTrack, list[CaptionFixRecord]]:
+    """Apply earlier fixes to a rebuilt track; returns it and the fixes that did not fit.
+
+    A fix lands on the cue at its old time, or, when the edit moved, on the
+    one cue anywhere that still says the old words. A cue that already says
+    the new words (the transcript was corrected) keeps the fix as done.
+    """
+    lost: list[CaptionFixRecord] = []
+    for record in fixes:
+        try:
+            track, _change = fix_words(track, at=record.at, old=record.old, new=record.new,
+                                       case=case)  # fmt: skip
+            continue
+        except ValidationError:
+            pass
+        wanted = record.old.split()
+        holding = [c for c in track.cues if c.words and _find(list(c.words), wanted)]
+        if len(holding) == 1:
+            cue = holding[0]
+            track, _change = fix_words(track, at=(cue.start + cue.end) / 2, old=record.old,
+                                       new=record.new, case=case)  # fmt: skip
+            continue
+        said = record.new.split()
+        if said and any(c.words and _find(list(c.words), said) for c in track.cues):
+            track = track.model_copy(update={"corrected": True, "fixes": [*track.fixes, record]})
+            continue
+        lost.append(record)
+    return track, lost
 
 
 def _cue_at(track: CaptionTrack, at: float) -> CaptionCue:

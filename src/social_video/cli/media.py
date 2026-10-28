@@ -393,6 +393,7 @@ def compile_edl(
     )
     from social_video.profiles import load_profile
     from social_video.schemas.base import load_artifact
+    from social_video.schemas.captions import CaptionTrack
     from social_video.schemas.edl import EDL, ReframeMode
     from social_video.schemas.plan import EditPlan
     from social_video.transcribe.base import TranscriptionOptions
@@ -416,9 +417,14 @@ def compile_edl(
                 "pass --force to rebuild it from the plan"
             )
         replaced = 0
+        fixes = []
         if ws.edl.is_file():
             try:
-                replaced = len(load_artifact(EDL, ws.edl).sound_effects)
+                old = load_artifact(EDL, ws.edl)
+                replaced = len(old.sound_effects)
+                if old.captions and Path(old.captions).with_suffix(".json").is_file():
+                    track = load_artifact(CaptionTrack, Path(old.captions).with_suffix(".json"))
+                    fixes = track.fixes
             except Exception:  # an unreadable EDL is being replaced anyway
                 replaced = 0
         try:
@@ -437,15 +443,18 @@ def compile_edl(
             plan, transcript, ws, prof, reframe=mode, transcripts=others, edges=edges
         )
         wanted = captions if captions is not None else ws.brand_contract.is_file()
+        carried = []
         if wanted:
             used = {r.effective_audio_source for r in edl.ranges}
             heard = [t for t in [transcript, *others.values()] if t.source_id in used]
-            stage_captions(heard or [transcript], edl, ws, load_workspace_brand(ws))
+            track, _ass = stage_captions(heard or [transcript], edl, ws, load_workspace_brand(ws))
+            carried = track.fixes
             for note in anchor_workspace_reactions(ws, edl):
                 err_console.print(f"[green]anchored[/green] {escape(note)}")
-        return edl, edges, replaced
+        lost = [f for f in fixes if f not in carried]
+        return edl, edges, replaced, lost
 
-    edl, edges, replaced = _guard(run)
+    edl, edges, replaced, lost = _guard(run)
     shifts = [shift.describe() for shift in edges.shifts] if edges else []
     warnings = list(edges.warnings) if edges else []
     if replaced and not edl.sound_effects:
@@ -453,6 +462,11 @@ def compile_edl(
             f"the replaced edl.json had {replaced} sound effect(s), which the plan does not "
             f"carry; run `motion sfx -w {ws.root}` again"
         )
+    warnings += [
+        f"captions fix {f.old!r} -> {f.new!r} (at {f.at:.2f}s) is not in the rebuilt "
+        "captions; run it again with `captions fix`"
+        for f in lost
+    ]
     if ws.editorial_qa.is_file():
         from social_video.editorial.review import lost_editorial_fixes
         from social_video.schemas.editorial_qa import EditorialQA

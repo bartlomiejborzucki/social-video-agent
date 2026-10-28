@@ -8,7 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from social_video.captions.chunk import build_caption_track
-from social_video.captions.fix import fix_words
+from social_video.captions.fix import carry_fixes, fix_words
 from social_video.cli import app
 from social_video.editorial.compile import compile_plan
 from social_video.edl.timeline import Timeline
@@ -18,7 +18,7 @@ from social_video.pipeline import plan_transcripts
 from social_video.profiles import load_profile
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.brand import CaptionStyle
-from social_video.schemas.captions import CaptionCue, CaptionTrack, CaptionWord
+from social_video.schemas.captions import CaptionCue, CaptionFixRecord, CaptionTrack, CaptionWord
 from social_video.schemas.edl import EDL, EDLRange, ReframeMode, ReframePlan, SoundEffect
 from social_video.schemas.motion import MotionElement, MotionElementType
 from social_video.schemas.plan import EditPlan, PlanAction, PlanItem
@@ -188,6 +188,30 @@ def test_a_caption_fix_changes_the_words_the_highlight_draws() -> None:
         fix_words(_track(), at=20.0, old="sam.", new="już.")
 
 
+def test_a_rebuilt_track_gets_its_fixes_back_or_names_them() -> None:
+    fixed, _ = fix_words(_track(), at=6.9, old="sam.", new="już.")
+    assert fixed.fixes == [CaptionFixRecord(at=6.6, old="sam.", new="już.")]
+
+    # The edit moved the cue 2 s later: the one cue with the old words takes it.
+    moved = _track().model_copy(update={"cues": [_track().cues[0].model_copy(update={
+        "start": 8.0, "end": 9.2,
+        "words": [w.model_copy(update={"start": w.start + 2, "end": w.end + 2})
+                  for w in _track().cues[0].words]})]})  # fmt: skip
+    carried, lost = carry_fixes(moved, fixed.fixes)
+    assert carried.cues[0].text == "pobaw się już." and lost == []
+    assert carried.fixes[0].at == pytest.approx(8.6)
+
+    # The transcript was corrected meanwhile: nothing left to do, the fix is kept.
+    done, lost = carry_fixes(carried.model_copy(update={"fixes": []}), fixed.fixes)
+    assert done.cues[0].text == "pobaw się już." and lost == [] and done.fixes == fixed.fixes
+
+    # The words are cut out of the edit: the fix is named, not dropped silently.
+    mamo = CaptionWord(text="Mamo,", start=0, end=1)
+    cut = CaptionTrack(cues=[CaptionCue(index=1, start=0, end=1, text="Mamo,", words=[mamo])])
+    _same, lost = carry_fixes(cut, fixed.fixes)
+    assert lost == fixed.fixes
+
+
 def test_the_cli_rewrites_every_caption_file(tmp_path: Path) -> None:
     ws = Workspace.at(tmp_path / "edit")
     ws.ensure()
@@ -338,3 +362,28 @@ def test_a_forced_compile_says_it_dropped_the_sound_effects(tmp_path: Path) -> N
 
     assert result.exit_code == 0, result.output
     assert "had 1 sound effect(s)" in " ".join(result.output.split())
+
+
+@requires_ffmpeg
+def test_a_forced_compile_keeps_the_caption_fixes(tmp_path: Path) -> None:
+    ws, _ = _voice_only_workspace(tmp_path)
+    args = ["compile", "-w", str(ws.root), "--captions", "--word-edges"]
+    assert CliRunner().invoke(app, args).exit_code == 0, "first compile"
+    fix = ["captions", "fix", "-w", str(ws.root), "--at", "0.8"]
+    assert CliRunner().invoke(app, [*fix, "--from", "pobaw", "--to", "baw"]).exit_code == 0
+    track = ws.captions / "main.json"
+    assert load_artifact(CaptionTrack, track).fixes != []
+    # A fix the next compile cannot place: its words are not said.
+    data = load_artifact(CaptionTrack, track)
+    gone = CaptionFixRecord(at=0.5, old="kubek", new="kubeczek")
+    save_artifact(data.model_copy(update={"fixes": [*data.fixes, gone]}), track)
+
+    result = CliRunner().invoke(app, [*args, "--force"])
+
+    assert result.exit_code == 0, result.output
+    rebuilt = load_artifact(CaptionTrack, track)
+    assert "baw" in [w.text for c in rebuilt.cues for w in c.words]
+    assert "baw" in (ws.captions / "main.srt").read_text(encoding="utf-8")
+    out = " ".join(result.output.split())
+    assert "captions fix 'kubek' -> 'kubeczek' (at 0.50s) is not in the rebuilt captions" in out
+    assert "'pobaw' -> 'baw'" not in out

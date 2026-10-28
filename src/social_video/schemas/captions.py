@@ -40,6 +40,14 @@ class CaptionCue(Artifact):
         return self
 
 
+class CaptionFixRecord(Artifact):
+    """One `captions fix`, kept so a rebuilt track can apply it again."""
+
+    at: float = Field(ge=0.0, description="Output time of the corrected cue, seconds.")
+    old: str = Field(min_length=1)
+    new: str
+
+
 class CaptionTrack(Artifact):
     """A complete caption track for one deliverable."""
 
@@ -48,6 +56,9 @@ class CaptionTrack(Artifact):
     #: Set when a human or the agent has corrected ASR output, so a later
     #: re-transcription does not silently discard the corrections.
     corrected: bool = False
+    #: Every `captions fix` on this track, in order; `compile` and the
+    #: variants apply them again to the track they rebuild.
+    fixes: list[CaptionFixRecord] = Field(default_factory=list)
     #: Whether word timings come from the recognised speech or were spread
     #: over each cue, as they are for a translated track.
     word_timing: Literal["measured", "estimated"] = "measured"

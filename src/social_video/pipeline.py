@@ -411,9 +411,26 @@ def stage_captions(
     timeline = Timeline(edl)
     from social_video.editorial.brief import opening_line
 
+    previous = workspace.captions / f"{edl.name}.json"
+    fixes = []
+    if previous.is_file():
+        try:
+            fixes = load_artifact(CaptionTrack, previous).fixes
+        except Exception:  # an unreadable track is being replaced anyway
+            fixes = []
     track = build_caption_track(
         transcript, timeline, style=brand.captions, opening_text=opening_line(workspace, transcript)
     )
+    if fixes:
+        from social_video.captions.fix import carry_fixes
+
+        track, lost = carry_fixes(track, fixes, case=brand.captions.case)
+        for record in lost:
+            log.warning(
+                "captions fix %r -> %r (at %.2fs) no longer fits the rebuilt captions; "
+                "run it again with `captions fix`",
+                record.old, record.new, record.at,
+            )  # fmt: skip
     save_artifact(track, workspace.captions / f"{edl.name}.json")
     write_srt(track, workspace.captions / f"{edl.name}.srt")
     write_vtt(track, workspace.captions / f"{edl.name}.vtt")

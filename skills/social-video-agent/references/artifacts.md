@@ -311,7 +311,10 @@ the structured data is missing. `compile` builds one track from every
 transcript the plan keeps words from. To fix a misheard word, run `captions fix
 -w WORKSPACE --at SECONDS --from OLD --to NEW` and re-render — you do not need
 to re-cut. It changes the cue text and its `words`, which the karaoke highlight
-draws from, keeps every time, rewrites all four files and sets `corrected`.
+draws from, keeps every time, rewrites all four files, sets `corrected` and
+records the fix in `fixes`. A later `compile` or opening variant applies the
+recorded fixes to the track it rebuilds and names each one that no longer
+fits.
 Captions are burned last so nothing composites over them.
 
 ## brand-contract.json and brand QA
