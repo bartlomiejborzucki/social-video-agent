@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass
 from itertools import pairwise
 
 from social_video.captions.fit import BOX_PADDING_BOTTOM, BOX_PADDING_TOP, LINE_HEIGHT
+from social_video.errors import ValidationError
 from social_video.schemas.brand import CaptionPosition, CaptionStyle
 from social_video.schemas.edl import EDL, OverlayKind
 from social_video.schemas.motion import (
@@ -300,14 +301,38 @@ def pin_labels(elements: list[MotionElement], edl: EDL) -> tuple[list[MotionElem
             why = "its own time; no scene fits"
         pinned[id(label)] = (round(start, 3), round(end, 3), why)
 
-    ordered = sorted(pinned.items(), key=lambda p: p[1][0])
-    for (first, (s1, e1, w1)), (_second, (s2, _e2, _w2)) in pairwise(ordered):
+    # Two rows of one label (a brief that splits a scene in two) are one label.
+    titles = {id(label): label.text for label in labels(elements)}
+    merged: list[tuple[int, tuple[float, float, str]]] = []
+    joined: set[int] = set()
+    for ident, span in sorted(pinned.items(), key=lambda p: (p[1][0], p[1][1])):
+        if merged:
+            last, (s1, e1, w1) = merged[-1]
+            same = titles[last].strip().casefold() == titles[ident].strip().casefold()
+            if same and span[0] - e1 < 0.3:
+                merged[-1] = (last, (s1, max(e1, span[1]), w1))
+                joined.add(ident)
+                continue
+        merged.append((ident, span))
+    pinned = dict(merged)
+    for (first, (s1, e1, w1)), (second, (s2, _e2, _w2)) in pairwise(merged):
         if abs(s2 - e1) < 0.3 or e1 > s2:
+            if s2 - s1 < 0.5:
+                raise ValidationError(
+                    f"labels {titles[first]!r} and {titles[second]!r} both land on the scene "
+                    f"at {s1:.2f}s; give each label its own scene (beat) or merge them"
+                )
             pinned[first] = (s1, s2, w1)
 
     result: list[MotionElement] = []
     notes: list[str] = []
     for element in elements:
+        if id(element) in joined:
+            notes.append(
+                f"label {element.text!r} {element.start:.2f}-{element.end:.2f} s joined "
+                "with the same label before it"
+            )
+            continue
         if id(element) not in pinned:
             result.append(element)
             continue

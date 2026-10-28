@@ -30,6 +30,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   moved and a held `end_card` was refused. `compile` now holds the last frame
   under the remaining words (up to 0.75 s) or ends the range with the picture,
   and warns.
+- Two brief rows with the same label crashed `compile` with a pydantic error
+  (`elements.0.end Input should be greater than 0`) and left `edl.json`
+  without captions. Rows of one label that meet are now one label; two
+  different labels on one scene get a plain error, and the EDL is written
+  only after the labels fit.
 
 ## [2.8.0] - 2026-10-28
 

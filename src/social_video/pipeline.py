@@ -231,8 +231,9 @@ def stage_compile(
 
         contract = load_artifact(BrandContract, workspace.brand_contract)
         edl = apply_contract_to_edl(edl, contract)
-    save_artifact(edl, workspace.edl)
+    # Labels first: a plan they do not fit must not leave a new EDL behind.
     pin_workspace_labels(workspace, edl)
+    save_artifact(edl, workspace.edl)
     edl = sync_end_hold(workspace, edl)
     record_stage(workspace, "compile", {"ranges": len(edl.ranges)})
     return edl

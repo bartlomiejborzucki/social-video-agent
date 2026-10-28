@@ -165,6 +165,9 @@ scaled.
 plan item's `beat` spans exactly that item's ranges; any other label edge moves
 to the nearest cut within 1.5 s, and labels that then nearly meet are joined so
 the title flips instead of the frame leaving. It prints every label it moved.
+Two rows of one label that meet (a brief that splits a scene in two) become
+one label; two different labels on one scene are refused before `edl.json`
+is written, so a failed compile leaves the previous edit as it was.
 
 A `cta` sits above the caption band by default. Inside a scene frame that
 crowds the rim, and `motion qa` says so; use `position: top` -- a white pill,
