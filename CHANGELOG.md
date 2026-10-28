@@ -35,6 +35,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   without captions. Rows of one label that meet are now one label; two
   different labels on one scene get a plain error, and the EDL is written
   only after the labels fit.
+- `motion sfx` placed the built-in click about 20 dB under the speech, where
+  it could not be heard: a quiet effect is now measured and raised to the
+  level of the built-in whoosh. It also skipped the scenes of an imported
+  Claude Motion film; each now gets a sound like any graphic entering.
 
 ## [2.8.0] - 2026-10-28
 

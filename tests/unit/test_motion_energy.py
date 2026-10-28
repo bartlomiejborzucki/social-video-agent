@@ -17,14 +17,14 @@ from social_video.captions.features import (
 from social_video.errors import ValidationError
 from social_video.motion.energy import ENERGY, energy_preset
 from social_video.motion.review import review_moments, with_hook
-from social_video.motion.sfx import sync_sfx
+from social_video.motion.sfx import effect_level, sync_sfx
 from social_video.motion.suggest import accept_accents, find_accents
 from social_video.pipeline import _check_movement
 from social_video.project_config import compile_brand_contract
 from social_video.schemas.brand import BrandProfile, CaptionStyle
 from social_video.schemas.captions import CaptionCue, CaptionTrack, CaptionWord
 from social_video.schemas.config import BrandContract
-from social_video.schemas.edl import EDL, EDLRange
+from social_video.schemas.edl import EDL, EDLRange, Overlay, OverlayKind
 from social_video.schemas.motion import (
     AccentKind,
     MotionElement,
@@ -34,6 +34,7 @@ from social_video.schemas.motion import (
 from social_video.schemas.transcript import Transcript, TranscriptToken
 from social_video.transcribe.normalize import synthesize_spacing
 from social_video.workspace.layout import Workspace
+from tests.conftest import ffmpeg, requires_ffmpeg
 
 
 def _config(tmp_path: Path, extra: str = "") -> Path:
@@ -255,6 +256,40 @@ def test_sound_lands_under_each_transition_and_graphic(tmp_path: Path) -> None:
     assert all(e.gain_db == -10.0 for e in updated.sound_effects)
     _, again = sync_sfx(updated, plan, library)
     assert again == []
+
+
+@requires_ffmpeg
+def test_a_quiet_effect_is_raised_to_be_heard_and_a_motion_scene_gets_one(
+    tmp_path: Path,
+) -> None:
+    library = tmp_path / "sfx"
+    library.mkdir()
+    # A short tick at -26 dB with a silent tail, and a whoosh at full level.
+    ffmpeg("-f", "lavfi", "-i", "aevalsrc=0.0707*sin(2*PI*2000*t):d=0.06",
+           "-af", "apad=whole_dur=0.4", str(library / "tick.wav"))  # fmt: skip
+    ffmpeg("-f", "lavfi", "-i", "anoisesrc=d=0.3:a=0.9", str(library / "whoosh.wav"))
+    plan = MotionPlan(
+        rationale="r",
+        elements=[MotionElement(type="stat", start=3, end=5, text="73%", reason="r")],
+        transitions=[Transition(at=9.5, reason="cut")],
+    )
+    film = Overlay(file="film-end.mp4", kind=OverlayKind.MOTION_FILM, start_in_output=12.0,
+                   duration=3.0, reason="Claude Motion main/end-card-1")  # fmt: skip
+    edl = EDL(ranges=[EDLRange(source="a", start=0, end=12)], end_hold=3.0, overlays=[film])
+
+    _updated, added = sync_sfx(edl, plan, library, gain_db=-10.0)
+
+    by_time = {e.at: e for e in added}
+    assert sorted(by_time) == [3.0, 9.3, 12.0]
+    tick = by_time[3.0]
+    assert effect_level(library / "tick.wav") == pytest.approx(-26.0, abs=1.0)
+    assert tick.gain_db == pytest.approx(-10.0 + 12.0, abs=1.0)
+    assert "Raised" in tick.reason
+    assert by_time[9.3].gain_db == -10.0, "a loud file is never turned down"
+    assert (
+        by_time[12.0].reason
+        == "Synced to the Motion film scene entering at 12.00s. " + (tick.reason.split(". ", 1)[1])
+    )
 
 
 def test_a_hook_variant_replaces_or_adds_the_hook_card() -> None:

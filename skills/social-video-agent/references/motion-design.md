@@ -73,6 +73,11 @@ else's video to use as a reference.
    against pinned hashes. The effects live in `edl.json`: run it after the
    last `compile --force` (which rebuilds the EDL from the plan, so an end
    card's new `hold` reaches `end_hold`, and warns that it dropped them).
+   Each scene of an imported Motion film counts as a graphic, so it may run
+   before or after `motion film import`. A file quieter than -14 dBFS over its
+   loudest 50 ms (the built-in click is about -21) is raised to that level,
+   within the +6 dB a sound effect allows, and its `reason` says so; no file
+   is turned down.
 5. Optionally `broll suggest SOURCE -w WORKSPACE` (the library is
    `broll_library` in the config, or `--library DIR`), then `broll accept`:
    the user's own clips cut in where their subject is said. See below.

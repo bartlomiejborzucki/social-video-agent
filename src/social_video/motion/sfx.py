@@ -5,7 +5,14 @@ effects listed by `@remotion/sfx`, downloaded once into the cache), and are
 chosen by name: `whoosh`/`swoosh`/
 `transition` for a transition, `pop`/`click`/`ding`/`tick` for a graphic
 entering, `hit`/`boom`/`impact` for the hook card. Each lands exactly when its visual starts, a few
-decibels under the voice, as an ordinary sound effect in the EDL.
+decibels under the voice, as an ordinary sound effect in the EDL. A scene of a
+Claude Motion film counts as a graphic entering, though the import took its
+element out of the plan.
+
+Effects differ in level by more than any gain choice: a mouse click is a short
+tick with a silent tail, a whoosh is loud throughout. Each file's loudest 50 ms
+is measured, and one quieter than `REFERENCE_DB` is raised to it, so a click is
+heard where a whoosh is; none is turned down.
 """
 
 from __future__ import annotations
@@ -13,7 +20,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from social_video.errors import SocialVideoError, ValidationError
-from social_video.schemas.edl import EDL, SoundEffect
+from social_video.schemas.edl import EDL, OverlayKind, SoundEffect
 from social_video.schemas.motion import MotionElementType, MotionPlan
 
 AUDIO = {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"}
@@ -70,6 +77,35 @@ def builtin_library(directory: Path | None = None) -> Path:
     return target
 
 
+#: The level, in dBFS over the loudest 50 ms, a quieter effect is raised to:
+#: about where the built-in whoosh sits.
+REFERENCE_DB = -14.0
+
+
+def effect_level(path: Path) -> float | None:
+    """The loudest 50 ms of an effect, in dBFS; None when it cannot be decoded."""
+    import subprocess
+
+    import numpy as np
+
+    from social_video.ffmpeg.run import find_binary
+
+    # At the mix's own rate: a click's energy is in the highs a speech rate drops.
+    rate = 48000
+    try:
+        argv = [find_binary("ffmpeg"), "-v", "error", "-nostdin", "-i", str(path),
+                "-map", "0:a:0", "-ac", "1", "-ar", str(rate), "-f", "f32le", "-"]  # fmt: skip
+        raw = subprocess.run(argv, capture_output=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError, SocialVideoError):
+        return None
+    samples = np.frombuffer(raw, dtype=np.float32).astype(np.float64)
+    window = int(rate * 0.05)
+    if len(samples) < window:
+        return None
+    power = np.convolve(np.square(samples), np.ones(window) / window, mode="valid")
+    return float(10.0 * np.log10(power.max() + 1e-12))
+
+
 def library(directory: Path) -> dict[str, list[Path]]:
     files = sorted(p for p in directory.rglob("*") if p.suffix.casefold() in AUDIO)
     return {
@@ -114,6 +150,11 @@ def sync_sfx(
         if element.type is MotionElementType.STRIKE:
             crossed, _replaced = element.strike_moments
             moments.append((crossed, "graphic", f"strike crossing out at {crossed:.2f}s"))
+    for overlay in edl.overlays:
+        if overlay.kind is OverlayKind.MOTION_FILM:
+            at = overlay.start_in_output
+            moments.append((at, "graphic", f"Motion film scene entering at {at:.2f}s"))
+    levels: dict[Path, float | None] = {}
     for at, role, why in sorted(moments):
         at = max(0.0, round(at, 3))
         if round(at, 2) in placed:
@@ -121,9 +162,15 @@ def sync_sfx(
         path = pick(role)
         if path is None:
             continue
+        if path not in levels:
+            levels[path] = effect_level(path)
+        level = levels[path]
+        raise_db = round(max(0.0, REFERENCE_DB - level), 1) if level is not None else 0.0
+        raised = min(6.0, gain_db + raise_db)
+        note = f" Raised {raised - gain_db:.1f} dB: the file is quiet." if raised > gain_db else ""
         effect = SoundEffect(
-            path=str(path.resolve()), at=at, gain_db=gain_db,
-            reason=f"Synced to the {why}.",
+            path=str(path.resolve()), at=at, gain_db=raised,
+            reason=f"Synced to the {why}.{note}",
         )  # fmt: skip
         added.append(effect)
         placed.add(round(at, 2))
