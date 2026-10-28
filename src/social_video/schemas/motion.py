@@ -48,6 +48,9 @@ class MotionElementType(str, Enum):
     #: An emoji or a small project image reacting to one word, 0.6-1.5 s,
     #: in the safe zone and off the face, captions and scene frame.
     STICKER = "sticker"
+    #: A habit crossed out and replaced: the line appears, a stroke in the
+    #: accent crosses it out on a word, and ``replacement`` takes its place.
+    STRIKE = "strike"
 
 
 class EndCardLayout(str, Enum):
@@ -88,7 +91,26 @@ POSITIONS: dict[MotionElementType, tuple[ElementPosition, ...]] = {
     MotionElementType.CTA: (ElementPosition.ABOVE_CAPTIONS, ElementPosition.TOP),
     MotionElementType.LIST: (ElementPosition.CENTER, ElementPosition.TOP),
     MotionElementType.STEPS: (ElementPosition.CENTER, ElementPosition.TOP),
+    MotionElementType.STRIKE: (ElementPosition.TOP, ElementPosition.CENTER),
 }
+
+
+#: Types placed on a spoken word with `at_word`: it sets their start, except a
+#: strike's, which it sets the moment of crossing out.
+AT_WORD_TYPES = frozenset({MotionElementType.STICKER, MotionElementType.STRIKE})
+#: Graphics that play with the words. A reel on a sensitive subject (death,
+#: illness, grief) takes none of them; see `MotionPlan.sensitive_topic`.
+PLAYFUL = frozenset({MotionElementType.STICKER, MotionElementType.STRIKE})
+#: Playful graphics never share the opening frame with the first caption.
+PLAYFUL_EARLIEST = 0.3
+
+
+class StrikeMark(str, Enum):
+    """What crosses out a strike's line, besides the stroke itself."""
+
+    NONE = "none"
+    SCISSORS = "scissors"
+    CROSS = "cross"
 
 
 #: Types whose points may each enter on the word that names them.
@@ -166,6 +188,18 @@ class MotionElement(Artifact):
     #: ``item_at_words`` by `compile` and the render; without either, the
     #: items are revealed evenly, as before.
     item_times: list[float] | None = None
+    #: A strike: the line that takes the crossed-out one's place, and the word
+    #: it enters on (else shortly after the stroke).
+    replacement: str | None = Field(default=None, max_length=40)
+    replace_at_word: str | None = Field(default=None, max_length=60)
+    replace_occurrence: int = Field(default=1, ge=1)
+    #: A strike's moments on the output timeline: crossed out, then replaced.
+    #: Set from `at_word` and `replace_at_word`; empty means a third of the
+    #: way in, and 0.7 s later.
+    strike_at: float | None = Field(default=None, ge=0)
+    replace_at: float | None = Field(default=None, ge=0)
+    #: What crosses the line out besides the stroke: scissors or a cross.
+    strike_mark: StrikeMark = StrikeMark.NONE
 
     @field_validator("item_at_words", mode="before")
     @classmethod
@@ -240,8 +274,28 @@ class MotionElement(Artifact):
             raise ValueError("hold and layout are only used by an end_card")
         if self.type is MotionElementType.STICKER:
             self._check_sticker()
-        elif self.emoji is not None or self.at_word is not None or self.animated_emoji:
-            raise ValueError("emoji, animated_emoji and at_word are only used by a sticker")
+        elif self.emoji is not None or self.animated_emoji:
+            raise ValueError("emoji and animated_emoji are only used by a sticker")
+        if self.at_word is not None and self.type not in AT_WORD_TYPES:
+            names = ", ".join(sorted(t.value for t in AT_WORD_TYPES))
+            raise ValueError(f"at_word places {names} on a word, not a {kind}")
+        if self.type in PLAYFUL and self.start < PLAYFUL_EARLIEST:
+            raise ValueError(
+                f"a {kind} never shares the opening frame: start at {PLAYFUL_EARLIEST} s or later"
+            )
+        if self.type is MotionElementType.STRIKE:
+            self._check_strike()
+        elif (
+            self.replacement is not None
+            or self.replace_at_word is not None
+            or self.strike_at is not None
+            or self.replace_at is not None
+            or self.strike_mark is not StrikeMark.NONE
+        ):
+            raise ValueError(
+                "replacement, replace_at_word, strike_at, replace_at and strike_mark "
+                "are only used by a strike"
+            )
         self._check_item_anchors()
         if self.layout is EndCardLayout.IMAGE_TOP and self.image_asset is None:
             raise ValueError("layout image_top needs an image_asset to put above the text")
@@ -255,6 +309,31 @@ class MotionElement(Artifact):
             if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
                 raise ValueError("image_asset must be a .png, .jpg, .jpeg or .webp file")
         return self
+
+    def _check_strike(self) -> None:
+        if len(self.text) > 40 or not (self.replacement or "").strip():
+            raise ValueError(
+                "a strike crosses out a line of at most 40 characters and puts a "
+                "replacement of at most 40 in its place"
+            )
+        length = self.end - self.start
+        if not 1.5 - 1e-6 <= length <= 10.0 + 1e-6:
+            raise ValueError(f"a strike stays 1.5-10 s on screen, not {length:.2f} s")
+        crossed, replaced = self.strike_moments
+        if not self.start < crossed < replaced < self.end:
+            raise ValueError(
+                f"a strike is crossed out ({crossed:.2f}s) and replaced ({replaced:.2f}s) "
+                f"while it is on screen, {self.start:.2f}-{self.end:.2f}s"
+            )
+
+    @property
+    def strike_moments(self) -> tuple[float, float]:
+        """When a strike's line is crossed out, and when its replacement enters."""
+        crossed = self.strike_at
+        if crossed is None:
+            crossed = self.start + min(1.2, (self.end - self.start) / 3)
+        replaced = self.replace_at if self.replace_at is not None else crossed + 0.7
+        return round(crossed, 3), round(replaced, 3)
 
     def _check_item_anchors(self) -> None:
         if self.item_at_words is None and self.item_times is None:
@@ -393,7 +472,21 @@ class MotionPlan(Artifact):
     transitions: list[Transition] = Field(default_factory=list)
     #: Moments the whole picture shakes, drawn by both renderers.
     shakes: list[Shake] = Field(default_factory=list)
+    #: The reel is about death, illness or grief: no playful graphic
+    #: (stickers, strikes and the other word graphics) may appear in it.
+    sensitive_topic: bool = False
     rationale: str = Field(min_length=1, max_length=800)
+
+    @model_validator(mode="after")
+    def _restraint_on_a_sensitive_topic(self) -> MotionPlan:
+        if self.sensitive_topic:
+            playful = sorted({e.type.value for e in self.elements if e.type in PLAYFUL})
+            if playful:
+                raise ValueError(
+                    "a reel on a sensitive topic takes no playful graphics; remove "
+                    + ", ".join(playful)
+                )
+        return self
 
     @model_validator(mode="after")
     def _punch_ins_do_not_overlap(self) -> MotionPlan:

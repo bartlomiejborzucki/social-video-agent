@@ -36,6 +36,7 @@ import {DATA_GRAPHICS, DataGraphic, itemEntryFrame} from './DataGraphics';
 import {SceneFrame, rgba} from './SceneFrame';
 import {stylePack} from './stylePacks';
 import {leakHueShift, useTransition} from './Transitions';
+import {WORD_GRAPHICS, WordGraphic} from './WordGraphics';
 
 const useProjectFont = (family: string, source: string | null): void => {
   const [handle] = useState(() => delayRender('Load project motion-design font'));
@@ -1029,6 +1030,16 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
                 font={props.fontFamily}
                 fontPx={element.tab_font_px}
                 previousFontPx={element.continues_font_px}
+              />
+            ) : WORD_GRAPHICS.has(element.type) ? (
+              <WordGraphic
+                element={element}
+                accent={props.accentColor}
+                secondary={props.secondaryColor}
+                font={props.fontFamily}
+                durationInFrames={duration}
+                safeMargins={props.safeMargins}
+                holdToEnd={holdToEnd}
               />
             ) : DATA_GRAPHICS.has(element.type) ? (
               <DataGraphic

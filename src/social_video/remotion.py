@@ -322,6 +322,8 @@ def _element_payload(
         payload["continues_font_px"] = sizes.get(previous.text) if previous is not None else None
     if item.type is MotionElementType.END_CARD:
         payload["fitted"] = end_card_text(item, width=width, height=height, font=font)
+    if item.type is MotionElementType.STRIKE:
+        payload["strike_at"], payload["replace_at"] = item.strike_moments
     return payload
 
 

@@ -16,7 +16,8 @@ export type MotionElement = {
     | 'compare'
     | 'steps'
     | 'label'
-    | 'sticker';
+    | 'sticker'
+    | 'strike';
   start: number;
   end: number;
   text: string;
@@ -26,7 +27,7 @@ export type MotionElement = {
   /** Staged public-directory filename of the end-card plate, never a local path. */
   image_source?: string | null;
   image_dim_pct?: number;
-  /** Resolved placement of a cta (above_captions | top) or list/steps (center | top). */
+  /** Resolved placement of a cta (above_captions | top), list/steps (center | top) or strike. */
   position?: 'top' | 'center' | 'above_captions' | null;
   /** For a label: the text of the label it takes over from without a break. */
   continues?: string | null;
@@ -51,6 +52,12 @@ export type MotionElement = {
   y_pct?: number;
   /** List/steps: when each item enters, on the output timeline (its spoken word). */
   item_times?: number[] | null;
+  /** Strike: the line that takes the crossed-out one's place. */
+  replacement?: string | null;
+  /** Strike: crossed out, then replaced, on the output timeline. */
+  strike_at?: number | null;
+  replace_at?: number | null;
+  strike_mark?: 'none' | 'scissors' | 'cross';
 };
 
 export type Shake = {start: number; end: number; amplitude_pct: number; frequency_hz: number};

@@ -111,6 +111,9 @@ def sync_sfx(
         moments.append(
             (element.start, role, f"{element.type.value} entering at {element.start:.2f}s")
         )
+        if element.type is MotionElementType.STRIKE:
+            crossed, _replaced = element.strike_moments
+            moments.append((crossed, "graphic", f"strike crossing out at {crossed:.2f}s"))
     for at, role, why in sorted(moments):
         at = max(0.0, round(at, 3))
         if round(at, 2) in placed:

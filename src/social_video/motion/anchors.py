@@ -16,7 +16,12 @@ from __future__ import annotations
 from itertools import pairwise
 
 from social_video.schemas.captions import CaptionTrack
-from social_video.schemas.motion import ITEM_ANCHORED, MotionElement, MotionPlan
+from social_video.schemas.motion import (
+    ITEM_ANCHORED,
+    MotionElement,
+    MotionElementType,
+    MotionPlan,
+)
 
 #: After the last point of a list enters, it stays at least this long.
 ITEM_HOLD_S = 1.5
@@ -36,7 +41,7 @@ def word_times(captions: CaptionTrack) -> list[tuple[str, float, float]]:
 
 
 def needs_anchoring(plan: MotionPlan) -> bool:
-    return any(e.at_word or e.item_at_words for e in plan.elements) or any(
+    return any(e.at_word or e.item_at_words or e.replace_at_word for e in plan.elements) or any(
         s.at_word for s in plan.shakes
     )
 
@@ -66,6 +71,8 @@ def anchor_to_words(
     for element in plan.elements:
         if element.item_at_words and element.type in ITEM_ANCHORED:
             element = _anchor_items(element, find, notes)
+        elif element.type is MotionElementType.STRIKE:
+            element = _anchor_strike(element, find, notes)
         elif element.at_word:
             start = find(element.at_word, element.occurrence)
             length = element.end - element.start
@@ -117,4 +124,52 @@ def _anchor_items(element: MotionElement, find, notes: list[str]) -> MotionEleme
         notes.append(f"{kind} now on screen {start:.2f}-{end:.2f}s to show its items as said")
     return element.model_copy(
         update={"start": round(start, 3), "end": round(end, 3), "item_times": times}
+    )
+
+
+#: A strike's line is read this long before it is crossed out, by default.
+STRIKE_LEAD_S = 1.2
+#: After its replacement enters, a strike stays at least this long.
+REPLACEMENT_HOLD_S = 1.2
+
+
+def _anchor_strike(element: MotionElement, find, notes: list[str]) -> MotionElement:
+    """The stroke lands on `at_word`, the replacement on `replace_at_word`.
+
+    The first time, the strike keeps its start when the word falls inside it
+    and otherwise opens `STRIKE_LEAD_S` before the word; afterwards it moves
+    with its word. It stays until the replacement has been read.
+    """
+    start, end = element.start, element.end
+    crossed, replaced = element.strike_at, element.replace_at
+    if element.at_word:
+        word = find(element.at_word, element.occurrence)
+        if crossed is not None:
+            shift = word - crossed
+            start, end = start + shift, end + shift
+            if replaced is not None and not element.replace_at_word:
+                replaced += shift
+        elif not start < word < end:
+            length = end - start
+            start = max(0.3, word - min(STRIKE_LEAD_S, length / 3))
+            end = start + length
+        if crossed is None or abs(crossed - word) > 1e-3:
+            notes.append(f"strike on {element.at_word!r} crosses out at {word:.2f}s")
+        crossed = word
+    if element.replace_at_word:
+        word = find(element.replace_at_word, element.replace_occurrence)
+        if replaced is None or abs(replaced - word) > 1e-3:
+            notes.append(f"strike replaced on {element.replace_at_word!r} at {word:.2f}s")
+        replaced = word
+    floor = (replaced if replaced is not None else (crossed or start) + 0.7) + REPLACEMENT_HOLD_S
+    if end < floor:
+        notes.append(f"strike now on screen until {floor:.2f}s to show its replacement")
+        end = floor
+    return element.model_copy(
+        update={
+            "start": round(start, 3),
+            "end": round(end, 3),
+            "strike_at": crossed,
+            "replace_at": replaced,
+        }
     )

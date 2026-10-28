@@ -209,6 +209,13 @@ def element_band(
             start = top + 10 * u
             return start / height, (start + card) / height
         return None
+    if kind is MotionElementType.STRIKE:
+        # Two lines of 50 px type at most, with the card's padding.
+        card = (2 * 50 * 1.2 + 2 * 26 + 8) * u
+        if placement is ElementPosition.TOP:
+            start = top + 10 * u
+            return start / height, (start + card) / height
+        return (height - card) / 2 / height, (height + card) / 2 / height
     return None
 
 

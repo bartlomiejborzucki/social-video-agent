@@ -119,3 +119,26 @@ def test_words_not_spoken_yet_are_dimmed_mid_caption(tmp_path: Path) -> None:
     assert coming.max() < 140
     # Once it is said, the last word is drawn at full strength.
     assert np.percentile(frame(2.95)[:, words[2]].max(axis=-1), 99.5) > 200
+
+
+def test_a_strike_is_crossed_out_in_the_accent_then_replaced(tmp_path: Path) -> None:
+    strike = MotionElement(
+        type="strike", start=0.3, end=3.8, text="Nie płacz!", replacement="Widzę, że ci smutno.",
+        strike_at=1.2, replace_at=2.2, strike_mark="cross", reason="The habit, crossed out.",
+    )  # fmt: skip
+    plan = MotionPlan(rationale="Strike.", accent_color="#D23150", elements=[strike])
+    frame, _ = _render(tmp_path, plan)
+
+    def accent(pixels: np.ndarray) -> int:
+        red = (pixels[..., 0] > 170) & (pixels[..., 1] < 90) & (pixels[..., 2] < 120)
+        return int(red[: HEIGHT // 3].sum())
+
+    def change(a: float, b: float) -> float:
+        return float(np.abs(frame(a) - frame(b)).mean())
+
+    # No stroke before its moment; a stroke and a cross in the accent after it.
+    assert accent(frame(1.0)) < 5
+    assert accent(frame(1.9)) > 60
+    # The replacement takes the line's place, and the stroke goes with it.
+    assert change(1.9, 3.0) > 0.3
+    assert accent(frame(3.0)) < 5

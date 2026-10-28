@@ -440,7 +440,12 @@ def _readable(report: QAReport, item: Shown, pack: str) -> None:
     element = item.element
     if element.type in TEXTLESS:
         return
-    chars = len(element.text) + len(element.secondary_text or "") + sum(map(len, element.items))
+    chars = (
+        len(element.text)
+        + len(element.secondary_text or "")
+        + len(element.replacement or "")
+        + sum(map(len, element.items))
+    )
     if chars == 0:
         return
     cps = READING_CPS.get(pack, 15.0)
@@ -603,6 +608,11 @@ def _rhythm(report: QAReport, edl: EDL, plan: MotionPlan | None, shown: list[Sho
     # A graphic leaving the screen is as much a change as one arriving.
     changes.update(s.element.start for s in shown)
     changes.update(s.element.end for s in shown)
+    # A point entering on its word, or a line crossed out, changes the picture too.
+    for s in shown:
+        changes.update(s.element.item_times or [])
+        if s.element.type is MotionElementType.STRIKE:
+            changes.update(s.element.strike_moments)
     if plan is not None:
         changes.update(p.start for p in plan.punch_ins)
         changes.update(p.end for p in plan.punch_ins)
