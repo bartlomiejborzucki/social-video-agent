@@ -1049,8 +1049,16 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
       ) : null}
       {props.elements.map((element, index) => {
         const from = Math.round(element.start * props.fps);
-        const duration = Math.max(1, Math.round((element.end - element.start) * props.fps));
-        const holdToEnd = from + duration >= props.durationInFrames - 1;
+        // An end card followed by another one stays whole under it while the
+        // next one enters, so the picture never shows between the two.
+        const chained =
+          element.type === 'end_card' &&
+          props.elements.some(
+            (next) => next !== element && next.type === 'end_card' && Math.abs(next.start - element.end) < 1 / props.fps,
+          );
+        const overlap = chained ? Math.round(props.fps * 0.5) : 0;
+        const duration = Math.max(1, Math.round((element.end - element.start) * props.fps)) + overlap;
+        const holdToEnd = chained || from + duration >= props.durationInFrames - 1;
         return (
           <Sequence key={`${element.type}-${index}`} from={from} durationInFrames={duration}>
             {element.type === 'sticker' ? (

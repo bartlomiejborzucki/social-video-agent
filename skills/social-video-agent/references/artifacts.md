@@ -279,7 +279,8 @@ style.md.
 
 An
 `end_card` may add `hold: true` (placed after the last word, the edit extended
-by its length in silence, see motion-design.md), `layout` (`overlay` or
+by its length in silence; several held cards follow one another, see
+motion-design.md), `layout` (`overlay` or
 `image_top`), `image_asset` (a local PNG/JPEG/WebP background) and
 `image_dim_pct`; no other type may, because a plate behind a hook or callout
 covers the person the edit exists for. See

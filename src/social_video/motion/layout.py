@@ -31,6 +31,8 @@ FLIP_S = 0.5
 #: How far a Motion film's end scene may sit from the end of the speech and
 #: the hold, in seconds: its times are counted in frames.
 FILM_HOLD_TOLERANCE_S = 0.05
+#: The longest silent hold after the last word, as `EDL.end_hold` allows.
+MAX_END_HOLD_S = 10.0
 
 
 def unit(height: int) -> float:
@@ -364,59 +366,81 @@ def _film_holds_end(edl: EDL) -> bool:
 
 
 def held_end_card(plan: MotionPlan, edl: EDL) -> tuple[EDL, MotionPlan, str | None]:
-    """Extend the edit for an end card held after the last word, and place it there.
+    """Extend the edit for the end cards held after the last word, and place them there.
 
-    The card keeps its length (end - start) and starts where the last range
-    ends; the EDL holds that long in silence, so the card never covers the
-    last spoken seconds and lasts to the final frame. Returns what moved.
+    Each card keeps its length (end - start); the first starts where the last
+    range ends and each next one where the one before it ends, in the order
+    the plan gives them (an explanation, then a call to action). The EDL holds
+    that long in silence, so no card covers the last spoken seconds and the
+    last one lasts to the final frame. Returns what moved.
     """
     from social_video.edl.timeline import Timeline
 
-    held = [e for e in plan.elements if e.type is MotionElementType.END_CARD and e.hold]
-    if len(held) > 1:
-        raise ValueError("only one end_card can be held after the last word")
+    held = sorted(
+        (e for e in plan.elements if e.type is MotionElementType.END_CARD and e.hold),
+        key=lambda e: e.start,
+    )
     if not held:
         if edl.end_hold == 0 or _film_holds_end(edl):
             return edl, plan, None
         unheld, dropped = _with_hold(edl, 0.0)
         return unheld, plan, "end hold removed: no held end_card" + dropped
-    card = held[0]
-    length = round(card.end - card.start, 3)
     content_end = round(Timeline(edl).content_end, 3)
-    if abs(edl.end_hold - length) < 1e-3 and abs(card.start - content_end) < 1e-3:
+    places: dict[int, tuple[float, float]] = {}
+    cursor = content_end
+    for card in held:
+        length = round(card.end - card.start, 3)
+        places[id(card)] = (cursor, round(cursor + length, 3))
+        cursor = round(cursor + length, 3)
+    total = round(cursor - content_end, 3)
+    if total > MAX_END_HOLD_S:
+        raise ValueError(
+            f"the held end cards last {total:.2f}s together; the edit holds at most "
+            f"{MAX_END_HOLD_S:g}s after the last word"
+        )
+    if abs(edl.end_hold - total) < 1e-3 and all(
+        abs(card.start - places[id(card)][0]) < 1e-3 for card in held
+    ):
         return edl, plan, None
-    moved = card.model_copy(update={"start": content_end, "end": round(content_end + length, 3)})
-    elements = [moved if e is card else e for e in plan.elements]
+    elements = [
+        e.model_copy(update={"start": places[id(e)][0], "end": places[id(e)][1]})
+        if id(e) in places
+        else e
+        for e in plan.elements
+    ]
     new_plan = MotionPlan.model_validate(
         plan.model_copy(update={"elements": sorted(elements, key=lambda e: e.start)}).model_dump()
     )
-    new_edl, dropped = _with_hold(edl, length, entrance=(card.start, content_end))
+    entrances = [(card.start, places[id(card)][0]) for card in held]
+    new_edl, dropped = _with_hold(edl, total, entrances=entrances)
+    what = "end_card" if len(held) == 1 else f"{len(held)} end_cards"
     return (
         new_edl,
         new_plan,
         (
-            f"end_card held {length:.2f}s after the last word, "
-            f"{content_end:.2f}-{content_end + length:.2f}s{dropped}"
+            f"{what} held {total:.2f}s after the last word, "
+            f"{content_end:.2f}-{content_end + total:.2f}s{dropped}"
         ),
     )
 
 
 def _with_hold(
-    edl: EDL, hold: float, *, entrance: tuple[float, float] | None = None
+    edl: EDL, hold: float, *, entrances: list[tuple[float, float]] | None = None
 ) -> tuple[EDL, str]:
     """The edit held ``hold`` seconds, its sound effects kept inside it.
 
-    The effect on the card's entrance moves with the card (``entrance`` is its
-    old and new start); an effect the shorter edit ends before is dropped,
-    and the returned note names how many.
+    The effect on a card's entrance moves with the card (``entrances`` holds
+    each card's old and new start); an effect the shorter edit ends before is
+    dropped, and the returned note names how many.
     """
     from social_video.edl.timeline import Timeline
 
     end = Timeline(edl).content_end + hold
     effects = []
     for effect in edl.sound_effects:
-        if entrance is not None and abs(effect.at - entrance[0]) < 0.01:
-            effect = effect.model_copy(update={"at": entrance[1]})
+        moved = [new for old, new in entrances or [] if abs(effect.at - old) < 0.01]
+        if moved:
+            effect = effect.model_copy(update={"at": moved[0]})
         # One on the very last frame would not be heard either.
         if effect.at < end - 1e-3:
             effects.append(effect)

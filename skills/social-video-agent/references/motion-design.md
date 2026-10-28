@@ -193,6 +193,11 @@ that reaches the final frame never fades out over it.
   length (`end - start`) in silence: `edl.json` gets `end_hold`, the base
   render holds its last frame, and the card covers it to the end. `compile`
   and the render keep the two in step; QA approves that still tail.
+- Several held cards follow one another after the last word, in the order of
+  their `start` (an explanation, then the call to action), up to 10 s in all.
+  Each keeps its length; an earlier card stays whole under the next one while
+  it enters, so the picture never shows between them, and only the last runs
+  to the final frame.
 - `layout: image_top` draws the `image_asset` whole in the upper half (a book
   cover) and the text below it; the default `overlay` dims the image behind
   the text.

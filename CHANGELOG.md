@@ -4,16 +4,22 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Changed
+
+- Several `end_card`s with `hold: true` follow one another after the last
+  word (an explanation, then a call to action), up to 10 s in all, instead
+  of the second one being refused. The earlier card stays under the next one
+  while it enters, and QA counts the whole run as the end of the reel.
+
 ### Fixed
 
 - A Claude Motion scene imported in place of a held `end_card` lost its end:
   `motion film import` takes the card out of the plan, and the next render or
   compile removed the hold, so the film started after the last frame. The hold
   now stays while a `motion_film` overlay starts where the speech ends and
-  lasts the hold (within 0.05 s).
-  This also kept the transition budget counted over the whole reel: after the
-  import it was counted without the end card and refused transitions the same
-  plan had before.
+  lasts the hold (within 0.05 s). The transition budget is counted over the
+  whole reel again: after the import it was counted without the end card and
+  refused transitions the same plan had passed before.
 - A sound effect on the entrance of a held `end_card` broke the edit:
   `motion sfx` failed with "sound effect at … lands after the … output" when
   the end of the speech rounded up, and any effect in the hold was refused.

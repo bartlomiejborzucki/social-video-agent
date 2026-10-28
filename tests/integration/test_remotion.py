@@ -296,6 +296,48 @@ def test_a_held_end_card_lasts_to_the_final_frame(tmp_path: Path) -> None:
     assert names["audio/video sync against base"].passed
 
 
+def test_two_held_end_cards_never_show_the_picture_between_them(tmp_path: Path) -> None:
+    import numpy as np
+
+    source = make_video(tmp_path / "kamera.mp4", width=360, height=640, fps=30, duration=2.0,
+                        audio_channels=2)  # fmt: skip
+    font = default_caption_font()
+    assert font is not None
+
+    def card(text: str, start: float, end: float) -> MotionElement:
+        return MotionElement(type=MotionElementType.END_CARD, start=start, end=end, hold=True,
+                             text=text, reason="After the last word.")  # fmt: skip
+
+    plan = MotionPlan(
+        style="editorial_clean", rationale="An explanation, then the call to action.",
+        font_family=font.family, font_path=str(font.path), background_color="#101114",
+        elements=[card("Dlaczego tak działa", 0.0, 1.0), card("Zapisz na wieczór", 1.0, 2.0)],
+    )  # fmt: skip
+    manifest = build_manifest([source])
+    ws = Workspace.at(tmp_path / "edit")
+    ws.ensure()
+    edl = EDL(output_width=360, output_height=640, output_fps="30/1", normalize_audio=False,
+              ranges=[EDLRange(source=manifest.ids[0], start=0, end=2)])  # fmt: skip
+    from social_video.schemas.base import save_artifact
+
+    save_artifact(edl, ws.edl)
+    save_artifact(plan, ws.motion_plan)
+    stage_render(
+        edl, manifest, ws, quality="final", renderer=Renderer.REMOTION, motion_plan=plan,
+        remotion_license_attestation=RemotionLicenseAttestation.FREE_LICENSE_ELIGIBLE,
+    )  # fmt: skip
+    output = ws.final / "final.mp4"
+    assert probe(output).video.nb_frames == 120
+    raw = subprocess.run(
+        ["ffmpeg", "-v", "error", "-ss", "2.5", "-i", str(output), "-frames:v", "30",
+         "-vf", "scale=36:64,format=gray", "-f", "rawvideo", "-"],
+        check=True, capture_output=True,
+    ).stdout  # fmt: skip
+    frames = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 64 * 36).astype(float)
+    # Across the change of card (at 3.0 s), every frame keeps the dark ground.
+    assert len(frames) == 30 and frames.mean(axis=1).max() < 60
+
+
 def test_a_light_leak_washes_over_its_cut_only(tmp_path: Path) -> None:
     import numpy as np
 

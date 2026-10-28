@@ -12,6 +12,7 @@ from social_video.ffmpeg.fonts import default_caption_font
 from social_video.motion.layout import held_end_card
 from social_video.motion.sfx import sync_sfx
 from social_video.motion.text_fit import fit_text, is_address
+from social_video.qa.opening import end_card_violations
 from social_video.remotion import end_card_text
 from social_video.schemas.edl import EDL, EDLRange, Overlay, OverlayKind, SoundEffect
 from social_video.schemas.motion import MotionElement, MotionElementType, MotionPlan
@@ -149,3 +150,32 @@ def test_the_entrance_effect_follows_the_card_and_leaves_with_the_hold(tmp_path:
     unheld, _plan, note = held_end_card(plain, moved)
     assert unheld.end_hold == 0 and unheld.sound_effects == []
     assert note == "end hold removed: no held end_card; 1 sound effect(s) after the new end dropped"
+
+
+def test_an_explanation_then_a_call_to_action_follow_the_last_word_in_turn() -> None:
+    edl = EDL(ranges=[EDLRange(source="a", start=0, end=40.0)])
+    why = _card(start=30.0, end=33.0, text="Dlaczego tak działa", hold=True)
+    cta = _card(start=36.0, end=38.5, text="Zapisz na wieczór", hold=True)
+    plan = MotionPlan(rationale="r", elements=[cta, why])
+
+    held, placed, note = held_end_card(plan, edl)
+
+    assert note == "2 end_cards held 5.50s after the last word, 40.00-45.50s"
+    assert held.end_hold == pytest.approx(5.5)
+    assert [(e.text, e.start, e.end) for e in placed.elements] == [
+        ("Dlaczego tak działa", 40.0, 43.0),
+        ("Zapisz na wieczór", 43.0, 45.5),
+    ]
+    assert held_end_card(placed, held)[2] is None
+    # Both count as the end of the reel; a card left mid-edit does not.
+    assert end_card_violations(held, placed) == []
+    early = placed.model_copy(update={"elements": [placed.elements[0].model_copy(
+        update={"start": 20.0, "end": 23.0, "hold": False}), placed.elements[1]]})  # fmt: skip
+    assert [v.where for v in end_card_violations(held, early)] == ["end_card at 20.00s"]
+
+
+def test_held_end_cards_longer_than_the_hold_allows_are_refused() -> None:
+    edl = EDL(ranges=[EDLRange(source="a", start=0, end=40.0)])
+    cards = [_card(start=30.0, end=36.0, hold=True), _card(start=36.0, end=41.0, hold=True)]
+    with pytest.raises(ValueError, match=r"last 11\.00s together"):
+        held_end_card(MotionPlan(rationale="r", elements=cards), edl)

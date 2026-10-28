@@ -160,14 +160,26 @@ def end_card_violations(
 ) -> list[Violation]:
     """End cards anywhere but the end."""
     total = edl.total_duration
+    cards = sorted(
+        (e for e in (plan.elements if plan else []) if e.type is MotionElementType.END_CARD),
+        key=lambda e: e.end,
+        reverse=True,
+    )
+    # The end, and every card that runs straight into another card at the end.
+    ending = total
+    at_end: set[int] = set()
+    for card in cards:
+        if card.end >= ending - 0.1:
+            at_end.add(id(card))
+            ending = min(ending, card.start)
     found = [
         Violation(
             f"end_card at {e.start:.2f}s",
             f"an end card ends at {e.end:.2f}s, before the end at {total:.2f}s",
             "move it to the last seconds or remove it",
         )
-        for e in (plan.elements if plan else [])
-        if e.type is MotionElementType.END_CARD and e.end < total - 0.1
+        for e in cards[::-1]
+        if id(e) not in at_end
     ]
     found += [
         Violation(
