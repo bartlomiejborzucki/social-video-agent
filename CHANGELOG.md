@@ -11,6 +11,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   compile removed the hold, so the film started after the last frame. The hold
   now stays while a `motion_film` overlay starts where the speech ends and
   lasts the hold (within 0.05 s).
+  This also kept the transition budget counted over the whole reel: after the
+  import it was counted without the end card and refused transitions the same
+  plan had before.
 - A sound effect on the entrance of a held `end_card` broke the edit:
   `motion sfx` failed with "sound effect at … lands after the … output" when
   the end of the speech rounded up, and any effect in the hold was refused.

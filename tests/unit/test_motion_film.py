@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 
 from social_video.cli import app
 from social_video.errors import ValidationError
+from social_video.motion.energy import energy_preset
 from social_video.motion.film import (
     build_film_spec,
     import_film,
@@ -26,7 +27,7 @@ from social_video.qa.brand import _check_film_segments
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.config import BrandContract
 from social_video.schemas.edl import EDL, EDLRange, Overlay, OverlayKind
-from social_video.schemas.motion import MotionElement, MotionPlan
+from social_video.schemas.motion import MotionElement, MotionPlan, Transition
 from social_video.schemas.motion_film import FilmSpec
 from social_video.schemas.qa import RenderManifest
 from social_video.schemas.visuals import CapabilityState
@@ -289,22 +290,28 @@ def test_removing_a_segment_restores_its_graphic(tmp_path: Path, specified: Work
 @requires_ffmpeg
 def test_a_film_in_place_of_the_held_end_card_keeps_the_hold(tmp_path: Path) -> None:
     ws = _workspace(tmp_path, _contract(tmp_path))
-    card = MotionElement(type="end_card", start=8.0, end=10.5, text="Do zobaczenia",
+    card = MotionElement(type="end_card", start=8.0, end=15.0, text="Do zobaczenia",
                          hold=True, reason="Sign-off.")  # fmt: skip
-    save_artifact(MotionPlan(rationale="r", elements=[card]), ws.motion_plan)
+    cuts = [Transition(at=at, reason="Scene change.") for at in (3.0, 6.0)]
+    save_artifact(MotionPlan(rationale="r", elements=[card], transitions=cuts), ws.motion_plan)
     held = sync_end_hold(ws, load_artifact(EDL, ws.edl))
-    assert held.end_hold == pytest.approx(2.5)
+    assert held.end_hold == pytest.approx(7.0)
     contract = load_artifact(BrandContract, ws.brand_contract)
     write_film_spec(ws, build_film_spec(held, load_artifact(MotionPlan, ws.motion_plan), contract))
-    export = _export(tmp_path / "film.mp4", [("blue", 2.5)])
+    export = _export(tmp_path / "film.mp4", [("blue", 7.0)])
 
     import_film(ws, export, film_id="main-film", font_used="Lato")
 
-    assert load_artifact(MotionPlan, ws.motion_plan).elements == []
+    plan = load_artifact(MotionPlan, ws.motion_plan)
+    assert plan.elements == []
     # The render and every compile run this; the film must still have its end.
     kept = sync_end_hold(ws, load_artifact(EDL, ws.edl))
-    assert kept.end_hold == pytest.approx(2.5)
-    assert load_artifact(EDL, ws.edl).end_hold == pytest.approx(2.5)
+    assert kept.end_hold == pytest.approx(7.0)
+    assert load_artifact(EDL, ws.edl).end_hold == pytest.approx(7.0)
+    # So the transition budget is counted over the same 17 s before and after.
+    bold = energy_preset("bold").transitions_per_minute
+    assert plan.transition_problems(per_minute=bold, duration=held.total_duration) == []
+    assert plan.transition_problems(per_minute=bold, duration=kept.total_duration) == []
 
 
 @requires_ffmpeg
