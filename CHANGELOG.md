@@ -4,6 +4,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-10-28
+
 Graphics on the spoken word: each accent illustrates what is said at the
 moment it is said, within the same accent budget.
 
