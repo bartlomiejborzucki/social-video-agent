@@ -492,7 +492,9 @@ def stage_render(
     if reactive is not None:
         from social_video.motion.anchors import anchor_to_words
 
-        anchored, notes = anchor_to_words(reactive, _caption_json(captions, edl))
+        anchored, notes = anchor_to_words(
+            reactive, _caption_json(captions, edl), duration=edl.total_duration
+        )
         if notes:
             if persist_artifacts:
                 save_artifact(anchored, workspace.motion_plan)
@@ -1045,7 +1047,7 @@ def anchor_workspace_reactions(workspace: Workspace, edl: EDL) -> list[str]:
     if not workspace.motion_plan.is_file():
         return []
     plan = load_artifact(MotionPlan, workspace.motion_plan)
-    anchored, notes = anchor_to_words(plan, _caption_json(None, edl))
+    anchored, notes = anchor_to_words(plan, _caption_json(None, edl), duration=edl.total_duration)
     if notes:
         save_artifact(anchored, workspace.motion_plan)
     return notes

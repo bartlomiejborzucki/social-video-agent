@@ -47,9 +47,13 @@ def needs_anchoring(plan: MotionPlan) -> bool:
 
 
 def anchor_to_words(
-    plan: MotionPlan, captions: CaptionTrack | None
+    plan: MotionPlan, captions: CaptionTrack | None, *, duration: float | None = None
 ) -> tuple[MotionPlan, list[str]]:
-    """Move every graphic anchored to a word onto that word. Says what moved."""
+    """Move every graphic anchored to a word onto that word. Says what moved.
+
+    A list or strike that stays on to show its last point is never held past
+    ``duration``, the edit's length, when it is given.
+    """
     if not needs_anchoring(plan):
         return plan, []
     if captions is None:
@@ -70,9 +74,9 @@ def anchor_to_words(
     elements = []
     for element in plan.elements:
         if element.item_at_words and element.type in ITEM_ANCHORED:
-            element = _anchor_items(element, find, notes)
+            element = _anchor_items(element, find, notes, duration)
         elif element.type is MotionElementType.STRIKE:
-            element = _anchor_strike(element, find, notes)
+            element = _anchor_strike(element, find, notes, duration)
         elif element.at_word:
             start = find(element.at_word, element.occurrence)
             length = element.end - element.start
@@ -95,7 +99,9 @@ def anchor_to_words(
     return MotionPlan.model_validate(updated.model_dump()), notes
 
 
-def _anchor_items(element: MotionElement, find, notes: list[str]) -> MotionElement:
+def _anchor_items(
+    element: MotionElement, find, notes: list[str], duration: float | None = None
+) -> MotionElement:
     """Each point enters on its word; the card follows the words it shows.
 
     The first time, the card keeps its start unless its first word comes
@@ -115,6 +121,8 @@ def _anchor_items(element: MotionElement, find, notes: list[str]) -> MotionEleme
         start, end = start + shift, end + shift
     start = max(0.0, min(start, times[0]))
     end = max(end, times[-1] + ITEM_HOLD_S)
+    if duration is not None:
+        end = min(end, duration)
     kind = element.type.value
     for number, (anchor, at) in enumerate(zip(element.item_at_words, times, strict=True), 1):
         before = element.item_times[number - 1] if element.item_times else None
@@ -133,7 +141,9 @@ STRIKE_LEAD_S = 1.2
 REPLACEMENT_HOLD_S = 1.2
 
 
-def _anchor_strike(element: MotionElement, find, notes: list[str]) -> MotionElement:
+def _anchor_strike(
+    element: MotionElement, find, notes: list[str], duration: float | None = None
+) -> MotionElement:
     """The stroke lands on `at_word`, the replacement on `replace_at_word`.
 
     The first time, the strike keeps its start when the word falls inside it
@@ -162,6 +172,8 @@ def _anchor_strike(element: MotionElement, find, notes: list[str]) -> MotionElem
             notes.append(f"strike replaced on {element.replace_at_word!r} at {word:.2f}s")
         replaced = word
     floor = (replaced if replaced is not None else (crossed or start) + 0.7) + REPLACEMENT_HOLD_S
+    if duration is not None:
+        floor = min(floor, duration)
     if end < floor:
         notes.append(f"strike now on screen until {floor:.2f}s to show its replacement")
         end = floor

@@ -458,7 +458,7 @@ def motion_qa(
         if plan is not None:
             from social_video.motion.anchors import anchor_to_words
 
-            plan, _notes = anchor_to_words(plan, track)
+            plan, _notes = anchor_to_words(plan, track, duration=edl.total_duration)
         # The Remotion base render has no graphics over the faces.
         base = ws.cache / "remotion" / "base-preview.mp4"
         frames = video or (base if base.is_file() else ws.previews / "preview.mp4")

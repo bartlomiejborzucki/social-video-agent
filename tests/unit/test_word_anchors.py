@@ -110,3 +110,10 @@ def test_suggested_steps_are_anchored_to_the_words_that_start_them() -> None:
     assert steps is not None and steps.item_at_words is not None
     assert [a.word for a in steps.item_at_words] == ["napisy", "hook"]
     assert all(a.occurrence == 1 for a in steps.item_at_words)
+
+
+def test_a_list_is_never_held_past_the_end_of_the_edit() -> None:
+    plan = MotionPlan(rationale="r", elements=[_list(end=6.5, item_at_words=["kąpiel", "sen"])])
+    anchored, _ = anchor_to_words(plan, _track(), duration=7.2)
+    # The last point (6.5 s) would stay to 8.0 s; the edit ends at 7.2 s.
+    assert anchored.elements[0].end == pytest.approx(7.2)
