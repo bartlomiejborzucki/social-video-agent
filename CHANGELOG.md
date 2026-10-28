@@ -11,6 +11,12 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   compile removed the hold, so the film started after the last frame. The hold
   now stays while a `motion_film` overlay starts where the speech ends and
   lasts the hold (within 0.05 s).
+- A sound effect on the entrance of a held `end_card` broke the edit:
+  `motion sfx` failed with "sound effect at … lands after the … output" when
+  the end of the speech rounded up, and any effect in the hold was refused.
+  Effects are now checked against the whole edit, hold included; the effect on
+  the card's entrance moves with the card, and one the shorter edit no longer
+  plays is dropped with a note.
 
 ## [2.8.0] - 2026-10-28
 

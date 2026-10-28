@@ -353,7 +353,8 @@ def held_end_card(plan: MotionPlan, edl: EDL) -> tuple[EDL, MotionPlan, str | No
     if not held:
         if edl.end_hold == 0 or _film_holds_end(edl):
             return edl, plan, None
-        return edl.model_copy(update={"end_hold": 0.0}), plan, "end hold removed: no held end_card"
+        unheld, dropped = _with_hold(edl, 0.0)
+        return unheld, plan, "end hold removed: no held end_card" + dropped
     card = held[0]
     length = round(card.end - card.start, 3)
     content_end = round(Timeline(edl).content_end, 3)
@@ -364,12 +365,38 @@ def held_end_card(plan: MotionPlan, edl: EDL) -> tuple[EDL, MotionPlan, str | No
     new_plan = MotionPlan.model_validate(
         plan.model_copy(update={"elements": sorted(elements, key=lambda e: e.start)}).model_dump()
     )
-    new_edl = EDL.model_validate(edl.model_copy(update={"end_hold": length}).model_dump())
+    new_edl, dropped = _with_hold(edl, length, entrance=(card.start, content_end))
     return (
         new_edl,
         new_plan,
         (
             f"end_card held {length:.2f}s after the last word, "
-            f"{content_end:.2f}-{content_end + length:.2f}s"
+            f"{content_end:.2f}-{content_end + length:.2f}s{dropped}"
         ),
     )
+
+
+def _with_hold(
+    edl: EDL, hold: float, *, entrance: tuple[float, float] | None = None
+) -> tuple[EDL, str]:
+    """The edit held ``hold`` seconds, its sound effects kept inside it.
+
+    The effect on the card's entrance moves with the card (``entrance`` is its
+    old and new start); an effect the shorter edit ends before is dropped,
+    and the returned note names how many.
+    """
+    from social_video.edl.timeline import Timeline
+
+    end = Timeline(edl).content_end + hold
+    effects = []
+    for effect in edl.sound_effects:
+        if entrance is not None and abs(effect.at - entrance[0]) < 0.01:
+            effect = effect.model_copy(update={"at": entrance[1]})
+        # One on the very last frame would not be heard either.
+        if effect.at < end - 1e-3:
+            effects.append(effect)
+    dropped = len(edl.sound_effects) - len(effects)
+    held = EDL.model_validate(
+        edl.model_copy(update={"end_hold": hold, "sound_effects": effects}).model_dump()
+    )
+    return held, f"; {dropped} sound effect(s) after the new end dropped" if dropped else ""

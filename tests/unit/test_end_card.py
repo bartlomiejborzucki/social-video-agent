@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
 from social_video.edl.timeline import Timeline
 from social_video.ffmpeg.fonts import default_caption_font
 from social_video.motion.layout import held_end_card
+from social_video.motion.sfx import sync_sfx
 from social_video.motion.text_fit import fit_text, is_address
 from social_video.remotion import end_card_text
-from social_video.schemas.edl import EDL, EDLRange, Overlay, OverlayKind
+from social_video.schemas.edl import EDL, EDLRange, Overlay, OverlayKind, SoundEffect
 from social_video.schemas.motion import MotionElement, MotionElementType, MotionPlan
 
 URL = "przyklad-marki.example/strona-z-zapisami/"
@@ -99,3 +102,50 @@ def test_a_motion_film_in_place_of_the_held_card_keeps_the_hold() -> None:
     early = film.model_copy(update={"start_in_output": 20.0})
     gone, _plan, note = held_end_card(empty, held.model_copy(update={"overlays": [early]}))
     assert gone.end_hold == 0 and note == "end hold removed: no held end_card"
+
+
+def _slowed() -> EDL:
+    # A slowed range: the speech ends at 12.99659...s, which rounds up.
+    return EDL(ranges=[EDLRange(source="a", start=0, end=5.3, speed=0.9),
+                       EDLRange(source="a", start=7.1, end=14.2077)])  # fmt: skip
+
+
+def test_a_sound_effect_on_the_held_card_entrance_is_part_of_the_edit(tmp_path: Path) -> None:
+    plan = MotionPlan(rationale="r", elements=[_card(start=10.0, end=12.5, hold=True)])
+    held, placed, _note = held_end_card(plan, _slowed())
+    assert placed.elements[0].start > Timeline(held).content_end
+    (tmp_path / "pop.wav").write_bytes(b"")
+
+    with_sfx, added = sync_sfx(held, placed, tmp_path)
+
+    assert [e.at for e in added] == [placed.elements[0].start]
+
+    # Inside the hold too; only past the held end is refused.
+    def effect_at(at: float) -> EDL:
+        effect = SoundEffect(path="pop.wav", at=at, reason="r")
+        return EDL.model_validate(
+            with_sfx.model_copy(update={"sound_effects": [effect]}).model_dump()
+        )
+
+    assert effect_at(14.5).sound_effects[0].at == 14.5
+    with pytest.raises(ValidationError, match=r"lands after the 15\.50s output"):
+        effect_at(16.0)
+
+
+def test_the_entrance_effect_follows_the_card_and_leaves_with_the_hold(tmp_path: Path) -> None:
+    plan = MotionPlan(rationale="r", elements=[_card(start=10.0, end=12.5, hold=True)])
+    held, placed, _note = held_end_card(plan, _slowed())
+    (tmp_path / "pop.wav").write_bytes(b"")
+    with_sfx, _added = sync_sfx(held, placed, tmp_path)
+
+    # A recompile cuts the last range shorter: card and effect move together.
+    shorter = with_sfx.model_copy(update={"ranges": [*with_sfx.ranges[:1],
+                                  EDLRange(source="a", start=7.1, end=13.0)]})  # fmt: skip
+    moved, moved_plan, _note = held_end_card(placed, shorter)
+    assert [e.at for e in moved.sound_effects] == [moved_plan.elements[0].start]
+
+    # The card is no longer held: the effect it carried goes with the hold.
+    plain = MotionPlan(rationale="r", elements=[_card(start=9.0, end=11.0)])
+    unheld, _plan, note = held_end_card(plain, moved)
+    assert unheld.end_hold == 0 and unheld.sound_effects == []
+    assert note == "end hold removed: no held end_card; 1 sound effect(s) after the new end dropped"

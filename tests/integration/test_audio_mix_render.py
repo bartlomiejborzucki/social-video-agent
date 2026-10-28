@@ -134,6 +134,23 @@ def test_the_bed_and_the_effect_are_present_in_the_rendered_audio(
 @pytest.mark.integration
 @pytest.mark.slow
 @requires_ffmpeg
+def test_an_effect_on_the_held_end_card_is_heard_in_the_hold(
+    tmp_path: Path, media: dict[str, Path]
+) -> None:
+    manifest = build_manifest([media["talk"]])
+    effect = SoundEffect(path=str(media["ping"]), at=4.0, reason="Wejście planszy końcowej.")
+    edl = _edl(manifest.ids[0], end_hold=1.5, sound_effects=[effect])
+
+    held = render_edl(edl, manifest, tmp_path / "held.mp4")
+
+    assert held.sound_effects_applied == 1
+    assert abs(probe(tmp_path / "held.mp4").duration - 5.5) < 0.05
+    assert _band_share(tmp_path / "held.mp4", 1480, 1520, 4.0, 4.4) > 0.5
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+@requires_ffmpeg
 def test_ducking_pulls_the_bed_down_under_speech(tmp_path: Path, media: dict[str, Path]) -> None:
     manifest = build_manifest([media["talk"]])
     source_id = manifest.ids[0]

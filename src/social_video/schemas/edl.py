@@ -474,9 +474,11 @@ class EDL(Artifact):
                 f"output dimensions must be even for yuv420p, got "
                 f"{self.output_width}x{self.output_height}"
             )
-        duration = sum(r.output_duration for r in self.ranges)
+        # The held end card is part of the output, and its entrance sits on the
+        # end of the speech rounded to the millisecond.
+        duration = self.total_duration
         for effect in self.sound_effects:
-            if effect.at > duration:
+            if effect.at > duration + 1e-3:
                 raise ValueError(
                     f"sound effect at {effect.at:.2f}s lands after the {duration:.2f}s output"
                 )
