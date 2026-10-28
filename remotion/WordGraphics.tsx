@@ -1,5 +1,6 @@
 import React from 'react';
-import {AbsoluteFill, Easing, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {Video} from '@remotion/media';
+import {AbsoluteFill, Easing, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import type {MotionElement, SocialVideoProps} from './types';
 import {rgba} from './SceneFrame';
 
@@ -11,7 +12,7 @@ import {rgba} from './SceneFrame';
  * unless the plan says otherwise, and moves on the times Python resolved
  * from the caption words, never on a timer of its own.
  */
-export const WORD_GRAPHICS = new Set(['strike', 'bubble', 'icon', 'process', 'kinetic_word']);
+export const WORD_GRAPHICS = new Set(['strike', 'bubble', 'icon', 'process', 'kinetic_word', 'inset']);
 
 type Props = {
   element: MotionElement;
@@ -61,6 +62,9 @@ export const WordGraphic: React.FC<Props> = (props) => {
   }
   if (props.element.type === 'kinetic_word') {
     return <KineticWord {...props} />;
+  }
+  if (props.element.type === 'inset') {
+    return <Inset {...props} />;
   }
   return null;
 };
@@ -531,6 +535,52 @@ const KineticWord: React.FC<Props> = ({element, accent, secondary, brandColors =
             </span>
           );
         })}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/**
+ * A picture or a short clip from the project as a card over the speaker, who
+ * stays in the shot: rounded corners, a soft shadow, a scale-in. Its box was
+ * measured in Python from the picture's own proportions, and motion QA checks
+ * that same box against the face and the mouth.
+ */
+const Inset: React.FC<Props> = ({element, durationInFrames, holdToEnd = false}) => {
+  const {width, height, fps} = useVideoConfig();
+  const {entrance, exit} = useEnvelope(durationInFrames, holdToEnd);
+  const u = height / 1920;
+  const box = element.box ?? {left: 0.15, top: 0.12, width: 0.7, height: 0.3};
+  const radius = (element.corner_radius ?? 28) * u;
+  const media: React.CSSProperties = {width: '100%', height: '100%', objectFit: 'cover'};
+  return (
+    <AbsoluteFill>
+      <div
+        style={{
+          position: 'absolute',
+          left: box.left * width,
+          top: box.top * height,
+          width: box.width * width,
+          height: box.height * height,
+          borderRadius: radius,
+          overflow: 'hidden',
+          background: '#FFFFFF',
+          boxShadow: `0 ${18 * u}px ${48 * u}px rgba(0,0,0,0.35)`,
+          opacity: exit * Math.min(1, entrance * 2),
+          transform: `scale(${interpolate(entrance, [0, 1], [0.82, 1])})`,
+        }}
+      >
+        {element.video_source ? (
+          <Video
+            src={staticFile(element.video_source)}
+            muted
+            trimBefore={Math.round((element.source_start ?? 0) * fps)}
+            trimAfter={element.source_end ? Math.round(element.source_end * fps) : undefined}
+            style={media}
+          />
+        ) : element.image_source ? (
+          <Img src={staticFile(element.image_source)} style={media} />
+        ) : null}
       </div>
     </AbsoluteFill>
   );

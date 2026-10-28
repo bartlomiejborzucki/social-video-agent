@@ -241,3 +241,40 @@ def test_a_kinetic_word_is_built_letter_by_letter(tmp_path: Path) -> None:
     # Letters keep arriving, then the whole word holds.
     assert 0 < teal(0.6) < teal(1.4)
     assert teal(2.0) == pytest.approx(teal(1.6), rel=0.1)
+
+
+def test_an_inset_card_shows_a_picture_and_a_trimmed_clip(tmp_path: Path) -> None:
+    picture = tmp_path / "strona.png"
+    Image.new("RGB", (1600, 900), (40, 188, 165)).save(picture)
+    clip = tmp_path / "rolka.mp4"
+    # Red for its first second, blue after: the card must open on blue.
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y",
+         "-f", "lavfi", "-i", "color=c=red:s=320x180:r=30:d=1",
+         "-f", "lavfi", "-i", "color=c=blue:s=320x180:r=30:d=2",
+         "-filter_complex", "[0][1]concat=n=2:v=1", "-pix_fmt", "yuv420p", str(clip)],
+        check=True,
+    )  # fmt: skip
+    plan = MotionPlan(
+        rationale="Insets.",
+        elements=[
+            MotionElement(type="inset", start=0.3, end=1.9, image_asset=str(picture),
+                          rights="own picture", reason="The page."),
+            MotionElement(type="inset", start=2.0, end=3.8, video_asset=str(clip),
+                          source_start=1.2, source_end=2.8, position="center",
+                          rights="own reel", reason="The earlier reel."),
+        ],
+    )  # fmt: skip
+    margins = {"top": 10, "right": 6, "bottom": 22, "left": 6}
+    frame, _ = _render(tmp_path, plan, seconds=4.0, safe_margins=margins)
+
+    page = frame(1.2)
+    teal = np.abs(page - [40, 188, 165]).sum(axis=-1) < 60
+    rows, cols = np.flatnonzero(teal.any(axis=1)), np.flatnonzero(teal.any(axis=0))
+    # 70 % of the width, at the picture's own 16:9, just under the top margin.
+    assert (cols.max() - cols.min()) / WIDTH == pytest.approx(0.7, abs=0.03)
+    assert rows.min() / HEIGHT == pytest.approx(0.1, abs=0.02)
+    card_height = 0.7 * WIDTH / (16 / 9) / HEIGHT
+    assert (rows.max() - rows.min()) / HEIGHT == pytest.approx(card_height, abs=0.02)
+    middle = frame(3.0)[HEIGHT // 2 - 5 : HEIGHT // 2 + 5, WIDTH // 2 - 5 : WIDTH // 2 + 5]
+    assert middle[..., 2].mean() > 150 and middle[..., 0].mean() < 80  # blue: trimmed in

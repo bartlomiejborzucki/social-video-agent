@@ -113,6 +113,9 @@ def check_motion(
         if item.element.type in BOXED:
             _boxed(report, item.element, style, captions, place, faces, energy)
             continue
+        if item.element.type is MotionElementType.INSET:
+            _inset(report, item.element, style, captions, place, faces)
+            continue
         _readable(report, item, pack)
         if style is not None and captions is not None and not item.film:
             _clear_of_captions(report, item, style, captions, place)
@@ -220,6 +223,76 @@ def _boxed(
             f"{hit:.0%} of the {kind} lies on the frame",
             at=element.start,
         )
+
+
+#: An inset may hide the mouth of someone talking this long, as b-roll may.
+MOUTH_LIMIT_S = 2.0
+#: How often the mouth is looked at while an inset is up.
+MOUTH_STEP_S = 0.25
+
+
+def _mouth(face: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+    """The lower middle of a face box, where the mouth is."""
+    left, top, right, bottom = face
+    w, h = right - left, bottom - top
+    return left + 0.25 * w, top + 0.6 * h, right - 0.25 * w, bottom
+
+
+def _inset(
+    report: QAReport,
+    element: MotionElement,
+    style: CaptionStyle | None,
+    captions: CaptionTrack | None,
+    place: _Placement,
+    faces: FaceProvider | None,
+) -> None:
+    """A card over the speaker: clear of the captions, off a talking mouth."""
+    from social_video.motion.inset import inset_aspect, inset_box
+
+    name = f"inset at {element.start:.2f}s"
+    try:
+        aspect = inset_aspect(element)
+    except Exception as exc:  # a missing or unreadable picture
+        _add(report, f"{name} measured", False, f"not measured: {exc}", at=element.start)
+        return
+    box = inset_box(
+        element, aspect, width=round(place.height * 9 / 16), height=place.height,
+        margins=place.margins,
+    )  # fmt: skip
+    if style is not None and captions is not None:
+        talking = any(cue.start < element.end and element.start < cue.end for cue in captions.cues)
+        top, bottom = caption_band(style)
+        hit = _overlap(box, (0.0, top, 1.0, bottom))
+        _add(
+            report,
+            f"{name} clear of captions",
+            not (talking and hit > 0),
+            f"covers {hit:.0%} of itself in the caption band"
+            + (" while a caption is up" if talking else ""),
+            at=element.start,
+        )
+    if faces is None:
+        return
+    words = [
+        (w.start, w.end) for cue in (captions.cues if captions else []) for w in cue.words
+    ] or [(cue.start, cue.end) for cue in (captions.cues if captions else [])]
+    hidden = 0.0
+    moment = element.start
+    while moment < element.end - 1e-6:
+        speaking = any(start <= moment < end for start, end in words)
+        if speaking and any(_overlap(_mouth(f), box) > 0.3 for f in faces(moment)):
+            hidden += MOUTH_STEP_S
+        moment += MOUTH_STEP_S
+    _add(
+        report,
+        f"{name} off a talking mouth",
+        hidden <= MOUTH_LIMIT_S,
+        f"covers the mouth of someone talking for {hidden:.2f}s; up to "
+        f"{MOUTH_LIMIT_S:g}s reads as a cutaway, as with b-roll",
+        at=element.start,
+        measured=round(hidden, 2),
+        expected=MOUTH_LIMIT_S,
+    )
 
 
 def _titles_fit_tab(

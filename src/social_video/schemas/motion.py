@@ -61,6 +61,9 @@ class MotionElementType(str, Enum):
     PROCESS = "process"
     #: One key word built letter by letter with small sparks, on its word.
     KINETIC_WORD = "kinetic_word"
+    #: A picture or a short clip from the project (a comment, a book page, an
+    #: earlier reel) as a card over the speaker, who stays in the shot.
+    INSET = "inset"
 
 
 class EndCardLayout(str, Enum):
@@ -89,6 +92,10 @@ ICON_LIMIT = {"calm": 0, "lively": 2, "bold": 4}
 KINETIC_LIMIT = {"calm": 0, "lively": 1, "bold": 1}
 #: Where an icon sits unless the plan says: centred over the head, in the top zone.
 ICON_PLACE = {"size_pct": 9.0, "x_pct": 0.5, "y_pct": 0.17}
+#: An inset card is this wide, as a share of the frame's width, unless the plan says.
+INSET_SIZE = {"size_pct": 70.0}
+#: A card never takes more of the frame's height than this.
+INSET_MAX_HEIGHT = 0.42
 
 
 class ElementPosition(str, Enum):
@@ -110,6 +117,7 @@ POSITIONS: dict[MotionElementType, tuple[ElementPosition, ...]] = {
     MotionElementType.STRIKE: (ElementPosition.TOP, ElementPosition.CENTER),
     MotionElementType.BUBBLE: (ElementPosition.TOP,),
     MotionElementType.PROCESS: (ElementPosition.TOP,),
+    MotionElementType.INSET: (ElementPosition.TOP, ElementPosition.CENTER),
 }
 
 
@@ -122,6 +130,7 @@ AT_WORD_TYPES = frozenset(
         MotionElementType.BUBBLE,
         MotionElementType.ICON,
         MotionElementType.KINETIC_WORD,
+        MotionElementType.INSET,
     }
 )
 #: Graphics that play with the words. A reel on a sensitive subject (death,
@@ -134,6 +143,7 @@ PLAYFUL = frozenset(
         MotionElementType.ICON,
         MotionElementType.PROCESS,
         MotionElementType.KINETIC_WORD,
+        MotionElementType.INSET,
     }
 )
 #: Playful graphics never share the opening frame with the first caption.
@@ -187,6 +197,7 @@ TEXTLESS = frozenset(
         MotionElementType.LOGO_REVEAL,
         MotionElementType.STICKER,
         MotionElementType.ICON,
+        MotionElementType.INSET,
     }
 )
 #: Types placed by a box (``size_pct``, ``x_pct``, ``y_pct``) rather than a band.
@@ -238,8 +249,9 @@ class MotionElement(Artifact):
     at_word: str | None = Field(default=None, max_length=60)
     occurrence: int = Field(default=1, ge=1)
     animation: StickerAnimation = StickerAnimation.POP
-    #: Height of the sticker, as a percentage of the output height.
-    size_pct: float = Field(default=12.0, ge=3.0, le=30.0)
+    #: Height of a sticker or icon, as a percentage of the output height (at
+    #: most 30); the width of an inset card, as a percentage of its width.
+    size_pct: float = Field(default=12.0, ge=3.0, le=90.0)
     #: Centre of the sticker, as fractions of the output width and height.
     x_pct: float = Field(default=0.78, ge=0.0, le=1.0)
     y_pct: float = Field(default=0.3, ge=0.0, le=1.0)
@@ -270,6 +282,17 @@ class MotionElement(Artifact):
     icon: str | None = Field(default=None, max_length=40)
     #: A process: the state it ends in, shown with a tick ("gotowe do snu").
     done_text: str | None = Field(default=None, max_length=24)
+    #: An inset: a short clip from the project instead of an image, played
+    #: from ``source_start`` to ``source_end`` (seconds in the clip), muted.
+    video_asset: str | None = None
+    source_start: float | None = Field(default=None, ge=0)
+    source_end: float | None = Field(default=None, gt=0)
+    #: An inset's rounded corners, in pixels of a 1920-high frame.
+    corner_radius: int | None = Field(default=None, ge=0, le=120)
+    #: An inset's rights, as for the b-roll library: whose it is and that it
+    #: may be shown. A picture with a child's face is never shown.
+    rights: str | None = Field(default=None, max_length=200)
+    child_face_visible: bool = False
 
     @model_validator(mode="before")
     @classmethod
@@ -278,6 +301,8 @@ class MotionElement(Artifact):
         # keeps the defaults above.
         if isinstance(data, dict) and data.get("type") in ("icon", MotionElementType.ICON):
             data = {**ICON_PLACE, **data}
+        if isinstance(data, dict) and data.get("type") in ("inset", MotionElementType.INSET):
+            data = {**INSET_SIZE, **data}
         return data
 
     @field_validator("item_at_words", mode="before")
@@ -375,6 +400,20 @@ class MotionElement(Artifact):
                 raise ValueError("a process needs at least 2.5 s for its stages and pointer")
         elif self.done_text is not None:
             raise ValueError("done_text is only used by a process")
+        if self.type is MotionElementType.INSET:
+            self._check_inset()
+        elif (
+            self.video_asset is not None
+            or self.source_start is not None
+            or self.source_end is not None
+            or self.corner_radius is not None
+            or self.rights is not None
+            or self.child_face_visible
+        ):
+            raise ValueError(
+                "video_asset, source_start, source_end, corner_radius, rights and "
+                "child_face_visible are only used by an inset"
+            )
         if self.type is MotionElementType.KINETIC_WORD:
             word = self.text.strip()
             if len(word) > 12 or any(ch.isspace() for ch in word):
@@ -403,18 +442,50 @@ class MotionElement(Artifact):
         self._check_item_anchors()
         if self.layout is EndCardLayout.IMAGE_TOP and self.image_asset is None:
             raise ValueError("layout image_top needs an image_asset to put above the text")
-        if self.image_asset is not None and self.type is not MotionElementType.STICKER:
+        if self.image_asset is not None and self.type not in (
+            MotionElementType.STICKER,
+            MotionElementType.INSET,
+        ):
             if self.type is not MotionElementType.END_CARD:
                 raise ValueError(
-                    "image_asset is only supported on an end_card or a sticker; a plate "
-                    "behind a hook or callout covers the speaker the edit was made for"
+                    "image_asset is only supported on an end_card, a sticker or an inset; a "
+                    "plate behind a hook or callout covers the speaker the edit was made for"
                 )
             suffix = Path(self.image_asset).suffix.casefold()
             if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
                 raise ValueError("image_asset must be a .png, .jpg, .jpeg or .webp file")
         return self
 
+    def _check_inset(self) -> None:
+        if (self.image_asset is None) == (self.video_asset is None):
+            raise ValueError("an inset shows one image_asset or one video_asset")
+        if self.image_asset is not None:
+            if Path(self.image_asset).suffix.casefold() not in {".png", ".jpg", ".jpeg", ".webp"}:
+                raise ValueError("an inset image must be a .png, .jpg, .jpeg or .webp file")
+            if self.source_start is not None or self.source_end is not None:
+                raise ValueError("source_start and source_end trim an inset's video_asset")
+        else:
+            assert self.video_asset is not None
+            if Path(self.video_asset).suffix.casefold() not in {".mp4", ".mov", ".m4v", ".webm"}:
+                raise ValueError("an inset clip must be a .mp4, .mov, .m4v or .webm file")
+            start = self.source_start or 0.0
+            if self.source_end is not None and self.source_end <= start:
+                raise ValueError("an inset clip's source_end comes after its source_start")
+        if not (self.rights or "").strip():
+            raise ValueError(
+                "an inset names its rights (whose picture it is and that it may be shown), "
+                "as the b-roll library does"
+            )
+        if self.child_face_visible:
+            raise ValueError("an inset with a child's face is never shown")
+        if not 30.0 <= self.size_pct <= 90.0:
+            raise ValueError("an inset card is 30-90 % of the frame's width (size_pct)")
+        length = self.end - self.start
+        if not 1.5 - 1e-6 <= length <= 8.0 + 1e-6:
+            raise ValueError(f"an inset stays 1.5-8 s on screen, not {length:.2f} s")
+
     def _check_icon(self) -> None:
+        self._check_size()
         if not self.icon or self.image_asset is not None:
             raise ValueError("an icon names one icon of the set, e.g. icon: bath")
         length = self.end - self.start
@@ -489,7 +560,14 @@ class MotionElement(Artifact):
                     f"{self.start:.2f}-{self.end:.2f}s"
                 )
 
+    def _check_size(self) -> None:
+        if self.size_pct > 30:
+            raise ValueError(
+                f"a {self.type.value} is at most 30 % of the frame's height (size_pct)"
+            )
+
     def _check_sticker(self) -> None:
+        self._check_size()
         if (self.emoji is None) == (self.image_asset is None):
             raise ValueError("a sticker shows one emoji or one image_asset")
         if self.animated_emoji and self.emoji is None:

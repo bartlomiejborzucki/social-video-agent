@@ -86,6 +86,20 @@ def render_motion_design(
         asset: f"motion-plate-{index}{path.suffix.casefold()}"
         for index, (asset, path) in enumerate(sorted(plates.items()))
     }
+    clips: dict[str, Path] = {}
+    for element in plan.elements:
+        if element.video_asset:
+            clip = Path(element.video_asset).expanduser().resolve()
+            if not clip.is_file():
+                raise ValidationError(f"inset clip {clip} does not exist")
+            clips[element.video_asset] = clip
+    plate_sources.update(
+        {
+            asset: f"motion-clip-{index}{path.suffix.casefold()}"
+            for index, (asset, path) in enumerate(sorted(clips.items()))
+        }
+    )
+    plates.update(clips)
     animations: dict[str, Path] = {}
     for element in plan.elements:
         if element.type is MotionElementType.STICKER and element.emoji and element.animated_emoji:
@@ -234,6 +248,7 @@ def render_motion_design(
                     height=height,
                     font=font,
                     tab_sizes=tab_sizes,
+                    margins=safe_margins,
                 )
                 for item in plan.elements
             ],
@@ -317,9 +332,12 @@ def _element_payload(
     height: int = 1920,
     font: Path | None = None,
     tab_sizes: dict[str, float] | None = None,
+    margins: dict[str, float] | None = None,
 ) -> dict:
     """One element as the compositor reads it, its placement resolved."""
-    payload = item.model_dump(mode="json", exclude={"schema_version", "image_asset"})
+    payload = item.model_dump(
+        mode="json", exclude={"schema_version", "image_asset", "video_asset", "rights"}
+    )
     payload["image_source"] = plate_sources.get(item.image_asset or "")
     if item.animated_emoji and item.emoji:
         from social_video.motion.animated_emoji import require_name
@@ -336,6 +354,14 @@ def _element_payload(
         payload["fitted"] = end_card_text(item, width=width, height=height, font=font)
     if item.type is MotionElementType.STRIKE:
         payload["strike_at"], payload["replace_at"] = item.strike_moments
+    if item.type is MotionElementType.INSET:
+        from social_video.motion.inset import inset_aspect, inset_box
+
+        payload["video_source"] = plate_sources.get(item.video_asset or "")
+        left, top, right, bottom = inset_box(
+            item, inset_aspect(item), width=width, height=height, margins=margins
+        )
+        payload["box"] = {"left": left, "top": top, "width": right - left, "height": bottom - top}
     if item.type is MotionElementType.ICON:
         payload["icon_source"] = f"icons/{item.icon}.svg"
     if item.type is MotionElementType.BUBBLE:

@@ -21,7 +21,8 @@ export type MotionElement = {
     | 'bubble'
     | 'icon'
     | 'process'
-    | 'kinetic_word';
+    | 'kinetic_word'
+    | 'inset';
   start: number;
   end: number;
   text: string;
@@ -68,6 +69,12 @@ export type MotionElement = {
   /** Icon: its name, and the SVG staged as icons/<name>.svg. */
   icon?: string | null;
   icon_source?: string | null;
+  /** Inset: a staged clip (else image_source), its trim, corners and measured box. */
+  video_source?: string | null;
+  source_start?: number | null;
+  source_end?: number | null;
+  corner_radius?: number | null;
+  box?: {left: number; top: number; width: number; height: number} | null;
   /** Process: the state it ends in, shown with a tick. */
   done_text?: string | null;
 };

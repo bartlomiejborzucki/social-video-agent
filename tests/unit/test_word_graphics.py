@@ -223,3 +223,91 @@ def test_a_kinetic_word_is_one_short_word_once_a_reel_and_never_calm() -> None:
     assert anchored.elements[0].start == pytest.approx(5.0)
     top, bottom = element_band(word, height=1920, margins={"top": 10})
     assert 0.1 < top < bottom < 0.22
+
+
+def _picture(tmp_path, size=(1080, 1350)):
+    from PIL import Image
+
+    path = tmp_path / f"komentarz-{size[0]}x{size[1]}.png"
+    Image.new("RGB", size, (240, 240, 240)).save(path)
+    return path
+
+
+def _inset(tmp_path, **fields) -> MotionElement:
+    values = {
+        "start": 2.0,
+        "end": 5.0,
+        "image_asset": str(_picture(tmp_path)),
+        "rights": "own screenshot, no people",
+        "reason": "The comment being answered.",
+    }
+    values.update(fields)
+    return MotionElement(type=MotionElementType.INSET, **values)
+
+
+def test_an_inset_shows_one_project_picture_with_its_rights(tmp_path) -> None:
+    inset = _inset(tmp_path)
+    assert inset.size_pct == 70.0 and inset.placement.value == "top"
+    with pytest.raises(ValidationError, match="names its rights"):
+        _inset(tmp_path, rights=None)
+    with pytest.raises(ValidationError, match="child's face is never shown"):
+        _inset(tmp_path, child_face_visible=True)
+    with pytest.raises(ValidationError, match="one image_asset or one video_asset"):
+        _inset(tmp_path, video_asset="klip.mp4")
+    with pytest.raises(ValidationError, match="trim an inset's video_asset"):
+        _inset(tmp_path, source_start=1.0)
+    with pytest.raises(ValidationError, match="after its source_start"):
+        _inset(tmp_path, image_asset=None, video_asset="klip.mp4", source_start=3, source_end=2)
+    with pytest.raises(ValidationError, match="30-90 %"):
+        _inset(tmp_path, size_pct=20)
+    with pytest.raises(ValidationError, match="only used by an inset"):
+        _strike(rights="mine")
+    with pytest.raises(ValidationError, match="at most 30 %"):
+        MotionElement(type="sticker", start=1, end=2, emoji="x", size_pct=40, reason="r")
+    with pytest.raises(ValidationError, match="remove inset"):
+        MotionPlan(rationale="r", sensitive_topic=True, elements=[inset])
+
+
+def test_the_card_follows_the_picture_and_never_takes_the_frame(tmp_path) -> None:
+    from social_video.motion.inset import inset_aspect, inset_box
+
+    inset = _inset(tmp_path)
+    assert inset_aspect(inset) == pytest.approx(0.8)
+    wide = inset_box(inset, 16 / 9, margins={"top": 10})
+    assert (wide[0], wide[2]) == pytest.approx((0.15, 0.85))
+    assert wide[1] == pytest.approx(0.1 + 10 / 1920) and wide[3] - wide[1] < 0.3
+    # A tall picture is capped and narrowed rather than covering the speaker.
+    left, top, right, bottom = inset_box(inset, 0.8, margins={"top": 10})
+    assert bottom - top == pytest.approx(0.42)
+    assert right - left < 0.7 and (left + right) / 2 == pytest.approx(0.5)
+    payload = _element_payload(_inset(tmp_path, image_asset=str(_picture(tmp_path, (1600, 900)))),
+                               MotionPlan(rationale="r"), {}, margins={"top": 10})  # fmt: skip
+    assert payload["box"]["width"] == pytest.approx(0.7) and "rights" not in payload
+
+
+def test_motion_qa_warns_when_a_card_hides_a_talking_mouth_too_long(tmp_path) -> None:
+    from social_video.schemas.brand import BrandProfile, CaptionStyle
+    from social_video.schemas.config import BrandContract
+
+    contract = BrandContract(
+        project_config_path="c.yaml", project_config_sha256="c" * 64, project_root="/p",
+        brand=BrandProfile(captions=CaptionStyle(margin_pct=22)), output_width=1080,
+        output_height=1920, output_fps="30/1", safe_margins={"top": 10},
+    )  # fmt: skip
+    edl = EDL(ranges=[EDLRange(source="a", start=0, end=8)])
+    words = [CaptionWord(text=f"s{n}", start=n * 0.5, end=n * 0.5 + 0.45) for n in range(16)]
+    track = CaptionTrack(cues=[CaptionCue(index=1, start=0, end=8, text="mowa", words=words)])
+
+    def low_face(_t):
+        return [(0.3, 0.45, 0.7, 0.7)]  # the mouth well under a top card
+
+    def high_face(_t):
+        return [(0.3, 0.1, 0.7, 0.35)]  # a face high in the frame, mouth under the card
+
+    for faces, passed in ((low_face, True), (high_face, False)):
+        plan = MotionPlan(rationale="r", elements=[_inset(tmp_path, image_asset=str(
+            _picture(tmp_path, (1600, 900))))])  # fmt: skip
+        report = check_motion(edl, plan, contract, captions=track, faces=faces)
+        check = next(c for c in report.checks if c.name == "inset at 2.00s off a talking mouth")
+        assert check.passed is passed
+    assert next(c for c in report.checks if c.name == "inset at 2.00s clear of captions").passed
