@@ -14,7 +14,7 @@ from itertools import pairwise
 
 from social_video.captions.fit import BOX_PADDING_BOTTOM, BOX_PADDING_TOP, LINE_HEIGHT
 from social_video.schemas.brand import CaptionPosition, CaptionStyle
-from social_video.schemas.edl import EDL
+from social_video.schemas.edl import EDL, OverlayKind
 from social_video.schemas.motion import (
     ElementPosition,
     MotionElement,
@@ -27,6 +27,9 @@ from social_video.schemas.motion import (
 CONTINUATION_S = 0.05
 #: How long the title takes to flip over, in seconds.
 FLIP_S = 0.5
+#: How far a Motion film's end scene may sit from the end of the speech and
+#: the hold, in seconds: its times are counted in frames.
+FILM_HOLD_TOLERANCE_S = 0.05
 
 
 def unit(height: int) -> float:
@@ -318,6 +321,23 @@ def pin_labels(elements: list[MotionElement], edl: EDL) -> tuple[list[MotionElem
     return result, notes
 
 
+def _film_holds_end(edl: EDL) -> bool:
+    """A Claude Motion scene imported in place of the held end card fills the hold.
+
+    `motion film import` takes the end_card out of the plan; the film's own
+    segment, starting where the speech ends and lasting the hold, keeps it.
+    """
+    from social_video.edl.timeline import Timeline
+
+    content_end = Timeline(edl).content_end
+    return any(
+        o.kind is OverlayKind.MOTION_FILM
+        and abs(o.start_in_output - content_end) <= FILM_HOLD_TOLERANCE_S
+        and abs(o.duration - edl.end_hold) <= FILM_HOLD_TOLERANCE_S
+        for o in edl.overlays
+    )
+
+
 def held_end_card(plan: MotionPlan, edl: EDL) -> tuple[EDL, MotionPlan, str | None]:
     """Extend the edit for an end card held after the last word, and place it there.
 
@@ -331,7 +351,7 @@ def held_end_card(plan: MotionPlan, edl: EDL) -> tuple[EDL, MotionPlan, str | No
     if len(held) > 1:
         raise ValueError("only one end_card can be held after the last word")
     if not held:
-        if edl.end_hold == 0:
+        if edl.end_hold == 0 or _film_holds_end(edl):
             return edl, plan, None
         return edl.model_copy(update={"end_hold": 0.0}), plan, "end hold removed: no held end_card"
     card = held[0]

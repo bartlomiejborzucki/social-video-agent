@@ -20,6 +20,7 @@ from social_video.motion.film import (
     segment_evidence,
     write_film_spec,
 )
+from social_video.pipeline import sync_end_hold
 from social_video.project_config import compile_brand_contract
 from social_video.qa.brand import _check_film_segments
 from social_video.schemas.base import load_artifact, save_artifact
@@ -283,6 +284,27 @@ def test_removing_a_segment_restores_its_graphic(tmp_path: Path, specified: Work
     assert load_registry(specified).pending() == [("main-film", "hook-card-1")]
     with pytest.raises(ValidationError, match="no imported segment"):
         remove_film_segment(specified, "main-film", "hook-card-1")
+
+
+@requires_ffmpeg
+def test_a_film_in_place_of_the_held_end_card_keeps_the_hold(tmp_path: Path) -> None:
+    ws = _workspace(tmp_path, _contract(tmp_path))
+    card = MotionElement(type="end_card", start=8.0, end=10.5, text="Do zobaczenia",
+                         hold=True, reason="Sign-off.")  # fmt: skip
+    save_artifact(MotionPlan(rationale="r", elements=[card]), ws.motion_plan)
+    held = sync_end_hold(ws, load_artifact(EDL, ws.edl))
+    assert held.end_hold == pytest.approx(2.5)
+    contract = load_artifact(BrandContract, ws.brand_contract)
+    write_film_spec(ws, build_film_spec(held, load_artifact(MotionPlan, ws.motion_plan), contract))
+    export = _export(tmp_path / "film.mp4", [("blue", 2.5)])
+
+    import_film(ws, export, film_id="main-film", font_used="Lato")
+
+    assert load_artifact(MotionPlan, ws.motion_plan).elements == []
+    # The render and every compile run this; the film must still have its end.
+    kept = sync_end_hold(ws, load_artifact(EDL, ws.edl))
+    assert kept.end_hold == pytest.approx(2.5)
+    assert load_artifact(EDL, ws.edl).end_hold == pytest.approx(2.5)
 
 
 @requires_ffmpeg

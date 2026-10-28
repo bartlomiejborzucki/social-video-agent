@@ -4,6 +4,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+### Fixed
+
+- A Claude Motion scene imported in place of a held `end_card` lost its end:
+  `motion film import` takes the card out of the plan, and the next render or
+  compile removed the hold, so the film started after the last frame. The hold
+  now stays while a `motion_film` overlay starts where the speech ends and
+  lasts the hold (within 0.05 s).
+
 ## [2.8.0] - 2026-10-28
 
 Graphics on the spoken word: each accent illustrates what is said at the

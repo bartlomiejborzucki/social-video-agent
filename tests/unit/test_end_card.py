@@ -10,7 +10,7 @@ from social_video.ffmpeg.fonts import default_caption_font
 from social_video.motion.layout import held_end_card
 from social_video.motion.text_fit import fit_text, is_address
 from social_video.remotion import end_card_text
-from social_video.schemas.edl import EDL, EDLRange
+from social_video.schemas.edl import EDL, EDLRange, Overlay, OverlayKind
 from social_video.schemas.motion import MotionElement, MotionElementType, MotionPlan
 
 URL = "przyklad-marki.example/strona-z-zapisami/"
@@ -81,3 +81,21 @@ def test_a_held_end_card_extends_the_edit_and_moves_after_the_last_word() -> Non
     plain = MotionPlan(rationale="r", elements=[_card(start=37.0, end=40.0)])
     unheld, _plan, note = held_end_card(plain, held)
     assert unheld.end_hold == 0 and note is not None
+
+
+def test_a_motion_film_in_place_of_the_held_card_keeps_the_hold() -> None:
+    edl = EDL(ranges=[EDLRange(source="a", start=0, end=40.0)])
+    plan = MotionPlan(rationale="r", elements=[_card(start=37.0, end=39.6, hold=True)])
+    held, _placed, _note = held_end_card(plan, edl)
+    # `motion film import` takes the card out of the plan and lays the film's
+    # scene over the hold; the times are frames, so a little off.
+    film = Overlay(file="film-end.mp4", kind=OverlayKind.MOTION_FILM,
+                   start_in_output=40.02, duration=2.58, reason="r")  # fmt: skip
+    imported = held.model_copy(update={"overlays": [film]})
+    empty = MotionPlan(rationale="r", elements=[])
+    kept, _plan, note = held_end_card(empty, imported)
+    assert note is None and kept.end_hold == pytest.approx(2.6)
+    # A film scene somewhere else does not hold the end.
+    early = film.model_copy(update={"start_in_output": 20.0})
+    gone, _plan, note = held_end_card(empty, held.model_copy(update={"overlays": [early]}))
+    assert gone.end_hold == 0 and note == "end hold removed: no held end_card"
