@@ -1036,6 +1036,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
                 element={element}
                 accent={props.accentColor}
                 secondary={props.secondaryColor}
+                brandColors={props.brandColors ?? [props.accentColor, props.secondaryColor]}
                 font={props.fontFamily}
                 durationInFrames={duration}
                 safeMargins={props.safeMargins}

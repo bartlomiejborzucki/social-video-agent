@@ -676,6 +676,7 @@ def stage_render(
             safe_margins=contract.safe_margins if contract else None,
             label_style=contract.brand.label_style if contract else "chip",
             secondary_colour=contract.brand.secondary_colour if contract else "#1F2430",
+            brand_colours=contract.brand.brand_colours if contract else None,
         )
         final_info = probe(output)
         manifest_obj.output = str(output)

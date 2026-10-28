@@ -209,6 +209,11 @@ def element_band(
             start = top + 10 * u
             return start / height, (start + card) / height
         return None
+    if kind is MotionElementType.PROCESS:
+        # Title, bar, labels and the closing state, with the card's padding.
+        start = top + 10 * u
+        card = (46 * 1.2 + 40 + 30 * 1.3 + 44 * 1.3 + 2 * 26 + 3 * 16) * u
+        return start / height, (start + card) / height
     if kind is MotionElementType.BUBBLE:
         # Up to three lines of 46 px type, a note above them, padding and tail.
         start = top + 10 * u

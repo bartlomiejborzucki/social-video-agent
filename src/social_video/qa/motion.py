@@ -455,6 +455,7 @@ def _readable(report: QAReport, item: Shown, pack: str) -> None:
         len(element.text)
         + len(element.secondary_text or "")
         + len(element.replacement or "")
+        + len(element.done_text or "")
         + sum(map(len, element.items))
     )
     if chars == 0:

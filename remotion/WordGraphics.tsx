@@ -11,12 +11,13 @@ import {rgba} from './SceneFrame';
  * unless the plan says otherwise, and moves on the times Python resolved
  * from the caption words, never on a timer of its own.
  */
-export const WORD_GRAPHICS = new Set(['strike', 'bubble', 'icon']);
+export const WORD_GRAPHICS = new Set(['strike', 'bubble', 'icon', 'process']);
 
 type Props = {
   element: MotionElement;
   accent: string;
   secondary: string;
+  brandColors?: string[];
   font: string;
   durationInFrames: number;
   safeMargins: SocialVideoProps['safeMargins'];
@@ -54,6 +55,9 @@ export const WordGraphic: React.FC<Props> = (props) => {
   }
   if (props.element.type === 'icon') {
     return <Icon {...props} />;
+  }
+  if (props.element.type === 'process') {
+    return <Process {...props} />;
   }
   return null;
 };
@@ -308,6 +312,138 @@ const Icon: React.FC<Props> = ({element, accent, secondary, durationInFrames}) =
             maskPosition: 'center',
           }}
         />
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/**
+ * A process as a bar: each stage enters in a brand colour on its word, then a
+ * pointer runs through the stages and the closing state arrives with a tick.
+ * A card in the brand's second colour, so its stages never take that colour.
+ */
+const Process: React.FC<Props> = ({element, accent, secondary, brandColors = [], font, durationInFrames, safeMargins, holdToEnd = false}) => {
+  const {width, height} = useVideoConfig();
+  const {t, frame, fps, entrance, exit} = useEnvelope(durationInFrames, holdToEnd);
+  const u = height / 1920;
+  const items = element.items ?? [];
+  const length = element.end - element.start;
+  const palette = brandColors.filter((c) => c.toUpperCase() !== secondary.toUpperCase());
+  const colours = palette.length > 0 ? palette : [accent];
+  // On its word when the plan anchors it; otherwise over the first half.
+  const enters = items.map((_, index) =>
+    element.item_times?.[index] !== undefined && element.item_times?.[index] !== null
+      ? (element.item_times[index] as number) - element.start
+      : (length * 0.5 * index) / Math.max(1, items.length),
+  );
+  const last = enters[enters.length - 1] ?? 0;
+  const runFrom = last + 0.45;
+  const runTo = Math.max(runFrom + 0.3, Math.min(runFrom + 1.2, length - 0.9));
+  const run = interpolate(t, [runFrom, runTo], [0, 1], {...clamp, easing: Easing.inOut(Easing.cubic)});
+  const done = element.done_text ? spring({frame: frame - runTo * fps, fps, config: {damping: 12, stiffness: 200}}) : 0;
+  const pad = {
+    top: (height * safeMargins.top) / 100,
+    left: (width * safeMargins.left) / 100,
+    right: (width * safeMargins.right) / 100,
+  };
+  const labelPx = (items.length > 4 ? 26 : 30) * u;
+  const barH = 40 * u;
+  const knob = 30 * u;
+  return (
+    <AbsoluteFill
+      style={{
+        justifyContent: 'flex-start',
+        paddingTop: pad.top + 10 * u,
+        paddingLeft: pad.left,
+        paddingRight: pad.right,
+        fontFamily: font,
+        opacity: exit,
+      }}
+    >
+      <div
+        style={{
+          background: rgba(secondary, 0.92),
+          border: `${4 * u}px solid rgba(255,255,255,0.95)`,
+          borderRadius: 30 * u,
+          padding: `${26 * u}px ${30 * u}px`,
+          color: '#FFFFFF',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 16 * u,
+          opacity: entrance,
+          transform: `translateY(${interpolate(entrance, [0, 1], [-28 * u, 0])}px)`,
+        }}
+      >
+        {element.text ? (
+          <div style={{fontSize: 46 * u, fontWeight: 800, lineHeight: 1.2}}>{element.text}</div>
+        ) : null}
+        <div style={{position: 'relative', display: 'flex', gap: 8 * u, height: barH}}>
+          {items.map((item, index) => {
+            const shown = spring({frame: frame - enters[index] * fps, fps, config: {damping: 16, stiffness: 190}});
+            return (
+              <div
+                key={`${index}-${item}`}
+                style={{
+                  flex: 1,
+                  borderRadius: barH / 2,
+                  background: colours[index % colours.length],
+                  transform: `scaleX(${shown})`,
+                  transformOrigin: 'left center',
+                  opacity: Math.min(1, shown * 2),
+                }}
+              />
+            );
+          })}
+          {run > 0 ? (
+            <div
+              style={{
+                position: 'absolute',
+                top: (barH - knob) / 2,
+                left: `calc((100% - ${knob}px) * ${run})`,
+                width: knob,
+                height: knob,
+                borderRadius: knob,
+                background: '#FFFFFF',
+                boxShadow: `0 0 0 ${5 * u}px ${rgba('#FFFFFF', 0.35)}`,
+              }}
+            />
+          ) : null}
+        </div>
+        <div style={{display: 'flex', gap: 8 * u}}>
+          {items.map((item, index) => {
+            const shown = interpolate(t, [enters[index], enters[index] + 0.25], [0, 1], clamp);
+            return (
+              <div
+                key={`label-${index}-${item}`}
+                style={{flex: 1, fontSize: labelPx, fontWeight: 700, lineHeight: 1.3, textAlign: 'center', opacity: shown, whiteSpace: 'nowrap'}}
+              >
+                {item}
+              </div>
+            );
+          })}
+        </div>
+        {element.done_text ? (
+          <div
+            style={{
+              alignSelf: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12 * u,
+              fontSize: 40 * u,
+              fontWeight: 800,
+              lineHeight: 1.3,
+              color: secondary,
+              background: '#FFFFFF',
+              borderRadius: 999,
+              padding: `${4 * u}px ${26 * u}px`,
+              opacity: Math.min(1, done * 2),
+              transform: `scale(${interpolate(done, [0, 1], [0.6, 1])})`,
+            }}
+          >
+            <span style={{color: accent, fontWeight: 900}}>✓</span>
+            <span>{element.done_text}</span>
+          </div>
+        ) : null}
       </div>
     </AbsoluteFill>
   );

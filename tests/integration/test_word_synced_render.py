@@ -197,3 +197,31 @@ def test_an_icon_pops_in_over_the_head_in_the_brand_colours(
     assert ((disc[..., 0] > 170) & (disc[..., 1] < 90) & (disc[..., 2] < 120)).sum() > 20
     centre = shown[int(0.17 * HEIGHT) - 2 : int(0.17 * HEIGHT) + 3, WIDTH // 2 - 2 : WIDTH // 2 + 3]
     assert centre.max() < 120  # the stroke crossing the middle, not the white disc
+
+
+def test_a_process_fills_stage_by_stage_then_closes_with_a_tick(tmp_path: Path) -> None:
+    process = MotionElement(
+        type="process", start=0.3, end=4.4, text="Wieczorem", items=["kolacja", "kąpiel", "sen"],
+        item_times=[0.6, 1.4, 2.0], done_text="gotowe do snu", reason="The routine.",
+    )  # fmt: skip
+    plan = MotionPlan(rationale="Process.", accent_color="#28BCA5", elements=[process])
+    frame, _ = _render(tmp_path, plan, seconds=4.5, secondary_colour="#394463",
+                       brand_colours=["#28BCA5", "#394463", "#D23150"])  # fmt: skip
+
+    def stage_colours(pixels: np.ndarray) -> tuple[int, int]:
+        top = pixels[: HEIGHT // 3]
+        teal = (np.abs(top - [40, 188, 165]).sum(axis=-1) < 60).sum()
+        red = (np.abs(top - [210, 49, 80]).sum(axis=-1) < 60).sum()
+        return int(teal), int(red)
+
+    # The first stage (teal) is in before the second (red, the card's own
+    # colour skipped) enters on its word.
+    teal, red = stage_colours(frame(1.2))
+    assert teal > 100 and red < 10
+    assert stage_colours(frame(1.9))[1] > 100
+
+    # The pointer has run and the closing state is up, its tick in the accent.
+    def change(a: float, b: float) -> float:
+        return float(np.abs(frame(a) - frame(b)).mean())
+
+    assert change(2.3, 4.0) > 0.3

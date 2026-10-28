@@ -268,6 +268,7 @@ def compile_brand_contract(
             hold_through_pauses=config.hold_through_pauses,
         ),
         accent_colour=(config.brand_colors or [style.background_color])[0],
+        brand_colours=list(config.brand_colors),
         secondary_colour=config.secondary_colour,
         label_style=config.label_style,
         logo_path=str(logo_file) if logo_file else None,

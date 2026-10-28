@@ -119,6 +119,8 @@ class BrandProfile(Artifact):
     captions: CaptionStyle = Field(default_factory=CaptionStyle)
 
     accent_colour: str = "#FFD400"
+    #: Every brand colour, in the config's order: a process bar's stages.
+    brand_colours: list[str] = Field(default_factory=list)
     #: The brand's second colour: scene-frame tab, list card, CTA text.
     secondary_colour: str = "#1F2430"
     background_colour: str = "#000000"

@@ -53,6 +53,7 @@ def render_motion_design(
     safe_margins: dict[str, float] | None = None,
     label_style: str = "chip",
     secondary_colour: str = "#1F2430",
+    brand_colours: list[str] | None = None,
 ) -> tuple[Path, list[str], CaptionLayout | None]:
     if base_video.resolve() == output.resolve():
         raise ValidationError("Remotion output must not overwrite its technical base video")
@@ -272,6 +273,7 @@ def render_motion_design(
             "logoUsage": logo_usage,
             "safeMargins": safe_margins or {"top": 6, "right": 6, "bottom": 12, "left": 6},
             "secondaryColor": secondary_colour,
+            "brandColors": brand_colours or [plan.accent_color, secondary_colour],
             "labelStyle": label_style,
             "sceneFrame": frame.as_props() if frame is not None else None,
         }

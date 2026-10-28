@@ -19,7 +19,8 @@ export type MotionElement = {
     | 'sticker'
     | 'strike'
     | 'bubble'
-    | 'icon';
+    | 'icon'
+    | 'process';
   start: number;
   end: number;
   text: string;
@@ -66,6 +67,8 @@ export type MotionElement = {
   /** Icon: its name, and the SVG staged as icons/<name>.svg. */
   icon?: string | null;
   icon_source?: string | null;
+  /** Process: the state it ends in, shown with a tick. */
+  done_text?: string | null;
 };
 
 export type Shake = {start: number; end: number; amplitude_pct: number; frequency_hz: number};
@@ -116,6 +119,8 @@ export type SocialVideoProps = {
   safeMargins: {top: number; right: number; bottom: number; left: number};
   /** The brand's second colour: scene-frame tab, list card, CTA text. */
   secondaryColor: string;
+  /** Every brand colour, in order: a process bar's stages. */
+  brandColors?: string[];
   /** How a label is drawn: a chip in the top zone, or a frame title. */
   labelStyle: 'chip' | 'scene_frame';
   sceneFrame: SceneFrameGeometry | null;

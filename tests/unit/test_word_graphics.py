@@ -158,3 +158,39 @@ def test_a_bubble_pops_in_on_its_word_in_the_top_zone() -> None:
     assert notes == ["bubble on 'płacz!' placed at 1.20s"]
     top, bottom = element_band(bubble, height=1920, margins={"top": 10})
     assert top == pytest.approx(0.1 + 10 / 1920) and bottom < 0.35
+
+
+def _process(**fields) -> MotionElement:
+    values = {"start": 1.0, "end": 6.0, "text": "Wieczorem",
+              "items": ["kolacja", "kąpiel", "bajka", "sen"], "done_text": "gotowe do snu",
+              "reason": "The evening routine, stage by stage."}  # fmt: skip
+    values.update(fields)
+    return MotionElement(type=MotionElementType.PROCESS, **values)
+
+
+def test_a_process_is_two_to_five_short_stages_at_the_top() -> None:
+    process = _process()
+    assert process.placement is not None and process.placement.value == "top"
+    with pytest.raises(ValidationError, match="at most 12 characters"):
+        _process(items=["kolacja", "bardzo długa kąpiel"])
+    with pytest.raises(ValidationError, match="2 to 5 items"):
+        _process(items=["sen"])
+    with pytest.raises(ValidationError, match=r"at least 2\.5 s"):
+        _process(end=2.0)
+    with pytest.raises(ValidationError, match="only used by a process"):
+        MotionElement(type="list", start=1, end=4, items=["a", "b"], done_text="ok", reason="r")
+    with pytest.raises(ValidationError, match="accepts position: top"):
+        _process(position="center")
+    with pytest.raises(ValidationError, match="remove process"):
+        MotionPlan(rationale="r", sensitive_topic=True, elements=[_process()])
+    top, bottom = element_band(process, height=1920, margins={"top": 10})
+    assert 0.1 < top < bottom < 0.3
+
+
+def test_each_stage_enters_on_its_word() -> None:
+    plan = MotionPlan(
+        rationale="r",
+        elements=[_process(items=["płacz", "powiedz"], item_at_words=["płacz!", "powiedz:"])],
+    )
+    anchored, _notes = anchor_to_words(plan, _track())
+    assert anchored.elements[0].item_times == pytest.approx([1.2, 3.6])

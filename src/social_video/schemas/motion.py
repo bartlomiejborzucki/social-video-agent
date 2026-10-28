@@ -56,6 +56,9 @@ class MotionElementType(str, Enum):
     BUBBLE = "bubble"
     #: A small flat icon of the thing just named, over the head, 0.6-1.2 s.
     ICON = "icon"
+    #: A process as a bar of 2-5 coloured stages, each entering on its word;
+    #: a pointer then runs through it, and ``done_text`` closes it with a tick.
+    PROCESS = "process"
 
 
 class EndCardLayout(str, Enum):
@@ -102,6 +105,7 @@ POSITIONS: dict[MotionElementType, tuple[ElementPosition, ...]] = {
     MotionElementType.STEPS: (ElementPosition.CENTER, ElementPosition.TOP),
     MotionElementType.STRIKE: (ElementPosition.TOP, ElementPosition.CENTER),
     MotionElementType.BUBBLE: (ElementPosition.TOP,),
+    MotionElementType.PROCESS: (ElementPosition.TOP,),
 }
 
 
@@ -123,6 +127,7 @@ PLAYFUL = frozenset(
         MotionElementType.STRIKE,
         MotionElementType.BUBBLE,
         MotionElementType.ICON,
+        MotionElementType.PROCESS,
     }
 )
 #: Playful graphics never share the opening frame with the first caption.
@@ -155,7 +160,9 @@ class StrikeMark(str, Enum):
 
 
 #: Types whose points may each enter on the word that names them.
-ITEM_ANCHORED = frozenset({MotionElementType.LIST, MotionElementType.STEPS})
+ITEM_ANCHORED = frozenset(
+    {MotionElementType.LIST, MotionElementType.STEPS, MotionElementType.PROCESS}
+)
 
 
 class WordAnchor(BaseModel):
@@ -185,6 +192,7 @@ ITEMISED = frozenset(
         MotionElementType.CHART,
         MotionElementType.COMPARE,
         MotionElementType.STEPS,
+        MotionElementType.PROCESS,
     }
 )
 
@@ -254,6 +262,8 @@ class MotionElement(Artifact):
     tail: BubbleTail | None = None
     #: An icon: its name in the icon set (Tabler Icons, e.g. ``bath``).
     icon: str | None = Field(default=None, max_length=40)
+    #: A process: the state it ends in, shown with a tick ("gotowe do snu").
+    done_text: str | None = Field(default=None, max_length=24)
 
     @model_validator(mode="before")
     @classmethod
@@ -287,11 +297,13 @@ class MotionElement(Artifact):
             MotionElementType.STEPS: (2, 5),
             MotionElementType.CHART: (2, 6),
             MotionElementType.COMPARE: (2, 2),
+            MotionElementType.PROCESS: (2, 5),
         }
         low, high = limits[self.type]
-        if not low <= len(items) <= high or any(not item or len(item) > 60 for item in items):
+        longest = 12 if self.type is MotionElementType.PROCESS else 60
+        if not low <= len(items) <= high or any(not item or len(item) > longest for item in items):
             count = f"{low}" if low == high else f"{low} to {high}"
-            raise ValueError(f"a {kind} needs {count} items of at most 60 characters")
+            raise ValueError(f"a {kind} needs {count} items of at most {longest} characters")
         if self.type is MotionElementType.CHART and not all(chart_value(item) for item in items):
             raise ValueError('every chart item reads "Label: number", e.g. "2024: 38"')
         if self.type is MotionElementType.COMPARE and not all(":" in item for item in items):
@@ -350,6 +362,13 @@ class MotionElement(Artifact):
             self._check_icon()
         elif self.icon is not None:
             raise ValueError("icon is only used by an icon")
+        if self.type is MotionElementType.PROCESS:
+            if len(self.text) > 40:
+                raise ValueError("a process's title (text) is at most 40 characters")
+            if self.end - self.start < 2.5 - 1e-6:
+                raise ValueError("a process needs at least 2.5 s for its stages and pointer")
+        elif self.done_text is not None:
+            raise ValueError("done_text is only used by a process")
         if self.type is MotionElementType.BUBBLE:
             self._check_bubble()
         elif self.variant is not None or self.tail is not None:
