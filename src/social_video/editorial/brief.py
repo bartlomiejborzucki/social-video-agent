@@ -213,7 +213,7 @@ def _derive(brief: Brief, cover: str) -> Brief:
         update={
             "cover_title": title,
             "cover_subtitle": subtitle,
-            "first_cue_text": first_text.strip(),
+            "first_cue_text": _unquoted(first_text),
             "first_line_off_screen": first.voice_off_screen,
             "labels": labels,
         }
@@ -281,6 +281,19 @@ def _spoken(said: str) -> str:
 
 #: Abbreviations a sentence does not end on.
 _ABBREVIATIONS = ("np.", "itp.", "itd.", "tzn.", "tj.", "m.in.", "ok.", "e.g.", "i.e.")
+
+
+def _unquoted(text: str) -> str:
+    """A line the brief quotes whole, without the quotes: a caption shows speech.
+
+    Only one pair around the whole line goes; a quote inside it stays.
+    """
+    text = text.strip()
+    if len(text) > 1 and text[0] in _QUOTES and text[-1] in _QUOTES:
+        inner = text[1:-1].strip()
+        if not any(mark in inner for mark in _QUOTES if mark != "'"):
+            return inner
+    return text
 
 
 def _first_sentence(text: str) -> str:

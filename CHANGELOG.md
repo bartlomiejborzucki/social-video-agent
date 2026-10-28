@@ -39,6 +39,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
   it could not be heard: a quiet effect is now measured and raised to the
   level of the built-in whoosh. It also skipped the scenes of an imported
   Claude Motion film; each now gets a sound like any graphic entering.
+- A first line said off screen and written in quotes in the brief was
+  captioned with its quotes. The pair around the whole line is now dropped;
+  quotes inside the line stay.
 
 ## [2.8.0] - 2026-10-28
 

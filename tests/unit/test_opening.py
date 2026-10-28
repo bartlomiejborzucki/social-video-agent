@@ -160,7 +160,7 @@ def test_the_brief_text_becomes_first_line_labels_and_cover() -> None:
     brief = load_brief(FIXTURE)
 
     assert [r.start for r in brief.rows] == [0.0, 3.0, 9.0, 22.0]
-    assert brief.first_line_off_screen and brief.first_cue_text == "„Mamo, pobaw się ze mną!”"
+    assert brief.first_line_off_screen and brief.first_cue_text == "Mamo, pobaw się ze mną!"
     assert [label.text for label in brief.labels] == [
         "Jak postawić teraz granicę?", "Częsty odruch", "Spróbuj tak",
         "Jasna decyzja + miejsce na emocje",
@@ -192,6 +192,17 @@ def test_a_spoken_first_line_is_its_first_sentence() -> None:
     assert brief.title == "Zaufanie" and brief.cover_title == "ZAUFANIE"
 
 
+@pytest.mark.parametrize("napis", ["„Już idę!”", '"Już idę!"', "Już idę!"])
+def test_the_off_screen_first_line_is_captioned_without_its_quotes(napis: str) -> None:
+    brief = parse_brief_entry(
+        {"tytul": "Wieczór", "nagranie": "Pokój dziecka.", "okladka": "WIECZÓR",
+         "scenariusz": [{"czas": "0-2 s", "ujecie": "Drzwi",
+                         "co_mowisz": "Głos zza kadru: „Już idę!”", "napis": napis}]}
+    )  # fmt: skip
+
+    assert brief.first_line_off_screen and brief.first_cue_text == "Już idę!"
+
+
 def test_a_package_with_several_reels_needs_a_choice(tmp_path: Path) -> None:
     text = FIXTURE.read_text(encoding="utf-8")
     scenario = text.split("Scenariusz")[1].split("Montaż")[0]
@@ -214,7 +225,7 @@ def test_a_childs_line_is_text_only_unless_the_recording_carries_it(tmp_path: Pa
     with_child = _transcript([("Mamo,", 0.1, 0.4), ("pobaw", 0.45, 0.7), ("się", 0.75, 0.9),
                               ("ze", 0.95, 1.0), ("mną!", 1.05, 1.3)])  # fmt: skip
 
-    assert opening_line(ws, parent_only) == "„Mamo, pobaw się ze mną!”"
+    assert opening_line(ws, parent_only) == "Mamo, pobaw się ze mną!"
     assert opening_line(ws, with_child) is None
 
 
