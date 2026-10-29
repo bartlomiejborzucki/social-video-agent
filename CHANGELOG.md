@@ -4,6 +4,12 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-10-29
+
+Fixes from editing with 2.7.1 and 2.8.0: a Claude Motion end card that keeps
+its end, sound effects and caption fixes that survive a recompile, and end
+cards that follow one another.
+
 ### Changed
 
 - Several `end_card`s with `hold: true` follow one another after the last
