@@ -4,6 +4,34 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.10.1] - 2026-11-04
+
+Fixes from reviewing 2.10.0 before its release.
+
+### Fixed
+
+- A text story never passed brand QA when the project's speech captions are
+  phrase, lit or dimmed: its centred sentences were compared with those
+  settings. Rendering, the render evidence and brand QA now use the story
+  caption style.
+- With `step_numbers`, the number joined to a cue's first word ("2. Krok")
+  hid that word from `at_word` anchors and from the `punch_in_words` check.
+- An `end_teaser` with its own `start` and `end` was moved to the last 4 s;
+  only a teaser without times (or with `from_end`) is placed from the end.
+- `reel-check` flagged phrase cues the caption builder made itself: the
+  opening cue that carries the whole first sentence, and cues held through a
+  pause. It now measures how long a cue's words take to say, after the first.
+- `hook check` kept failing an announced list after a `list`, `steps` or
+  `process` was added; it now reads the motion plan.
+- A word starting with a numeral ("Trzymaj") counted as a number in the hook
+  title check.
+- `deliver --description-template` wrote over a template already filled in;
+  it now refuses.
+- `motion accept` failed on an effect proposed before the hook title existed
+  and running under it; that candidate is skipped and named.
+- The `tear` effect left a strip of paper on its last frame, and a `tilt` on
+  a landscape frame showed black corners.
+
 ## [2.10.0] - 2026-11-04
 
 Forms of a restless talking head, all opt-in: a title over the speaker, a
