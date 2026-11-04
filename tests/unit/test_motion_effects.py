@@ -218,3 +218,26 @@ def test_the_ending_evidence_names_what_closes_the_reel() -> None:
     assert _ending_evidence(MotionPlan(rationale="x"), 20.0) == {
         "overlay": False, "end_card": False, "cta": False, "window_s": 3.0
     }  # fmt: skip
+
+
+def test_accept_skips_an_effect_under_the_hook_title() -> None:
+    from social_video.motion.suggest import accept_accents
+    from social_video.schemas.motion import AccentCandidate, AccentCandidateSet
+
+    title = MotionElement(
+        type="hook_title", start=0.4, end=3.0, text="Kto pierwszy ustąpi?", reason="Title."
+    )
+    plan = MotionPlan(elements=[title], rationale="x")
+    found = AccentCandidateSet(
+        edl="main",
+        energy="bold",
+        candidates=[
+            AccentCandidate(id="acc-001", kind="effect", confidence="high", at=1.4,
+                            reason="x", effect=_effect(start=1.4, end=2.6)),
+            AccentCandidate(id="acc-002", kind="effect", confidence="high", at=8.0,
+                            reason="x", effect=_effect(start=8.0, end=9.2)),
+        ],
+    )  # fmt: skip
+    updated, skipped = accept_accents(plan, found, ["acc-001", "acc-002"])
+    assert [e.start for e in updated.effects] == [8.0]
+    assert skipped and "hook_title" in skipped[0]

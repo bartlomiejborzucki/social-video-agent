@@ -199,7 +199,9 @@ def check_title(text: str, *, words: dict[str, list[str]] | None = None) -> list
     imperative = [
         e for e in lists.get("imperative", []) if (first_two + " ").startswith(e + " ")
     ]  # fmt: skip
-    number = [t for t in tokens if t.isdigit()] + matches(text, lists.get("numbers", []))
+    # Whole words only: "trzy" is a number, "trzymaj" is not.
+    numerals = set(lists.get("numbers", []))
+    number = [t for t in tokens if t.isdigit() or t in numerals]
     conflict = matches(text, lists.get("conflict", []))
     kinds = (
         (["pytanie"] if "?" in text else [])
@@ -224,9 +226,16 @@ LIST_WINDOW_S = 5.0
 
 
 def announced_list(
-    captions: CaptionTrack | None, *, words: dict[str, list[str]] | None = None
+    captions: CaptionTrack | None,
+    *,
+    words: dict[str, list[str]] | None = None,
+    shown: bool = False,
 ) -> HookFinding | None:
-    """ "Zapamiętaj 3 kroki" in the first seconds: suggest a `list` on the spoken points."""
+    """A list announced in the first seconds ("3 kroki"): suggest one on screen.
+
+    ``shown``: the motion plan already has a list, steps or process, so the
+    announced points are on screen and the finding passes.
+    """
     if captions is None:
         return None
     lists = words or load_words()
@@ -242,8 +251,8 @@ def announced_list(
                 said = f"{count} {noun}"
                 return HookFinding(
                     "zapowiedziana lista na ekranie",
-                    False,
-                    f"„{said}” w {cue.start:.1f} s",
+                    shown,
+                    f"„{said}” w {cue.start:.1f} s" + (", punkty są na ekranie" if shown else ""),
                     "dodaj element `list` z punktami i `item_at_words` (każdy punkt wchodzi na "
                     "swoim słowie); ewentualnie gest liczby palców przy nagraniu",
                 )
@@ -268,6 +277,7 @@ def check_hook(
     analysis_dir: Path | None = None,
     words: dict[str, list[str]] | None = None,
     title: str | None = None,
+    list_shown: bool = False,
 ) -> HookReport:
     """The whole hook check; writes `hook-check.json` when given a folder."""
     cue = captions.cues[0] if captions and captions.cues else None
@@ -284,7 +294,7 @@ def check_hook(
         report.findings += check_text(text, first_word_at=first, words=words)
     if title:
         report.findings += check_title(title, words=words)
-    listed = announced_list(captions, words=words)
+    listed = announced_list(captions, words=words, shown=list_shown)
     if listed is not None:
         report.findings.append(listed)
     if video is not None and video.is_file():

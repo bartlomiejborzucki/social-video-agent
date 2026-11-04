@@ -158,7 +158,8 @@ export const EffectedPicture: React.FC<{source: string; effects: PictureEffect[]
       const angle = ((effect.tilt_deg ?? 4) * Math.PI) / 180;
       const theta = Math.abs(angle) * amount;
       // Just enough to keep the tilted picture covering the frame.
-      const cover = Math.cos(theta) + (height / width) * Math.sin(theta);
+      const cover =
+        Math.cos(theta) + (Math.max(width, height) / Math.min(width, height)) * Math.sin(theta);
       return (
         <AbsoluteFill style={{transform: `rotate(${(effect.tilt_deg ?? 4) * amount}deg) scale(${cover})`}}>
           <Picture source={source} />
@@ -174,7 +175,8 @@ export const EffectedPicture: React.FC<{source: string; effects: PictureEffect[]
 /** A torn paper edge sweeping across the frame, with grain. */
 const Tear: React.FC<{progress: number; seed: string}> = ({progress, seed}) => {
   const {width, height} = useVideoConfig();
-  const x = interpolate(progress, [0, 1], [-width * 0.3, width * 1.3]);
+  // The paper's back edge (x - 0.5w) clears the frame before the last frame.
+  const x = interpolate(progress, [0, 0.95], [-width * 0.3, width * 1.6], clamp);
   const teeth = 28;
   const points: string[] = [];
   for (let i = 0; i <= teeth; i++) {

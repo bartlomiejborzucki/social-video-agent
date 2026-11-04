@@ -72,7 +72,7 @@ FIELD_GUIDANCE: dict[str, str] = {
     ),
     "end_style": (
         "overlay expects an end_teaser over the speaker, end_card a card, both "
-        "both of them; none checks nothing"
+        "expects the two; none checks nothing"
     ),
     "motion_effects": (
         "off refuses picture effects, manual lets the plan use them, auto also "

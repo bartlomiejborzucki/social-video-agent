@@ -416,16 +416,16 @@ class MotionElement(Artifact):
             data = {**INSET_SIZE, **data}
         if isinstance(data, dict) and data.get("type") in ("prop", MotionElementType.PROP):
             data = {"size_pct": 45.0, **data}
-        if isinstance(data, dict) and data.get("type") in (
+        teaser = isinstance(data, dict) and data.get("type") in (
             "end_teaser",
             MotionElementType.END_TEASER,
-        ):
-            # Placed from the end once the edit's length is known; until then
-            # it only needs a valid interval of its own length.
+        )
+        # Without times of its own a teaser is placed from the end once the
+        # edit's length is known; until then it only needs a valid interval
+        # of that length. Times the plan gives are kept.
+        if teaser and "start" not in data and "end" not in data:
             length = data.get("from_end") or END_TEASER_FROM_END
-            data = {"from_end": length, **data}
-            if "start" not in data and "end" not in data:
-                data = {**data, "start": 0.0, "end": length}
+            data = {**data, "from_end": length, "start": 0.0, "end": length}
         return data
 
     @field_validator("item_at_words", mode="before")

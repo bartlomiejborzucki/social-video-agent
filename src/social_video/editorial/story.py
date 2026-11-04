@@ -183,5 +183,19 @@ def story_style(captions: CaptionStyle, *, font_size_pct: float, position: str) 
             "first_cue_full_sentence": False,
             "hold_through_pauses": False,
             "step_numbers": False,
+            "mode": "karaoke",
         }
+    )
+
+
+def contract_story_style(contract) -> CaptionStyle:
+    """The style a text story's captions are drawn with under this contract.
+
+    Rendering and brand QA both use it, so a story is checked against what
+    it is meant to look like, not against the speech captions' settings.
+    """
+    return story_style(
+        contract.brand.captions,
+        font_size_pct=contract.story_caption.font_size_pct,
+        position=contract.story_caption.position,
     )

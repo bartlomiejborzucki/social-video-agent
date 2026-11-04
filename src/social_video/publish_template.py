@@ -84,7 +84,15 @@ def description_template(workspace: Workspace, *, language: str | None = None) -
 
 
 def write_template(workspace: Workspace, *, language: str | None = None) -> Path:
+    """Write ``publish.template.md``; never over one a person may have filled in."""
+    from social_video.errors import ValidationError
+
     target = workspace.root / "publish.template.md"
+    if target.exists():
+        raise ValidationError(
+            f"{target} already exists and may hold written copy; move or delete it to "
+            "start a new template"
+        )
     target.write_text(description_template(workspace, language=language), encoding="utf-8")
     return target
 

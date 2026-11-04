@@ -274,19 +274,28 @@ def _ending(
     )
 
 
+def _spoken_span(cue) -> float:
+    """How long a cue's words take to say; a cue held through a pause is not longer."""
+    if cue.words:
+        return cue.words[-1].end - cue.words[0].start
+    return cue.end - cue.start
+
+
 def _phrase_cues(report: QAReport, captions: CaptionTrack) -> None:
-    long = [c for c in captions.cues if c.end - c.start > PHRASE_CUE_SECONDS + 1e-6]
-    worst = max(long, key=lambda c: c.end - c.start, default=None)
+    # The first cue carries the whole first sentence by the opening rule.
+    later = sorted(captions.cues, key=lambda c: c.start)[1:]
+    long = [c for c in later if _spoken_span(c) > PHRASE_CUE_SECONDS + 1e-6]
+    worst = max(long, key=_spoken_span, default=None)
     _add(
         report,
         "phrase captions change often",
         not long,
-        f"{len(long)} cue(s) over {PHRASE_CUE_SECONDS:g} s, the longest "
-        f"{worst.end - worst.start:.1f}s at {worst.start:.1f}s"
+        f"{len(long)} cue(s) said over more than {PHRASE_CUE_SECONDS:g} s, the longest "
+        f"{_spoken_span(worst):.1f}s at {worst.start:.1f}s"
         if worst
-        else f"every cue is up to {PHRASE_CUE_SECONDS:g} s",
+        else f"every cue after the first is said within {PHRASE_CUE_SECONDS:g} s",
         at=round(worst.start, 3) if worst else None,
-        measured=round(worst.end - worst.start, 2) if worst else None,
+        measured=round(_spoken_span(worst), 2) if worst else None,
         expected=PHRASE_CUE_SECONDS,
     )
 

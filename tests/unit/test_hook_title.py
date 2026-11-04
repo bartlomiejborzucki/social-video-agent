@@ -140,3 +140,26 @@ def test_a_list_announced_early_is_suggested_as_a_list() -> None:
         cues=[CaptionCue(index=1, start=6.0, end=8.0, text="Zapamiętaj trzy kroki")]
     )
     assert announced_list(late) is None
+
+
+def test_a_teaser_with_its_own_times_keeps_them() -> None:
+    teaser = MotionElement(
+        type="end_teaser", start=27.0, end=29.0, text="Jutro dalej", reason="Next."
+    )
+    assert teaser.from_end is None
+    plan = MotionPlan(elements=[teaser], rationale="x")
+    placed, notes = anchor_to_words(plan, None, duration=30.0)
+    assert notes == [] and (placed.elements[0].start, placed.elements[0].end) == (27.0, 29.0)
+
+
+def test_a_number_is_a_whole_word_in_the_title() -> None:
+    assert check_title("Trzymaj się swojego planu")[1].ok is False
+    assert check_title("Trzy rzeczy przed snem")[1].ok is True
+
+
+def test_a_list_already_on_screen_clears_the_finding() -> None:
+    track = CaptionTrack(
+        cues=[CaptionCue(index=1, start=0.0, end=2.0, text="Zapamiętaj trzy kroki")]
+    )
+    found = announced_list(track, shown=True)
+    assert found is not None and found.ok

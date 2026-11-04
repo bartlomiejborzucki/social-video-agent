@@ -115,3 +115,28 @@ def test_the_outline_is_a_share_of_the_font(tmp_path: Path) -> None:
     # 4 % of 1920 is 76.8 px; a tenth of it.
     assert style.outline_width == pytest.approx(7.7, abs=0.05)
     assert style.outline_width_pct == 10
+
+
+def test_a_step_number_does_not_hide_the_word_from_anchors() -> None:
+    from social_video.motion.anchors import word_times
+
+    style = CaptionStyle(mode="phrase", step_numbers=True, max_chars_per_cue=40)
+    track = build_caption_track(_spoken("Krok 1 kolacja. Krok 2 kąpiel."), _timeline(), style=style)
+    assert track.cues[0].text.startswith("1. Krok")
+    assert [k for k, _s, _e in word_times(track)].count("krok") == 2
+
+
+def test_reel_check_measures_what_is_said_after_the_opening_cue() -> None:
+    from social_video.qa.reel import _phrase_cues
+    from social_video.schemas.captions import CaptionCue, CaptionTrack, CaptionWord
+    from social_video.schemas.qa import QAReport
+
+    def cue(index: int, start: float, end: float, said: float) -> CaptionCue:
+        words = [CaptionWord(text="a", start=start, end=start + said)]
+        return CaptionCue(index=index, start=start, end=end, text="a", words=words)
+
+    # The opening cue is long by rule; the second is held through a pause.
+    track = CaptionTrack(mode="phrase", cues=[cue(1, 0.0, 3.4, 3.4), cue(2, 3.5, 7.0, 1.2)])
+    report = QAReport(output="x", edl="main")
+    _phrase_cues(report, track)
+    assert report.checks[0].passed

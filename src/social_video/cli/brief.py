@@ -224,12 +224,14 @@ def hook_check(
             (p for p in (ws.final / "final.mp4", ws.previews / "preview.mp4") if p.is_file()), None
         )
         track = resolve_caption_track(Path(edl.captions))[0] if edl.captions else None
+        title, list_shown = _plan_opening(ws)
         return check_hook(
             track,
             target,
             analysis_dir=ws.analysis,
             words=workspace_words(ws),
-            title=_hook_title(ws),
+            title=title,
+            list_shown=list_shown,
         )
 
     report = _guard(run)
@@ -245,15 +247,16 @@ def hook_check(
     console.print(f"[green]written[/green] {ws.analysis / 'hook-check.json'}", soft_wrap=True)
 
 
-def _hook_title(ws) -> str | None:
-    """The motion plan's hook title, when it has one."""
+def _plan_opening(ws) -> tuple[str | None, bool]:
+    """The motion plan's hook title, and whether it shows a list of points."""
     from social_video.schemas.base import load_artifact
-    from social_video.schemas.motion import MotionElementType, MotionPlan
+    from social_video.schemas.motion import ITEM_ANCHORED, MotionElementType, MotionPlan
 
     if not ws.motion_plan.is_file():
-        return None
+        return None, False
     plan = load_artifact(MotionPlan, ws.motion_plan)
-    return next((e.text for e in plan.elements if e.type is MotionElementType.HOOK_TITLE), None)
+    title = next((e.text for e in plan.elements if e.type is MotionElementType.HOOK_TITLE), None)
+    return title, any(e.type in ITEM_ANCHORED for e in plan.elements)
 
 
 @app.command("reel-check")

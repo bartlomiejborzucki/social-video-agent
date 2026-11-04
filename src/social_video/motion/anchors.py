@@ -13,6 +13,7 @@ would land on nothing.
 
 from __future__ import annotations
 
+import re
 from itertools import pairwise
 
 from social_video.schemas.captions import CaptionTrack
@@ -31,12 +32,20 @@ def word_key(text: str) -> str:
     return "".join(ch for ch in text.casefold() if ch.isalnum())
 
 
+#: A step number `step_numbers` put in front of a cue's first word ("2. Po").
+_STEP_PREFIX = re.compile(r"^\d+\.\s+")
+
+
 def word_times(captions: CaptionTrack) -> list[tuple[str, float, float]]:
-    """Every captioned word with its output time, in order."""
+    """Every captioned word with its output time, in order.
+
+    A step number in front of a word is not part of it: "2. Po" is "po".
+    """
     found = []
     for cue in captions.cues:
         for word in cue.words:
-            found.append((word_key(word.text), word.start, word.end))
+            text = _STEP_PREFIX.sub("", word.text) if captions.step_numbers else word.text
+            found.append((word_key(text), word.start, word.end))
     return sorted(found, key=lambda item: item[1])
 
 
@@ -55,7 +64,9 @@ def place_end_teasers(plan: MotionPlan, duration: float | None) -> tuple[MotionP
     ``duration`` is the whole edit; end cards held after the last word are
     taken off it, so the teaser stays over the speaker and the cards follow.
     """
-    if duration is None or not any(e.type is MotionElementType.END_TEASER for e in plan.elements):
+    if duration is None or not any(
+        e.type is MotionElementType.END_TEASER and e.from_end is not None for e in plan.elements
+    ):
         return plan, []
     # Held end cards come after the last word; the teaser is over the speaker.
     held = sum(
@@ -65,8 +76,9 @@ def place_end_teasers(plan: MotionPlan, duration: float | None) -> tuple[MotionP
     notes: list[str] = []
     elements = []
     for element in plan.elements:
-        if element.type is MotionElementType.END_TEASER:
-            length = min(element.from_end or element.end - element.start, duration)
+        # A teaser with its own start and end (no from_end) stays where it is.
+        if element.type is MotionElementType.END_TEASER and element.from_end is not None:
+            length = min(element.from_end, duration)
             start, end = round(max(0.0, duration - length), 3), round(duration, 3)
             if abs(start - element.start) > 1e-3 or abs(end - element.end) > 1e-3:
                 notes.append(f"end_teaser placed over the last {length:g}s, {start:.2f}-{end:.2f}s")

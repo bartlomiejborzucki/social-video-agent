@@ -39,7 +39,12 @@ from social_video.qa.contact_sheet import boundary_sheets, contact_sheet
 from social_video.reframe.plan import plan_reframe
 from social_video.render_log import record_render
 from social_video.schemas.base import load_artifact, save_artifact
-from social_video.schemas.brand import BrandProfile, CaptionBackgroundStyle, OutputProfile
+from social_video.schemas.brand import (
+    BrandProfile,
+    CaptionBackgroundStyle,
+    CaptionStyle,
+    OutputProfile,
+)
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.config import BrandContract
 from social_video.schemas.edl import EDL, ReframeMode
@@ -697,15 +702,7 @@ def stage_render(
         if json_path.is_file():
             caption_track = load_artifact(CaptionTrack, json_path)
         if renderer is Renderer.REMOTION:
-            remotion_caption_style = contract.brand.captions
-            if caption_track is not None and caption_track.origin == "story":
-                from social_video.editorial.story import story_style
-
-                remotion_caption_style = story_style(
-                    contract.brand.captions,
-                    font_size_pct=contract.story_caption.font_size_pct,
-                    position=contract.story_caption.position,
-                )
+            remotion_caption_style = _drawn_caption_style(contract, caption_track)
             base_captions = None
     caption_fonts_dir: Path | None = None
     boxed_layout = None
@@ -839,7 +836,7 @@ def stage_render(
         # A plain track wraps inside libass, so there is no measured layout to
         # record; a rounded-box track was laid out here and records its layout.
         caption_layout = boxed_layout
-        style = contract.brand.captions if contract else None
+        style = _drawn_caption_style(contract, caption_track) if contract else None
         applied_caption_features = caption_features(
             style,
             caption_track,
@@ -855,7 +852,7 @@ def stage_render(
             applied_caption_features.append(SCENE_FRAME)
     if contract is not None:
         manifest_obj.brand_contract_sha256 = contract.project_config_sha256
-        manifest_obj.caption_style = contract.brand.captions.model_dump(
+        manifest_obj.caption_style = _drawn_caption_style(contract, caption_track).model_dump(
             mode="json", exclude={"schema_version"}
         )
         manifest_obj.caption_renderer = (
@@ -1185,6 +1182,15 @@ def _caption_json(captions: Path | None, edl: EDL) -> CaptionTrack | None:
         return None
     path = source.with_suffix(".json")
     return load_artifact(CaptionTrack, path) if path.is_file() else None
+
+
+def _drawn_caption_style(contract: BrandContract, track: CaptionTrack | None) -> CaptionStyle:
+    """The caption style this track is drawn with: the contract's, or a story's."""
+    if track is not None and track.origin == "story":
+        from social_video.editorial.story import contract_story_style
+
+        return contract_story_style(contract)
+    return contract.brand.captions
 
 
 def _effect_evidence(plan: MotionPlan) -> list[dict]:

@@ -196,6 +196,10 @@ def accept_accents(
             if any(new_effect.start < e.end and e.start < new_effect.end for e in effects):
                 skipped.append(f"{candidate.id}: overlaps an effect already in the plan")
                 continue
+            titles = [e for e in elements if e.type is MotionElementType.HOOK_TITLE]
+            if any(new_effect.start < t.end and t.start < new_effect.end for t in titles):
+                skipped.append(f"{candidate.id}: runs under the hook_title")
+                continue
             effects.append(new_effect)
         elif candidate.range_zoom is not None:
             # A jump replaces any transition on its cut.

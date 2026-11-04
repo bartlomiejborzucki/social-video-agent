@@ -10,6 +10,7 @@ from social_video.captions.features import (
     ACTIVE_WORD_UNAVAILABLE,
     CAPTION_ANIMATION_UNAVAILABLE,
     CAPTION_MODE_PHRASE,
+    CAPTION_STORY,
     EMPHASIS_MARK,
     KEYWORD_EMPHASIS,
     STEP_NUMBERS,
@@ -57,6 +58,11 @@ def check_brand(
         report.checks.append(check)
 
     style = contract.brand.captions
+    if CAPTION_STORY in render.caption_features:
+        # A text story's sentences are drawn centred and whole by design.
+        from social_video.editorial.story import contract_story_style
+
+        style = contract_story_style(contract)
     evidence = render.caption_style
     add(
         "brand contract applied",

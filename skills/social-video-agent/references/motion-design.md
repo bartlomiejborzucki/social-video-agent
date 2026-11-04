@@ -341,7 +341,8 @@ question, an instruction, a number or a choice.
 
 An `end_teaser` says what comes next ("Jutro: część 2") over the speaker in
 the last `from_end` seconds (1-6, default 4), styled like the title; `compile`
-and the render place it, before any held end card. `end_style` in the config
+and the render place it, before any held end card. A teaser given its own
+`start` and `end` (and no `from_end`) stays where the plan puts it. `end_style` in the config
 says how a reel is expected to end (`overlay`, `end_card`, `both`); brand QA
 compares it with what the render drew, and both QA and `reel-check` note an
 ending with no call to action, teaser or end card.

@@ -17,7 +17,7 @@ from social_video.editorial.story import (
 )
 from social_video.errors import ValidationError
 from social_video.publish_template import description_template, placeholders
-from social_video.qa.brand import _check_ending
+from social_video.qa.brand import _check_ending, check_brand
 from social_video.qa.reel import _story_question
 from social_video.schemas.base import save_artifact
 from social_video.schemas.brand import CaptionPosition, CaptionStyle
@@ -127,3 +127,45 @@ def test_brand_qa_reads_the_ending_against_end_style() -> None:
     found.clear()
     _check_ending(add, _contract(), _render(overlay=False, end_card=False, cta=False))
     assert found == [("something closes the reel", False, True)]
+
+
+def test_brand_qa_checks_a_story_against_the_story_style(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Video:
+        display_size = (1080, 1920)
+
+    class Info:
+        video = Video()
+
+    monkeypatch.setattr("social_video.qa.brand.probe", lambda _: Info())
+    from social_video.captions.features import CAPTION_STORY
+    from social_video.editorial.story import contract_story_style
+
+    contract = _contract(mode="phrase", highlight_active_word=False)
+    style = contract_story_style(contract)
+    assert style.mode == "karaoke" and style.position is CaptionPosition.CENTER
+    render = RenderManifest(
+        output="final.mp4", edl="main", rendered_at="2026-11-04T00:00:00Z", duration=1,
+        width=1080, height=1920, frame_rate="30/1",
+        brand_contract_sha256=contract.project_config_sha256,
+        caption_style=style.model_dump(mode="json", exclude={"schema_version"}),
+        captions_burned=True, caption_renderer="remotion",
+        caption_features=["burned_in", "bold", CAPTION_STORY],
+        brand_safe_margins=contract.safe_margins,
+    )  # fmt: skip
+    report = check_brand(tmp_path / "final.mp4", contract, render)
+    checks = {c.name: c.passed for c in report.checks}
+    assert checks["caption mode"] and checks["caption position"] and checks["caption font size"]
+
+
+def test_the_template_is_never_written_over(tmp_path: Path) -> None:
+    from social_video.publish_template import write_template
+
+    ws = Workspace.at(tmp_path / "edit")
+    ws.root.mkdir(parents=True)
+    first = write_template(ws)
+    first.write_text("written by hand", encoding="utf-8")
+    with pytest.raises(ValidationError, match="already exists"):
+        write_template(ws)
+    assert first.read_text(encoding="utf-8") == "written by hand"
