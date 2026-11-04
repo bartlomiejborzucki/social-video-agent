@@ -4,6 +4,70 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-11-04
+
+Forms of a restless talking head, all opt-in: a title over the speaker, a
+teaser instead of an end card, phrase captions, picture effects on a static
+camera, a second shot under a continuing voice, props on their word, and
+text stories without speech. Nothing changes for a project that does not
+ask for them.
+
+### Added
+
+- `hook_title` motion element: the reel's title over the speaker from about
+  0.4 s, two lines at most in capitals, entering word by word or with a pop,
+  on accent marker fields (`title_style: highlight`), a pill or plain, with a
+  subtitle box (`secondary_text`, `series: {part, total}`) and
+  `emphasis_words`. It is not a card: opening QA never refuses it and warns
+  when it enters after 1.0 s; `hook check` reads it (at most 8 words; a
+  question, an instruction, a number or a choice). `title_font` and
+  `title_font_file` set its font apart from the captions'.
+- `end_teaser` motion element: what comes next over the speaker in the last
+  `from_end` seconds (default 4), placed before any held end card. The new
+  `end_style` config key (`overlay`, `end_card`, `both`) is checked by brand
+  QA against the new `ending_applied` render evidence.
+- `caption_style.mode: phrase`: cues cut where the sentence breaks (any
+  comma, before a conjunction, at most 2.5 s on screen), never lit word by
+  word. `outline_width_pct` draws the outline as a share of the font size,
+  outside the glyph; `step_numbers` puts "1." / "2." in front of a cue that
+  starts a step. The `punchy-caps` brand profile is a test variant.
+- Picture `effects` in the motion plan: `frame_in_frame`, `device_frame`,
+  `split_mirror`, `triptych`, `whip_blur`, `tear`, `bw_flash`, `halftone_bg`,
+  `speed_lines` and `tilt`, drawn by Remotion from CSS and SVG. Never in the
+  first second or under the hook title, one at a time, at most 0/2/4 per 30 s
+  by `motion_energy`, and only when the new `motion_effects` key allows
+  (`off`, `manual`, `auto`). Without segmentation, halftone and speed lines
+  are a translucent layer over the whole frame, recorded as `mask: none`.
+- `insert` motion element: a second shot over the whole frame for 0.5-2.5 s
+  while the main recording's voice goes on, cut or whipped in, with rights.
+- `prop` motion element and a project prop library (`assets/props/` with
+  `props.yaml`, or `prop_library`): a large picture on its word, refused
+  without rights or with a child's face; `props_applied` records each file's
+  hash.
+- `punch_in_words`: `motion suggest` proposes a push in on each listed word
+  (`PunchIn` now takes `at_word`), and `motion qa` notes one said without.
+- `motion suggest` proposes effects on sentence boundaries every 6-10 s
+  under `motion_effects: auto`, and props by their keywords.
+- Text stories: `brief story` turns `"Sentence." -> clip.mp4` lines into an
+  edit plan with `mode: text_story`; `compile` builds muted shots and one
+  centred caption per shot (`story_caption`) without transcribing anything.
+- `deliver --description-template` writes `publish.template.md`: the hook,
+  body, share ask (`share_cta`), credibility line (`author_signature`) and
+  source in order, the rest as `[[placeholders]]` that `--publish` refuses.
+- `hook check` suggests a `list` with `item_at_words` when "3 kroki" or the
+  like is said in the first 5 s.
+
+### Changed
+
+- `opening-qa` adds advisory `opening_warnings`: no word heard in the first
+  0.5 s, or a hook title after 1.0 s. The delivery manifest carries them.
+- `reel-check` warns when the last 4 s have no call to action, teaser, end
+  card or spoken ask, when a phrase cue stays over 2.5 s, and when a text
+  story does not end on a question.
+- `motion qa` counts effects as picture changes, reports effects, shakes and
+  transitions per 30 s and the gaps between effects, and warns on an effect
+  that starts mid-sentence or a loud one on a sensitive reel.
+
 ## [2.9.0] - 2026-10-29
 
 Fixes from editing with 2.7.1 and 2.8.0: a Claude Motion end card that keeps
