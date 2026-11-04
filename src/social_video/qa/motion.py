@@ -75,7 +75,14 @@ GRAPHIC_BANDS: dict[MotionElementType, tuple[float, float]] = {
     MotionElementType.COMPARE: (0.25, 0.75),
     MotionElementType.STEPS: (0.25, 0.75),
     MotionElementType.LOGO_REVEAL: (0.40, 0.60),
+    MotionElementType.PROP: (0.24, 0.72),
 }
+#: Picture effects closer together than this read as a template, not a cut.
+EFFECT_MIN_GAP = 4.0
+#: Effects, shakes and transitions together, per 30 s, by energy.
+PICTURE_CHANGES_PER_30S = {"calm": 1, "lively": 4, "bold": 7}
+#: A word of `punch_in_words` counts as marked when a push or shake is this close.
+PUNCH_WORD_SLACK = 0.3
 
 #: Face boxes at a moment, as (left, top, right, bottom) fractions of the frame.
 FaceProvider = Callable[[float], list[tuple[float, float, float, float]]]
@@ -116,6 +123,10 @@ def check_motion(
         if item.element.type is MotionElementType.INSET:
             _inset(report, item.element, style, captions, place, faces)
             continue
+        if item.element.type is MotionElementType.INSERT:
+            # A second shot over the whole frame: it hides the speaker on
+            # purpose, under the captions, for at most 2.5 s (the schema's limit).
+            continue
         _readable(report, item, pack)
         if style is not None and captions is not None and not item.film:
             _clear_of_captions(report, item, style, captions, place)
@@ -137,7 +148,109 @@ def check_motion(
     _transitions_clear_of_speech(report, plan, captions, faces)
     _budget(report, edl, plan, shown, energy)
     _rhythm(report, edl, plan, shown)
+    if plan is not None:
+        _effects(report, edl, plan, captions, energy)
+        if contract is not None and contract.punch_in_words and captions is not None:
+            _punch_words(report, plan, captions, contract.punch_in_words)
     return report
+
+
+def _effects(
+    report: QAReport,
+    edl: EDL,
+    plan: MotionPlan,
+    captions: CaptionTrack | None,
+    energy: EnergyPreset,
+) -> None:
+    """Picture effects: spaced, on sentence boundaries, and not on a sensitive reel."""
+    from social_video.captions.chunk import ends_sentence
+    from social_video.schemas.motion import LOUD_EFFECTS
+
+    effects = sorted(plan.effects, key=lambda e: e.start)
+    if not effects and not plan.shakes:
+        return
+    changes = len(effects) + len(plan.shakes) + len(plan.transitions)
+    per_30 = round(changes / max(edl.total_duration, 1.0) * 30.0, 1)
+    allowed = PICTURE_CHANGES_PER_30S.get(energy.name, 1)
+    _add(
+        report,
+        "picture changes per 30 s",
+        per_30 <= allowed,
+        f"{len(effects)} effect(s), {len(plan.shakes)} shake(s) and {len(plan.transitions)} "
+        f"transition(s) is {per_30:g} per 30 s; {energy.name} allows about {allowed}",
+        measured=per_30,
+        expected=float(allowed),
+    )
+    for first, second in pairwise(effects):
+        gap = round(second.start - first.end, 2)
+        _add(
+            report,
+            f"{second.type.value} at {second.start:.2f}s spaced from the last effect",
+            gap >= EFFECT_MIN_GAP,
+            f"{gap:.2f}s after the {first.type.value}; effects read as a cut at "
+            f"{EFFECT_MIN_GAP:g} s apart or more",
+            at=second.start,
+            measured=gap,
+            expected=EFFECT_MIN_GAP,
+        )
+    if captions is not None:
+        ends = [
+            word.end
+            for cue in captions.cues
+            for word in cue.words
+            if ends_sentence(word.text)
+        ]  # fmt: skip
+        starts = [cue.start for cue in captions.cues]
+        for effect in effects:
+            near = min((abs(effect.start - t) for t in [*ends, *starts]), default=float("inf"))
+            _add(
+                report,
+                f"{effect.type.value} at {effect.start:.2f}s on a sentence boundary",
+                near <= 0.4,
+                (
+                    "starts where a sentence ends"
+                    if near <= 0.4
+                    else f"starts {near:.2f}s from the nearest sentence end; mid-sentence "
+                    "it cuts across the thought"
+                ),
+                at=effect.start,
+                measured=round(near, 2) if near != float("inf") else None,
+                expected=0.4,
+            )
+    if plan.sensitive_topic:
+        for effect in effects:
+            if effect.type in LOUD_EFFECTS:
+                _add(
+                    report,
+                    f"{effect.type.value} at {effect.start:.2f}s on a sensitive topic",
+                    False,
+                    "a loud effect on a reel about death, illness or grief; consider a "
+                    "punch-in or nothing",
+                    at=effect.start,
+                )
+
+
+def _punch_words(
+    report: QAReport, plan: MotionPlan, captions: CaptionTrack, words: list[str]
+) -> None:
+    """Each word of `punch_in_words` said without a push or a shake on it."""
+    from social_video.motion.anchors import word_key, word_times
+
+    wanted = {word_key(w) for w in words}
+    marks = [(p.start, p.end) for p in plan.punch_ins] + [(s.start, s.end) for s in plan.shakes]
+    for key, start, _end in word_times(captions):
+        if key not in wanted:
+            continue
+        marked = any(a - PUNCH_WORD_SLACK <= start <= b for a, b in marks)
+        _add(
+            report,
+            f"{key!r} at {start:.2f}s marked",
+            marked,
+            "a punch-in or shake lands on it"
+            if marked
+            else "a punch_in_words word is said with no punch-in or shake on it",
+            at=round(start, 3),
+        )
 
 
 def _overlap(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
@@ -702,6 +815,8 @@ def _rhythm(report: QAReport, edl: EDL, plan: MotionPlan | None, shown: list[Sho
         changes.update(p.start for p in plan.punch_ins)
         changes.update(p.end for p in plan.punch_ins)
         changes.update(t.at for t in plan.transitions)
+        changes.update(e.start for e in plan.effects)
+        changes.update(e.end for e in plan.effects)
     times = sorted(t for t in changes if 0.0 <= t <= total)
     gap, at = max(((b - a, a) for a, b in pairwise(times)), default=(0.0, 0.0))
     _add(

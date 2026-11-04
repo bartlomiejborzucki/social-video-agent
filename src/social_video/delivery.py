@@ -426,6 +426,20 @@ def _captions(edl) -> tuple[CaptionTrack | None, Path | None]:
 
 def _check_publish_limits(metadata: PublishMetadata, specs: list[PlatformSpec]) -> None:
     """A title the platform truncates is a title nobody reads to the end."""
+    from social_video.publish_template import placeholders
+
+    left = [
+        p
+        for text in (metadata.title, metadata.description, metadata.cta or "", metadata.alt_text)
+        for p in placeholders(text)
+    ]
+    if left:
+        raise ValidationError(
+            "publish.json still holds template placeholders: "
+            + ", ".join(left[:3])
+            + (" ..." if len(left) > 3 else "")
+            + "; write them before delivering"
+        )
     for spec in specs:
         if len(metadata.title) > spec.title_max_chars:
             raise ValidationError(

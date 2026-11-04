@@ -227,6 +227,7 @@ def compile_brand_contract(
             f"configured font family {config.font!r} is not installed and font_file was not set; "
             + font_install_hint(config.font)
         )
+    title_font_file = _title_font(config, root, font_file)
     logo_file = _resolve_asset(config.logo_file, root) if config.logo_file else None
     if config.logo_usage == "required" and logo_file is None:
         raise ValidationError("branding requires a logo, but logo_file was not configured")
@@ -248,7 +249,12 @@ def compile_brand_contract(
             corner_radius=style.corner_radius,
             outline_colour=style.outline_color,
             outline_or_shadow=style.outline_or_shadow,
-            outline_width=3 if style.outline_or_shadow.value == "outline" else 0,
+            outline_width=_outline_px(style, config.resolution[1]),
+            outline_width_pct=(
+                style.outline_width_pct if style.outline_or_shadow.value == "outline" else None
+            ),
+            mode=style.mode,
+            step_numbers=style.step_numbers,
             shadow=3 if style.outline_or_shadow.value == "shadow" else 0,
             position=CaptionPosition(style.position),
             margin_pct=style.bottom_margin_pct,
@@ -267,6 +273,7 @@ def compile_brand_contract(
             first_cue_max_words=config.first_cue_max_words,
             hold_through_pauses=config.hold_through_pauses,
         ),
+        title_font_family=config.title_font or config.font,
         accent_colour=(config.brand_colors or [style.background_color])[0],
         brand_colours=list(config.brand_colors),
         secondary_colour=config.secondary_colour,
@@ -309,6 +316,7 @@ def compile_brand_contract(
             str(_resolve_output(config.delivery_output, root)) if config.delivery_output else None
         ),
         resolved_font_file=str(font_file) if font_file else None,
+        resolved_title_font_file=str(title_font_file) if title_font_file else None,
         resolved_logo_file=str(logo_file) if logo_file else None,
         image_generation_enabled=config.image_generation_policy in ("optional", "required"),
         image_generation_policy=config.image_generation_policy,
@@ -317,6 +325,13 @@ def compile_brand_contract(
         music_policy=config.music_policy,
         sfx_policy=config.sfx_policy,
         audio_cleanup_policy=config.audio_cleanup_policy,
+        end_style=config.end_style,
+        punch_in_words=list(config.punch_in_words),
+        motion_effects=config.motion_effects,
+        author_signature=config.author_signature,
+        share_cta=config.share_cta,
+        story_caption=config.story_caption,
+        prop_library=str(_prop_library(config, root)),
         target_platforms=list(config.target_platforms),
         safe_margins={
             "top": config.safe_margins.get("top", 6),
@@ -330,6 +345,37 @@ def compile_brand_contract(
         workspace.ensure()
         save_artifact(contract, workspace.brand_contract)
     return contract
+
+
+def _outline_px(style, height: int) -> float:
+    """The caption outline in pixels of this output: 3 px, or its share of the font."""
+    if style.outline_or_shadow.value != "outline":
+        return 0
+    if style.outline_width_pct is None:
+        return 3
+    font_px = style.font_size_pct / 100 * height
+    return round(font_px * style.outline_width_pct / 100, 1)
+
+
+def _prop_library(config, root: Path) -> Path:
+    from social_video.motion.props import library_dir
+
+    return library_dir(root, config.prop_library)
+
+
+def _title_font(config, root: Path, caption_font: Path | None) -> Path | None:
+    """The title font file, or ``None`` when titles use the captions' font."""
+    if config.title_font_file:
+        return _resolve_asset(config.title_font_file, root)
+    if not config.title_font or config.title_font == config.font:
+        return None
+    found = _system_font(config.title_font)
+    if found is None:
+        raise ValidationError(
+            f"configured title_font {config.title_font!r} is not installed and "
+            "title_font_file was not set; " + font_install_hint(config.title_font)
+        )
+    return found
 
 
 def apply_contract_to_edl(edl, contract: BrandContract):
@@ -362,6 +408,10 @@ def _validate_local_assets(config: ProjectVideoConfig, config_dir: Path) -> None
         font = _resolve_asset(config.font_file, root)
         if font.suffix.casefold() not in {".ttf", ".otf", ".woff", ".woff2"}:
             raise ValidationError(f"font_file must be a supported font file: {font}")
+    if config.title_font_file:
+        title = _resolve_asset(config.title_font_file, root)
+        if title.suffix.casefold() not in {".ttf", ".otf", ".woff", ".woff2"}:
+            raise ValidationError(f"title_font_file must be a supported font file: {title}")
     if config.logo_file:
         logo = _resolve_asset(config.logo_file, root)
         if logo.suffix.casefold() not in {".svg", ".png", ".webp", ".jpg", ".jpeg"}:

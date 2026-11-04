@@ -108,6 +108,15 @@ class CaptionStyle(Artifact):
     #: Within one scene a cue stays until the next one starts; see
     #: ``captions.chunk.hold_through_pauses``.
     hold_through_pauses: bool = False
+    #: ``karaoke`` or ``phrase``; see ``CaptionConfig.mode``. A phrase cue is
+    #: cut where the sentence breaks and never lit word by word.
+    mode: Literal["karaoke", "phrase"] = "karaoke"
+    #: The outline's width as a percentage of the font size, when the config
+    #: sets it; ``outline_width`` then holds it in pixels of this output, and
+    #: the outline is drawn outside the glyph so it does not thin the letters.
+    outline_width_pct: float | None = Field(default=None, ge=1.0, le=25.0)
+    #: "1." / "2." in front of a cue that starts a step.
+    step_numbers: bool = False
 
 
 class BrandProfile(Artifact):

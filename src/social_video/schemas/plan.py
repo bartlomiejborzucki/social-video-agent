@@ -9,6 +9,7 @@ it keeps editorial judgement out of the media execution code.
 from __future__ import annotations
 
 from enum import Enum
+from typing import Literal
 
 from pydantic import Field, model_validator
 
@@ -62,6 +63,8 @@ class PlanItem(Artifact):
         description="Playback rate. Under an audio_source only the picture is retimed.",
     )
     grade: str = Field(default="", description="Named look, e.g. mono or mono_contrast.")
+    #: A text story's sentence for this shot, shown over it in place of speech.
+    story_text: str | None = Field(default=None, max_length=120)
 
     @model_validator(mode="after")
     def _check_interval(self) -> PlanItem:
@@ -104,6 +107,23 @@ class EditPlan(Artifact):
         default_factory=list,
         description="Current-request choices that intentionally override project defaults.",
     )
+    #: ``talking`` (the default): a recording's speech, cut and captioned.
+    #: ``text_story``: shots without speech, one sentence from the brief over
+    #: each, the shots' own sound muted; nothing is transcribed.
+    mode: Literal["talking", "text_story"] = "talking"
+
+    @model_validator(mode="after")
+    def _story_has_sentences(self) -> EditPlan:
+        if self.mode == "text_story":
+            missing = [
+                n for n, item in enumerate(self.kept, 1) if not (item.story_text or "").strip()
+            ]
+            if missing:
+                raise ValueError(
+                    "every kept item of a text story carries its sentence (story_text); "
+                    f"missing on item(s) {', '.join(map(str, missing))}"
+                )
+        return self
 
     @property
     def kept(self) -> list[PlanItem]:

@@ -256,12 +256,31 @@ def deliver(
         help="Keep every delivered video under this many MB (e.g. 30): a larger one is "
         "re-encoded in two passes, its audio copied untouched.",
     ),
+    description_template: bool = typer.Option(
+        False,
+        "--description-template",
+        help="Write publish.template.md in the workspace: the post description's parts in "
+        "order, filled only from the hook title, captions and config, the rest as "
+        "[[placeholders]]. Alone, it delivers nothing.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Create immutable Stage 5 variants and a verified delivery manifest."""
     from social_video.delivery import deliver_workspace
     from social_video.paths import normalize_user_path
     from social_video.workspace.layout import Workspace
+
+    if description_template:
+        from social_video.publish_template import write_template
+
+        written = _guard(lambda: write_template(Workspace.at(workspace_dir)))
+        console.print(f"[green]template[/green] {written}", soft_wrap=True)
+        deliverable = (
+            with_captions, no_captions, srt, vtt, poster, cover, publish, resolution,
+            language, hook_variants,
+        )  # fmt: skip
+        if not any(deliverable):
+            return
 
     destination = _guard(lambda: normalize_user_path(output)) if output else None
     manifest = _guard(

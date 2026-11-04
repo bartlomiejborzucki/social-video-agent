@@ -239,6 +239,45 @@ def stage_compile(
     return edl
 
 
+def stage_story(
+    plan: EditPlan, workspace: Workspace, profile: OutputProfile, *, captions: bool = True
+) -> tuple[EDL, CaptionTrack | None]:
+    """Compile a text story: muted shots in order, each sentence over its shot.
+
+    Nothing is transcribed. The captions are the brief's sentences, drawn as
+    the contract's `story_caption` asks (centred and larger by default).
+    """
+    from social_video.editorial.story import compile_story, story_style, story_track
+
+    edl = compile_story(plan, width=profile.width, height=profile.height)
+    edl, fitted = fit_to_picture(edl, picture_lengths(workspace, edl))
+    for note in fitted:
+        log.warning("%s", note)
+    contract = None
+    if workspace.brand_contract.is_file():
+        from social_video.project_config import apply_contract_to_edl
+
+        contract = load_artifact(BrandContract, workspace.brand_contract)
+        edl = apply_contract_to_edl(edl, contract)
+    pin_workspace_labels(workspace, edl)
+    save_artifact(edl, workspace.edl)
+    edl = sync_end_hold(workspace, edl)
+    record_stage(workspace, "compile", {"ranges": len(edl.ranges), "mode": "text_story"})
+    if not captions:
+        return edl, None
+    brand = load_workspace_brand(workspace)
+    story = contract.story_caption if contract else None
+    style = story_style(
+        brand.captions,
+        font_size_pct=story.font_size_pct if story else 5.0,
+        position=story.position if story else "center",
+    )
+    track = story_track(edl, style)
+    styled = brand.model_copy(update={"captions": style})
+    track, _ass = stage_captions([], edl, workspace, styled, prebuilt=track)
+    return edl, track
+
+
 def picture_lengths(workspace: Workspace, edl: EDL) -> dict[str, float]:
     """How long the picture of each recording the edit shows runs, in seconds.
 
@@ -431,6 +470,7 @@ def stage_captions(
     brand: BrandProfile,
     *,
     persist_edl: bool = True,
+    prebuilt: CaptionTrack | None = None,
 ) -> tuple[CaptionTrack, Path]:
     """Build caption data and render it to ASS, ready for the final burn-in.
 
@@ -448,7 +488,7 @@ def stage_captions(
             fixes = load_artifact(CaptionTrack, previous).fixes
         except Exception:  # an unreadable track is being replaced anyway
             fixes = []
-    track = build_caption_track(
+    track = prebuilt or build_caption_track(
         transcript, timeline, style=brand.captions, opening_text=opening_line(workspace, transcript)
     )
     if fixes:
@@ -581,6 +621,14 @@ def stage_render(
         problems += word_graphic_problems(
             motion_plan, energy=contract.brand.motion_energy if contract else "lively"
         )
+        from social_video.motion.energy import effect_problems
+
+        problems += effect_problems(
+            motion_plan,
+            energy=contract.brand.motion_energy if contract else "lively",
+            duration=edl.total_duration,
+            policy=contract.motion_effects if contract else "manual",
+        )
         if problems:
             raise ValidationError(
                 "the motion plan's word graphics break the brand: " + "; ".join(problems)
@@ -650,6 +698,14 @@ def stage_render(
             caption_track = load_artifact(CaptionTrack, json_path)
         if renderer is Renderer.REMOTION:
             remotion_caption_style = contract.brand.captions
+            if caption_track is not None and caption_track.origin == "story":
+                from social_video.editorial.story import story_style
+
+                remotion_caption_style = story_style(
+                    contract.brand.captions,
+                    font_size_pct=contract.story_caption.font_size_pct,
+                    position=contract.story_caption.position,
+                )
             base_captions = None
     caption_fonts_dir: Path | None = None
     boxed_layout = None
@@ -719,6 +775,18 @@ def stage_render(
                     "; ".join(rejected["problems"]),
                 )
             render_plan = without_rejected(render_plan, checked)
+        props_library: dict[str, Path] = {}
+        if any(e.type is MotionElementType.PROP for e in render_plan.elements):
+            from social_video.motion.props import plan_props
+
+            if contract is None or not contract.prop_library:
+                raise ValidationError(
+                    "a prop comes from the project's prop library; compile the project "
+                    "config (brand contract) for this edit first"
+                )
+            props_library, manifest_obj.props_applied = plan_props(
+                render_plan, Path(contract.prop_library)
+            )
         _rendered, applied_caption_features, caption_layout = render_motion_design(
             render_target,
             output,
@@ -741,6 +809,13 @@ def stage_render(
             secondary_colour=contract.brand.secondary_colour if contract else "#1F2430",
             brand_colours=contract.brand.brand_colours if contract else None,
             custom_components=custom_files,
+            title_font_path=(
+                Path(contract.resolved_title_font_file)
+                if contract and contract.resolved_title_font_file
+                else None
+            ),
+            title_font_family=contract.brand.title_font_family if contract else None,
+            props_library=props_library,
         )
         final_info = probe(output)
         manifest_obj.output = str(output)
@@ -756,6 +831,9 @@ def stage_render(
         manifest_obj.base_render = str(render_target)
         manifest_obj.stickers_applied = _sticker_evidence(render_plan)
         manifest_obj.icons_applied = _icon_evidence(render_plan)
+        manifest_obj.effects_applied = _effect_evidence(render_plan)
+        manifest_obj.ending_applied = _ending_evidence(render_plan, edl.total_duration)
+        manifest_obj.hook_title_applied = _hook_title_evidence(render_plan)
     else:
         # libass draws the ASS track; it honours the same contracted features.
         # A plain track wraps inside libass, so there is no measured layout to
@@ -1107,6 +1185,49 @@ def _caption_json(captions: Path | None, edl: EDL) -> CaptionTrack | None:
         return None
     path = source.with_suffix(".json")
     return load_artifact(CaptionTrack, path) if path.is_file() else None
+
+
+def _effect_evidence(plan: MotionPlan) -> list[dict]:
+    """Each picture effect drawn; the unmasked ones say so."""
+    from social_video.schemas.motion import UNMASKED_EFFECTS
+
+    return [
+        {
+            "type": effect.type.value,
+            "start": effect.start,
+            "end": effect.end,
+            **({"mask": "none"} if effect.type in UNMASKED_EFFECTS else {}),
+        }
+        for effect in plan.effects
+    ]
+
+
+#: The ending is the last this many seconds of the edit.
+ENDING_WINDOW_S = 3.0
+
+
+def _ending_evidence(plan: MotionPlan, duration: float) -> dict:
+    """What the render drew at its end: a teaser, an end card, a call to action."""
+    window = max(0.0, duration - ENDING_WINDOW_S)
+
+    def drawn(kind: MotionElementType) -> bool:
+        return any(e.type is kind and e.end > window for e in plan.elements)
+
+    teaser = drawn(MotionElementType.END_TEASER)
+    card = drawn(MotionElementType.END_CARD)
+    return {
+        "overlay": teaser,
+        "end_card": card,
+        "cta": drawn(MotionElementType.CTA),
+        "window_s": ENDING_WINDOW_S,
+    }
+
+
+def _hook_title_evidence(plan: MotionPlan) -> dict:
+    for element in plan.elements:
+        if element.type is MotionElementType.HOOK_TITLE:
+            return {"start": element.start, "end": element.end, "text": element.text}
+    return {}
 
 
 def _icon_evidence(plan: MotionPlan) -> list[dict]:

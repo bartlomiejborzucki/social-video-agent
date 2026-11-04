@@ -414,7 +414,7 @@ def _mix_music_and_effects(
 def _audio_chain(index: int, rng: EDLRange, media: RenderRange) -> str:
     """The per-range audio chain, shared by the measurement and render passes."""
     target = media.target_duration
-    if media.audio_input is None or not media.audio_info.has_audio:
+    if rng.muted or media.audio_input is None or not media.audio_info.has_audio:
         # A silent range still needs an audio stream or concat refuses. The
         # explicit duration and aformat matter: without them the generated
         # stream can reach the encoder with an unexpected sample format.

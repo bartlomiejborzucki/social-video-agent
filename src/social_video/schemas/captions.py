@@ -62,6 +62,14 @@ class CaptionTrack(Artifact):
     #: Whether word timings come from the recognised speech or were spread
     #: over each cue, as they are for a translated track.
     word_timing: Literal["measured", "estimated"] = "measured"
+    #: How the cues were cut: ``karaoke`` (word and character limits) or
+    #: ``phrase`` (at the sentence's own breaks). Brand QA checks it.
+    mode: Literal["karaoke", "phrase"] = "karaoke"
+    #: Whether "1." / "2." was put in front of the cues that start a step.
+    step_numbers: bool = False
+    #: ``story`` when the cues are the sentences of a text story, from the
+    #: brief rather than from speech.
+    origin: Literal["speech", "story"] = "speech"
 
     @property
     def duration(self) -> float:

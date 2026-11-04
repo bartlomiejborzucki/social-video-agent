@@ -179,6 +179,21 @@ def framing_label(start: float, end: float, elements: list[MotionElement]) -> Mo
     return None
 
 
+def title_top(element: MotionElement, *, height: int, margins: dict[str, float]) -> float:
+    """Where a hook title or end teaser starts, in pixels from the top.
+
+    Mirrors remotion/TitleOverlay.tsx: under the top safe zone by default,
+    at 38 % in the centre, and at half the height above the captions.
+    """
+    u = unit(height)
+    placement = element.placement
+    if placement is ElementPosition.CENTER:
+        return 0.38 * height
+    if placement is ElementPosition.ABOVE_CAPTIONS:
+        return 0.50 * height
+    return margins.get("top", 6.0) / 100.0 * height + 120 * u
+
+
 def element_band(
     element: MotionElement,
     *,
@@ -218,6 +233,13 @@ def element_band(
     if kind is MotionElementType.CUSTOM:
         zone = custom_zone(element, width=round(height * 9 / 16), height=height, margins=margins)
         return zone[1] / height, (zone[1] + zone[3]) / height
+    if kind in (MotionElementType.HOOK_TITLE, MotionElementType.END_TEASER):
+        teaser = kind is MotionElementType.END_TEASER
+        start = title_top(element, height=height, margins=margins)
+        size = 58 if teaser else 76
+        # Two lines on their fields, and the subtitle box under them.
+        card = (2 * (size * 1.12 + 20) + (size * 0.5 * 1.2 + 12 + 14)) * u
+        return start / height, (start + card) / height
     if kind is MotionElementType.KINETIC_WORD:
         # One line of 130 px letters with room for the sparks around it.
         start = top + 20 * u

@@ -78,3 +78,62 @@ greeting:
   - witajcie
   - witam
   - kochani
+
+# Tryb rozkazujący na początku tytułu (`hook_title`): „Nie odkładaj…”, „Zapamiętaj…”.
+imperative:
+  - nie daj
+  - nie odkładaj
+  - nie rób
+  - nie mów
+  - zapamiętaj
+  - pamiętaj
+  - sprawdź
+  - zrób
+  - przestań
+  - spróbuj
+  - wyślij
+  - zobacz
+  - posłuchaj
+  - uważaj
+  - zapisz
+  - powiedz
+  - zacznij
+
+# Konflikt albo wybór w tytule: „Kto pierwszy ustąpi?”, „Kawa czy herbata?”.
+conflict:
+  - czy
+  - kto pierwszy
+  - zamiast
+  - albo
+  - kontra
+  - vs
+
+# Liczebniki, które z rzeczownikiem poniżej zapowiadają listę („3 kroki”).
+numbers:
+  - dwa
+  - dwie
+  - dwóch
+  - trzy
+  - trzech
+  - cztery
+  - czterech
+  - pięć
+  - pięciu
+  - sześć
+  - siedem
+
+# Rzeczowniki listy: po liczbie zapowiadają punkty, które warto pokazać elementem `list`.
+list_nouns:
+  - krok
+  - rzecz
+  - błęd
+  - błąd
+  - sposob
+  - sposób
+  - zasad
+  - pytani
+  - powod
+  - powód
+  - trik
+  - zdani
+  - słow

@@ -437,6 +437,15 @@ def compile_edl(
         prof = load_profile(profile)
         options = TranscriptionOptions(model=model, language=language, audio_track=audio_track)
         plan = load_artifact(EditPlan, ws.edit_plan)
+        wanted = captions if captions is not None else ws.brand_contract.is_file()
+        if plan.mode == "text_story":
+            # Shots without speech: nothing to transcribe, the sentences are the brief's.
+            from social_video.pipeline import stage_story
+
+            edl, _track = stage_story(plan, ws, prof, captions=wanted)
+            for note in anchor_workspace_reactions(ws, edl) if wanted else []:
+                err_console.print(f"[green]anchored[/green] {escape(note)}")
+            return edl, None, replaced, [], []
         transcript, others = compile_transcripts(plan, ws, source, options=options, backend=backend)
         edges = speech_edges(ws, [transcript, *others.values()]) if acoustic_edges else None
         fitted: list[str] = []
@@ -444,7 +453,6 @@ def compile_edl(
             plan, transcript, ws, prof, reframe=mode, transcripts=others, edges=edges,
             notes=fitted,
         )  # fmt: skip
-        wanted = captions if captions is not None else ws.brand_contract.is_file()
         carried = []
         if wanted:
             used = {r.effective_audio_source for r in edl.ranges}

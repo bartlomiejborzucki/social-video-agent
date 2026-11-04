@@ -171,6 +171,9 @@ class EDLRange(Artifact):
         "from another recording (audio_source) keeps its natural pace under it.",
     )
     audio_gain_db: float = Field(default=0.0, ge=-30.0, le=30.0)
+    #: The range's own sound is left out (silence in its place): the shots of
+    #: a text story, under a music bed.
+    muted: bool = False
     grade: str = Field(
         default="",
         description="Named look: mono, mono_contrast, shake; combine with +, e.g. mono+shake.",

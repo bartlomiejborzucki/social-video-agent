@@ -23,7 +23,11 @@ export type MotionElement = {
     | 'process'
     | 'kinetic_word'
     | 'inset'
-    | 'custom';
+    | 'custom'
+    | 'hook_title'
+    | 'end_teaser'
+    | 'insert'
+    | 'prop';
   start: number;
   end: number;
   text: string;
@@ -82,6 +86,34 @@ export type MotionElement = {
   custom_words?: {text: string; start: number; end: number}[] | null;
   /** Process: the state it ends in, shown with a tick. */
   done_text?: string | null;
+  /** Hook title / end teaser: field style, entry, subtitle and accented words. */
+  title_style?: 'highlight' | 'pill' | 'plain' | null;
+  entry?: 'typewriter' | 'pop' | 'slide' | null;
+  subtitle?: string | null;
+  emphasis_keys?: string[] | null;
+  /** Insert: how it cuts in and out. */
+  cut_style?: 'cut' | 'whoosh' | null;
+  /** Prop: how the picture is framed. */
+  prop_style?: 'object' | 'screenshot' | null;
+};
+
+/** A change of the whole picture for a moment; see remotion/Effects.tsx. */
+export type PictureEffect = {
+  type:
+    | 'frame_in_frame'
+    | 'device_frame'
+    | 'split_mirror'
+    | 'triptych'
+    | 'whip_blur'
+    | 'tear'
+    | 'bw_flash'
+    | 'halftone_bg'
+    | 'speed_lines'
+    | 'tilt';
+  start: number;
+  end: number;
+  tilt_deg?: number | null;
+  reason: string;
 };
 
 export type Shake = {start: number; end: number; amplitude_pct: number; frequency_hz: number};
@@ -141,6 +173,11 @@ export type SocialVideoProps = {
   shakes?: Shake[];
   /** Staged Noto Color Emoji file, when a sticker shows an emoji. */
   emojiFontSource?: string | null;
+  /** The font of a hook title and an end teaser, and its staged file. */
+  titleFontFamily?: string;
+  titleFontSource?: string | null;
+  /** Picture effects, on the output timeline. */
+  effects?: PictureEffect[];
 };
 
 /** An effect across one cut, centred on its output time. */
@@ -222,6 +259,9 @@ export type CaptionStyle = {
   animation: 'none' | 'pop' | 'box';
   /** Opacity of the cue's words not spoken yet; 1 draws them like the rest. */
   upcoming_word_opacity?: number;
+  /** Set when the outline is a share of the font: drawn outside the glyph. */
+  outline_width_pct?: number | null;
+  mode?: 'karaoke' | 'phrase';
 };
 
 export type EmphasisMark = 'none' | 'highlight' | 'underline' | 'circle';

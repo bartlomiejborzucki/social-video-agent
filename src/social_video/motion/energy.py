@@ -59,3 +59,32 @@ def word_graphic_problems(plan, *, energy: str) -> list[str]:
                 f"{count} {kind.value}(s); motion_energy {energy} allows {limit} per reel"
             )
     return problems
+
+
+#: Picture effects allowed per 30 s of output, by `motion_energy`.
+EFFECTS_PER_30S = {"calm": 0, "lively": 2, "bold": 4}
+
+
+def effect_problems(plan, *, energy: str, duration: float, policy: str = "manual") -> list[str]:
+    """Where the plan's picture effects break the project's rules.
+
+    ``policy`` is the contract's ``motion_effects``: ``off`` allows none. The
+    budget is per 30 s of output and counts effects only; `motion qa`
+    reports their density together with shakes and transitions.
+    """
+    effects = list(getattr(plan, "effects", []) or [])
+    if not effects:
+        return []
+    if policy == "off":
+        return [
+            f"the plan has {len(effects)} picture effect(s) but the project sets "
+            "motion_effects: off"
+        ]
+    per = EFFECTS_PER_30S.get(energy, 0)
+    allowed = int(per * max(duration, 1.0) / 30.0 + 1e-9)
+    if len(effects) > allowed:
+        return [
+            f"{len(effects)} picture effect(s) in {duration:.0f} s; motion_energy {energy} "
+            f"allows {allowed} ({per} per 30 s)"
+        ]
+    return []

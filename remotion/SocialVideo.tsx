@@ -1,5 +1,4 @@
 import React, {useEffect, useState} from 'react';
-import {Video} from '@remotion/media';
 import {createRoundedTextBox} from '@remotion/rounded-text-box';
 import {Circle, Highlight, Underline} from '@remotion/rough-notation';
 import {lightLeak} from '@remotion/effects/light-leak';
@@ -38,6 +37,9 @@ import {stylePack} from './stylePacks';
 import {leakHueShift, useTransition} from './Transitions';
 import {WORD_GRAPHICS, WordGraphic} from './WordGraphics';
 import {CUSTOM_GRAPHICS} from './customGraphics';
+import {EffectLayer, EffectedPicture} from './Effects';
+import {INSERT_TYPES, InsertGraphic} from './Inserts';
+import {TITLE_TYPES, TitleOverlay} from './TitleOverlay';
 
 const useProjectFont = (family: string, source: string | null): void => {
   const [handle] = useState(() => delayRender('Load project motion-design font'));
@@ -123,7 +125,13 @@ const Caption: React.FC<{
           fontSize: cue.font_size_px,
           lineHeight: layout.line_height,
           textAlign: 'center',
-          WebkitTextStroke: style.outline_width > 0 ? `${style.outline_width}px ${style.outline_colour}` : undefined,
+          // An outline set as a share of the font is drawn outside the glyph:
+          // twice as wide, with the fill painted over its inner half.
+          WebkitTextStroke:
+            style.outline_width > 0
+              ? `${style.outline_width_pct ? style.outline_width * 2 : style.outline_width}px ${style.outline_colour}`
+              : undefined,
+          paintOrder: style.outline_width_pct ? 'stroke fill' : undefined,
           textShadow: style.shadow > 0 ? `0 ${style.shadow}px ${style.shadow * 2}px ${style.outline_colour}` : undefined,
         }}
       >
@@ -1001,6 +1009,7 @@ const CustomGraphic: React.FC<{element: MotionElement; props: SocialVideoProps}>
 export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
   useProjectFont(props.fontFamily, props.fontSource);
   useProjectFont(EMOJI_FAMILY, props.emojiFontSource ?? null);
+  useProjectFont(props.titleFontFamily ?? props.fontFamily, props.titleFontSource ?? null);
   const shake = useShake(props.shakes ?? []);
   const punch = usePunchIn(props.punchIns ?? []);
   const cut = useTransition(props.transitions ?? []);
@@ -1021,8 +1030,9 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
           filter: cut.blur > 0.05 ? `blur(${cut.blur}px)` : undefined,
         }}
       >
-        <Video src={staticFile(props.source)} muted style={{width: '100%', height: '100%'}} />
+        <EffectedPicture source={props.source} effects={props.effects ?? []} accent={props.accentColor} />
       </AbsoluteFill>
+      <EffectLayer effects={props.effects ?? []} accent={props.accentColor} />
       {cut.flash > 0.01 ? (
         <AbsoluteFill style={{backgroundColor: props.accentColor, opacity: cut.flash}} />
       ) : null}
@@ -1063,6 +1073,20 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
           <Sequence key={`${element.type}-${index}`} from={from} durationInFrames={duration}>
             {element.type === 'sticker' ? (
               <Sticker element={element} durationInFrames={duration} />
+            ) : TITLE_TYPES.has(element.type) ? (
+              <TitleOverlay
+                element={element}
+                accent={props.accentColor}
+                secondary={props.secondaryColor}
+                text={props.textColor}
+                font={props.titleFontFamily ?? props.fontFamily}
+                durationInFrames={duration}
+                safeMargins={props.safeMargins}
+                captionBackground={props.captionStyle?.background_colour ?? '#FFFFFF'}
+                holdToEnd={holdToEnd}
+              />
+            ) : INSERT_TYPES.has(element.type) ? (
+              <InsertGraphic element={element} durationInFrames={duration} holdToEnd={holdToEnd} />
             ) : element.type === 'custom' ? (
               <CustomGraphic element={element} props={props} />
             ) : element.type === 'label' && props.labelStyle === 'scene_frame' && props.sceneFrame ? (

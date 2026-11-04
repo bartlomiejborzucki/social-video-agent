@@ -109,6 +109,8 @@ class ProjectConfig(BaseModel):
     font: str | None = None
     font_file: str | None = None
     font_fallback: list[str] | None = None
+    title_font: str | None = None
+    title_font_file: str | None = None
     brand_colors: list[str] | None = None
     logo: str | None = None
     logo_file: str | None = None
@@ -122,6 +124,7 @@ class ProjectConfig(BaseModel):
     broll_synonyms: dict[str, list[str]] = Field(default_factory=dict)
     sticker_allowlist: list[str] = Field(default_factory=list)
     icon_dictionary: str | None = None
+    prop_library: str | None = None
     music_policy: str | None = None
     sfx_policy: str | None = None
     audio_cleanup_policy: str | None = None
@@ -135,6 +138,12 @@ class ProjectConfig(BaseModel):
     first_cue_full_sentence: bool | None = None
     first_cue_max_words: int | None = None
     max_leading_silence_s: float | None = None
+    end_style: str | None = None
+    punch_in_words: list[str] | None = None
+    motion_effects: str | None = None
+    author_signature: str | None = None
+    share_cta: str | None = None
+    story_caption: dict[str, Any] | None = None
     target_platforms: list[str] | None = None
     default_aspect_ratio: str | None = None
     default_resolution: str | None = None

@@ -67,6 +67,19 @@ class MotionElementType(str, Enum):
     #: A Remotion component written for this one reel (motion/custom/<id>.tsx),
     #: drawn inside its zone with the brand tokens and its words' times.
     CUSTOM = "custom"
+    #: The reel's title over the speaker in the opening seconds: two short
+    #: lines at most, entering word by word from ~0.4 s while the speech and
+    #: the captions already run. Not a card: the picture stays live under it.
+    HOOK_TITLE = "hook_title"
+    #: What comes next ("Part 2 tomorrow"), over the speaker in the last
+    #: seconds, styled like the hook title. Not an end card: the face goes on.
+    END_TEASER = "end_teaser"
+    #: A second shot cut in for 0.5-2.5 s over the whole frame (the book, the
+    #: gesture), while the voice of the main recording goes on under it.
+    INSERT = "insert"
+    #: A large picture from the project's prop library (a book cover, a form,
+    #: a screenshot), entering on its word for 2-4 s.
+    PROP = "prop"
 
 
 class EndCardLayout(str, Enum):
@@ -76,6 +89,71 @@ class EndCardLayout(str, Enum):
     OVERLAY = "overlay"
     #: The image whole in the upper part (a book cover), the text below it.
     IMAGE_TOP = "image_top"
+
+
+class TitleStyle(str, Enum):
+    """How a hook title or end teaser is drawn."""
+
+    #: Each line on a marker field in the accent colour, with a thin border.
+    HIGHLIGHT = "highlight"
+    #: The lines in one rounded pill in the brand's second colour.
+    PILL = "pill"
+    #: Bold text with an outline, no field.
+    PLAIN = "plain"
+
+
+class TitleEntry(str, Enum):
+    """How a title's words, or a prop, come in."""
+
+    #: Word by word, over its first 0.4 s.
+    TYPEWRITER = "typewriter"
+    POP = "pop"
+    SLIDE = "slide"
+
+
+class InsertCut(str, Enum):
+    """How an insert comes in and goes out."""
+
+    CUT = "cut"
+    #: A whip blur on the way in and out.
+    WHOOSH = "whoosh"
+
+
+class PropStyle(str, Enum):
+    """How a prop is framed."""
+
+    #: The picture alone, with a soft shadow.
+    OBJECT = "object"
+    #: A screenshot: a white frame with rounded corners and a shadow.
+    SCREENSHOT = "screenshot"
+
+
+class Series(BaseModel):
+    """Which part of a series this reel is: part 2 of 4."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    part: int = Field(ge=1, le=99)
+    total: int | None = Field(default=None, ge=2, le=99)
+
+    @model_validator(mode="after")
+    def _part_within_total(self) -> Series:
+        if self.total is not None and self.part > self.total:
+            raise ValueError(f"part {self.part} of a series of {self.total} does not exist")
+        return self
+
+    @property
+    def label(self) -> str:
+        return f"{self.part}/{self.total}" if self.total else f"{self.part}"
+
+
+#: A hook title opens on the speech, never on frame 0, and never late.
+HOOK_TITLE_EARLIEST = 0.2
+HOOK_TITLE_LATEST = 2.0
+#: A hook title past this start is reported by the opening checks.
+HOOK_TITLE_EXPECTED_BY = 1.0
+#: An end teaser covers this many of the last seconds unless the plan says.
+END_TEASER_FROM_END = 4.0
 
 
 class StickerAnimation(str, Enum):
@@ -122,6 +200,9 @@ POSITIONS: dict[MotionElementType, tuple[ElementPosition, ...]] = {
     MotionElementType.PROCESS: (ElementPosition.TOP,),
     MotionElementType.INSET: (ElementPosition.TOP, ElementPosition.CENTER),
     MotionElementType.CUSTOM: (ElementPosition.TOP, ElementPosition.CENTER),
+    MotionElementType.HOOK_TITLE: (ElementPosition.TOP, ElementPosition.CENTER),
+    MotionElementType.END_TEASER: (ElementPosition.ABOVE_CAPTIONS, ElementPosition.TOP),
+    MotionElementType.PROP: (ElementPosition.CENTER, ElementPosition.TOP),
 }
 
 
@@ -136,6 +217,8 @@ AT_WORD_TYPES = frozenset(
         MotionElementType.KINETIC_WORD,
         MotionElementType.INSET,
         MotionElementType.CUSTOM,
+        MotionElementType.INSERT,
+        MotionElementType.PROP,
     }
 )
 #: Graphics that play with the words. A reel on a sensitive subject (death,
@@ -205,6 +288,8 @@ TEXTLESS = frozenset(
         MotionElementType.ICON,
         MotionElementType.INSET,
         MotionElementType.CUSTOM,
+        MotionElementType.INSERT,
+        MotionElementType.PROP,
     }
 )
 #: Types placed by a box (``size_pct``, ``x_pct``, ``y_pct``) rather than a band.
@@ -303,6 +388,22 @@ class MotionElement(Artifact):
     #: A custom element: the id of its component, ``motion/custom/<id>.tsx`` in
     #: the edit workspace.
     component: str | None = Field(default=None, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    #: A hook title or end teaser: how it is drawn, how its words come in (a
+    #: prop's entry too), and the words of ``text`` set in the accent colour.
+    title_style: TitleStyle | None = None
+    entry: TitleEntry | None = None
+    emphasis_words: list[str] = Field(default_factory=list, max_length=8)
+    #: An end teaser: how many of the edit's last seconds it covers. Its
+    #: start and end are set from it once the edit's length is known.
+    from_end: float | None = Field(default=None, ge=1.0, le=6.0)
+    #: A hook title or end teaser: the part of a series this reel is, drawn
+    #: after ``secondary_text`` ("Part" + " 2/4").
+    series: Series | None = None
+    #: An insert: how it cuts in and out.
+    cut_style: InsertCut | None = None
+    #: A prop: its id in the project's prop library, and how it is framed.
+    prop: str | None = Field(default=None, pattern=r"^[a-z0-9]+(?:[-_][a-z0-9]+)*$")
+    prop_style: PropStyle | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -313,6 +414,18 @@ class MotionElement(Artifact):
             data = {**ICON_PLACE, **data}
         if isinstance(data, dict) and data.get("type") in ("inset", MotionElementType.INSET):
             data = {**INSET_SIZE, **data}
+        if isinstance(data, dict) and data.get("type") in ("prop", MotionElementType.PROP):
+            data = {"size_pct": 45.0, **data}
+        if isinstance(data, dict) and data.get("type") in (
+            "end_teaser",
+            MotionElementType.END_TEASER,
+        ):
+            # Placed from the end once the edit's length is known; until then
+            # it only needs a valid interval of its own length.
+            length = data.get("from_end") or END_TEASER_FROM_END
+            data = {"from_end": length, **data}
+            if "start" not in data and "end" not in data:
+                data = {**data, "start": 0.0, "end": length}
         return data
 
     @field_validator("item_at_words", mode="before")
@@ -412,7 +525,7 @@ class MotionElement(Artifact):
             raise ValueError("done_text is only used by a process")
         if self.type is MotionElementType.INSET:
             self._check_inset()
-        elif (
+        elif self.type is not MotionElementType.INSERT and (
             self.video_asset is not None
             or self.source_start is not None
             or self.source_end is not None
@@ -422,7 +535,7 @@ class MotionElement(Artifact):
         ):
             raise ValueError(
                 "video_asset, source_start, source_end, corner_radius, rights and "
-                "child_face_visible are only used by an inset"
+                "child_face_visible are only used by an inset or an insert"
             )
         if self.type is MotionElementType.CUSTOM:
             if not self.component:
@@ -458,6 +571,15 @@ class MotionElement(Artifact):
                 "replacement, replace_at_word, strike_at, replace_at and strike_mark "
                 "are only used by a strike"
             )
+        self._check_titles()
+        if self.type is MotionElementType.INSERT:
+            self._check_insert()
+        elif self.cut_style is not None:
+            raise ValueError("cut_style is only used by an insert")
+        if self.type is MotionElementType.PROP:
+            self._check_prop()
+        elif self.prop is not None or self.prop_style is not None:
+            raise ValueError("prop and prop_style are only used by a prop")
         self._check_item_anchors()
         if self.layout is EndCardLayout.IMAGE_TOP and self.image_asset is None:
             raise ValueError("layout image_top needs an image_asset to put above the text")
@@ -502,6 +624,85 @@ class MotionElement(Artifact):
         length = self.end - self.start
         if not 1.5 - 1e-6 <= length <= 8.0 + 1e-6:
             raise ValueError(f"an inset stays 1.5-8 s on screen, not {length:.2f} s")
+
+    def _check_titles(self) -> None:
+        titled = self.type in (MotionElementType.HOOK_TITLE, MotionElementType.END_TEASER)
+        if not titled:
+            if self.title_style is not None or self.series is not None or self.emphasis_words:
+                raise ValueError(
+                    "title_style, series and emphasis_words are only used by a hook_title "
+                    "or an end_teaser"
+                )
+            if self.from_end is not None:
+                raise ValueError("from_end is only used by an end_teaser")
+            if self.entry is not None and self.type is not MotionElementType.PROP:
+                raise ValueError("entry is only used by a hook_title, an end_teaser or a prop")
+            return
+        kind = self.type.value
+        words = self.text.split()
+        if self.entry is TitleEntry.SLIDE:
+            raise ValueError(f"a {kind} comes in typewriter or pop")
+        if len(self.secondary_text or "") > 24:
+            raise ValueError(f"a {kind}'s subtitle (secondary_text) is at most 24 characters")
+        keys = {_key(word) for word in words}
+        for word in self.emphasis_words:
+            if _key(word) not in keys:
+                raise ValueError(f"emphasis word {word!r} is not in the {kind}'s text")
+        length = self.end - self.start
+        if self.type is MotionElementType.HOOK_TITLE:
+            if len(words) > 8 or len(self.text) > 60:
+                raise ValueError(
+                    "a hook_title is read at a glance: at most 8 words and 60 characters"
+                )
+            if not HOOK_TITLE_EARLIEST - 1e-6 <= self.start <= HOOK_TITLE_LATEST + 1e-6:
+                raise ValueError(
+                    f"a hook_title enters on the speech, {HOOK_TITLE_EARLIEST}-"
+                    f"{HOOK_TITLE_LATEST:g} s in; frame 0 stays the scene"
+                )
+            if not 2.0 - 1e-6 <= length <= 4.0 + 1e-6:
+                raise ValueError(f"a hook_title stays 2-4 s on screen, not {length:.2f} s")
+            if self.from_end is not None:
+                raise ValueError("from_end is only used by an end_teaser")
+        else:
+            if len(words) > 12 or len(self.text) > 70:
+                raise ValueError("an end_teaser is at most 12 words and 70 characters")
+            if not 1.0 - 1e-6 <= length <= 6.0 + 1e-6:
+                raise ValueError(f"an end_teaser stays 1-6 s on screen, not {length:.2f} s")
+
+    def _check_insert(self) -> None:
+        if self.video_asset is None:
+            raise ValueError("an insert cuts in one video_asset, a second shot of the same scene")
+        if self.image_asset is not None:
+            raise ValueError("an insert is a clip; a still goes in an inset or a prop")
+        if Path(self.video_asset).suffix.casefold() not in {".mp4", ".mov", ".m4v", ".webm"}:
+            raise ValueError("an insert clip must be a .mp4, .mov, .m4v or .webm file")
+        start = self.source_start or 0.0
+        if self.source_end is not None and self.source_end <= start:
+            raise ValueError("an insert clip's source_end comes after its source_start")
+        if not (self.rights or "").strip():
+            raise ValueError(
+                "an insert names its rights (whose picture it is and that it may be shown)"
+            )
+        if self.child_face_visible:
+            raise ValueError("an insert with a child's face is never shown")
+        if self.corner_radius is not None:
+            raise ValueError("an insert fills the frame; corner_radius belongs to an inset")
+        length = self.end - self.start
+        if not 0.5 - 1e-6 <= length <= 2.5 + 1e-6:
+            raise ValueError(f"an insert is cut in for 0.5-2.5 s, not {length:.2f} s")
+        if self.start < 1.0:
+            raise ValueError("an insert never replaces the opening: start at 1.0 s or later")
+
+    def _check_prop(self) -> None:
+        if not self.prop:
+            raise ValueError("a prop names its id in the project's prop library (props.yaml)")
+        if self.image_asset is not None or self.video_asset is not None:
+            raise ValueError("a prop's picture comes from the prop library, not image_asset")
+        if not 20.0 <= self.size_pct <= 70.0:
+            raise ValueError("a prop is 20-70 % of the frame's width (size_pct)")
+        length = self.end - self.start
+        if not 1.5 - 1e-6 <= length <= 4.5 + 1e-6:
+            raise ValueError(f"a prop stays 1.5-4.5 s on screen, not {length:.2f} s")
 
     def _check_icon(self) -> None:
         self._check_size()
@@ -614,6 +815,10 @@ class MotionElement(Artifact):
         return (self.x_pct - half_w, self.y_pct - half_h, self.x_pct + half_w, self.y_pct + half_h)
 
 
+def _key(word: str) -> str:
+    return "".join(ch for ch in word.casefold() if ch.isalnum())
+
+
 def chart_value(item: str) -> tuple[str, float] | None:
     """``"2024: 38,5%"`` as ``("2024", 38.5)``, or ``None`` when it is not one."""
     import re
@@ -664,6 +869,100 @@ class Transition(Artifact):
     reason: str = Field(min_length=1, max_length=300)
 
 
+class EffectType(str, Enum):
+    """A change of the whole picture for a moment, on a static camera."""
+
+    #: The picture shrinks into a white-bordered frame over a blurred copy.
+    FRAME_IN_FRAME = "frame_in_frame"
+    #: The picture inside a phone mock-up ("send this to someone").
+    DEVICE_FRAME = "device_frame"
+    #: The picture and its mirror image side by side.
+    SPLIT_MIRROR = "split_mirror"
+    #: Three slices of the picture, the middle one larger.
+    TRIPTYCH = "triptych"
+    #: A sideways motion blur, as a transition.
+    WHIP_BLUR = "whip_blur"
+    #: A torn-paper edge sweeping across, with grain.
+    TEAR = "tear"
+    #: A short black-and-white high-contrast flash.
+    BW_FLASH = "bw_flash"
+    #: A halftone dot screen over the picture. No cut-out: a translucent layer.
+    HALFTONE_BG = "halftone_bg"
+    #: Speed lines from the frame edges towards the centre. No cut-out.
+    SPEED_LINES = "speed_lines"
+    #: The picture tilted 3-5 degrees.
+    TILT = "tilt"
+
+
+#: How long each effect may last, in seconds.
+EFFECT_LENGTHS: dict[EffectType, tuple[float, float]] = {
+    EffectType.FRAME_IN_FRAME: (0.6, 4.0),
+    EffectType.DEVICE_FRAME: (0.6, 4.0),
+    EffectType.SPLIT_MIRROR: (0.6, 4.0),
+    EffectType.TRIPTYCH: (0.6, 4.0),
+    EffectType.WHIP_BLUR: (0.2, 0.5),
+    EffectType.TEAR: (0.4, 1.2),
+    EffectType.BW_FLASH: (0.2, 0.4),
+    EffectType.HALFTONE_BG: (0.6, 4.0),
+    EffectType.SPEED_LINES: (0.4, 2.0),
+    EffectType.TILT: (0.6, 4.0),
+}
+#: Effects too loud for a reel on a sensitive subject; `motion qa` says so.
+LOUD_EFFECTS = frozenset(
+    {
+        EffectType.TEAR,
+        EffectType.BW_FLASH,
+        EffectType.SPEED_LINES,
+        EffectType.HALFTONE_BG,
+        EffectType.WHIP_BLUR,
+        EffectType.DEVICE_FRAME,
+    }
+)
+#: Effects drawn over the picture without separating the person from the
+#: background: there is no segmentation, so they are a translucent layer.
+UNMASKED_EFFECTS = frozenset({EffectType.HALFTONE_BG, EffectType.SPEED_LINES})
+#: No effect in the first second: the opening is the scene and the hook.
+EFFECT_EARLIEST = 1.0
+
+
+class Effect(Artifact):
+    """One picture effect, e.g. a frame in frame on the turn of the argument."""
+
+    type: EffectType
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+    at_word: str | None = Field(default=None, max_length=60)
+    occurrence: int = Field(default=1, ge=1)
+    #: A tilt's angle in degrees; negative tilts left.
+    tilt_deg: float | None = Field(default=None, ge=-5.0, le=5.0)
+    reason: str = Field(min_length=1, max_length=300)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _tilt_default(cls, data):
+        if isinstance(data, dict) and data.get("type") in ("tilt", EffectType.TILT):
+            data = {"tilt_deg": 4.0, **data}
+        return data
+
+    @model_validator(mode="after")
+    def _valid(self) -> Effect:
+        low, high = EFFECT_LENGTHS[self.type]
+        length = self.end - self.start
+        if not low - 1e-6 <= length <= high + 1e-6:
+            raise ValueError(f"a {self.type.value} lasts {low:g}-{high:g} s, not {length:.2f} s")
+        if self.start < EFFECT_EARLIEST:
+            raise ValueError(
+                f"a {self.type.value} never touches the opening: start at "
+                f"{EFFECT_EARLIEST:g} s or later"
+            )
+        if self.type is EffectType.TILT:
+            if self.tilt_deg is None or abs(self.tilt_deg) < 2.0:
+                raise ValueError("a tilt is 2-5 degrees either way; less reads as a mistake")
+        elif self.tilt_deg is not None:
+            raise ValueError("tilt_deg is only used by a tilt")
+        return self
+
+
 class PunchIn(Artifact):
     """A timed push in on the picture, marking one editorial moment.
 
@@ -677,6 +976,10 @@ class PunchIn(Artifact):
     scale: float = Field(gt=1.0, le=1.5)
     focus_x: float = Field(default=0.5, ge=0.0, le=1.0)
     focus_y: float = Field(default=0.4, ge=0.0, le=1.0)
+    #: Anchor the push to a spoken word, as a shake is: its start becomes the
+    #: start of that word's ``occurrence``-th appearance in the captions.
+    at_word: str | None = Field(default=None, max_length=60)
+    occurrence: int = Field(default=1, ge=1)
     reason: str = Field(min_length=1, max_length=300)
 
     @model_validator(mode="after")
@@ -700,6 +1003,8 @@ class MotionPlan(Artifact):
     transitions: list[Transition] = Field(default_factory=list)
     #: Moments the whole picture shakes, drawn by both renderers.
     shakes: list[Shake] = Field(default_factory=list)
+    #: Picture effects (frame in frame, tear, flash...), drawn by Remotion.
+    effects: list[Effect] = Field(default_factory=list)
     #: The reel is about death, illness or grief: no playful graphic
     #: (stickers, strikes and the other word graphics) may appear in it.
     sensitive_topic: bool = False
@@ -714,6 +1019,33 @@ class MotionPlan(Artifact):
                     "a reel on a sensitive topic takes no playful graphics; remove "
                     + ", ".join(playful)
                 )
+        return self
+
+    @model_validator(mode="after")
+    def _one_title_each(self) -> MotionPlan:
+        for kind in (MotionElementType.HOOK_TITLE, MotionElementType.END_TEASER):
+            count = sum(1 for e in self.elements if e.type is kind)
+            if count > 1:
+                raise ValueError(f"a reel has one {kind.value}; this plan has {count}")
+        return self
+
+    @model_validator(mode="after")
+    def _effects_one_at_a_time(self) -> MotionPlan:
+        ordered = sorted(self.effects, key=lambda e: e.start)
+        for first, second in pairwise(ordered):
+            if second.start < first.end - 1e-6:
+                raise ValueError(
+                    f"effects at {first.start:.2f}s and {second.start:.2f}s overlap; "
+                    "one effect at a time"
+                )
+        titles = [e for e in self.elements if e.type is MotionElementType.HOOK_TITLE]
+        for effect in ordered:
+            for title in titles:
+                if effect.start < title.end and title.start < effect.end:
+                    raise ValueError(
+                        f"the {effect.type.value} at {effect.start:.2f}s runs under the "
+                        "hook_title; the title is read on a still picture"
+                    )
         return self
 
     @model_validator(mode="after")
@@ -776,6 +1108,12 @@ class AccentKind(str, Enum):
     SEQUENCE = "sequence"
     #: A word the project's icon dictionary lists: its icon over the head.
     ICON = "icon"
+    #: A sentence boundary where the picture may change (`motion_effects: auto`).
+    EFFECT = "effect"
+    #: A word of the project's `punch_in_words`: a push in on it.
+    WORD_PUNCH = "word_punch"
+    #: A word a prop in the project's library answers to.
+    PROP = "prop"
 
 
 class RangeStart(Artifact):
@@ -813,13 +1151,15 @@ class AccentCandidate(Artifact):
     transition: Transition | None = None
     range_zoom: RangeZoom | None = None
     range_start: RangeStart | None = None
+    effect: Effect | None = None
 
     @model_validator(mode="after")
     def _one_move(self) -> AccentCandidate:
         moves = [
             m
             for m in (
-                self.element, self.punch_in, self.transition, self.range_zoom, self.range_start
+                self.element, self.punch_in, self.transition, self.range_zoom, self.range_start,
+                self.effect,
             )
             if m is not None
         ]  # fmt: skip

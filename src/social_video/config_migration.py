@@ -66,6 +66,18 @@ FIELD_GUIDANCE: dict[str, str] = {
         "`social-video-agent inspect SOURCE` and choose deliberately rather "
         "than following the source"
     ),
+    "caption_style.mode": (
+        "karaoke keeps the word and character limits and may light the spoken "
+        "word; phrase cuts 3-6 word cues where the sentence breaks"
+    ),
+    "end_style": (
+        "overlay expects an end_teaser over the speaker, end_card a card, both "
+        "both of them; none checks nothing"
+    ),
+    "motion_effects": (
+        "off refuses picture effects, manual lets the plan use them, auto also "
+        "has motion suggest propose them"
+    ),
     "caption_style.outline_or_shadow": (
         "the old wording described how strong the edge was, not which edge is "
         "drawn; pick the kind here and tune its strength in the brand profile"

@@ -9,7 +9,9 @@ captions read the way the sentence is spoken.
 
 from __future__ import annotations
 
+from functools import cache
 from itertools import pairwise
+from pathlib import Path
 
 from social_video.edl.timeline import Timeline
 from social_video.schemas.brand import CaptionCase, CaptionStyle
@@ -20,6 +22,63 @@ from social_video.schemas.transcript import TokenType, Transcript
 SENTENCE_END = frozenset(".!?…")
 #: Punctuation that marks a natural pause.
 CLAUSE_END = frozenset(",;:-–—")  # noqa: RUF001 - en/em dashes are real punctuation here
+
+
+#: A phrase cue: at least this many words before a conjunction may start the next.
+PHRASE_MIN_WORDS = 3
+#: A phrase cue is on screen at most this long.
+PHRASE_MAX_SECONDS = 2.5
+PHRASES_FILE = Path(__file__).with_name("data") / "phrases.yaml"
+
+
+def ends_sentence(text: str) -> bool:
+    """Whether a word closes its sentence: ``.``, ``!``, ``?`` or ``…`` at its end."""
+    stripped = text.rstrip("\"')]}")
+    return bool(stripped) and stripped[-1] in SENTENCE_END
+
+
+def _key(text: str) -> str:
+    return "".join(ch for ch in text.casefold() if ch.isalnum())
+
+
+@cache
+def _phrases() -> dict:
+    import yaml
+
+    return yaml.safe_load(PHRASES_FILE.read_text(encoding="utf-8")) or {}
+
+
+def _for_language(table: dict, language: str | None) -> dict | list:
+    """The entries for ``language`` ("pl", "pl-PL"); all of them when it is unknown."""
+    code = (language or "").split("-")[0].casefold()
+    if code in table:
+        return table[code]
+    merged: dict | list = {} if all(isinstance(v, dict) for v in table.values()) else []
+    for entries in table.values():
+        if isinstance(merged, dict):
+            merged.update(entries)
+        else:
+            merged.extend(entries)
+    return merged
+
+
+def conjunctions(language: str | None) -> frozenset[str]:
+    """Words before which a phrase caption may break."""
+    words = _for_language(_phrases().get("conjunctions", {}), language)
+    return frozenset(_key(str(w)) for w in words)
+
+
+def step_number(text: str, language: str | None) -> int | None:
+    """The step a cue starts ("Po drugie, ..." is 2), or ``None``."""
+    steps = _for_language(_phrases().get("steps", {}), language)
+    if not isinstance(steps, dict):
+        return None
+    words = [_key(w) for w in text.split()]
+    for phrase, number in sorted(steps.items(), key=lambda kv: -len(kv[0].split())):
+        wanted = [_key(w) for w in str(phrase).split()]
+        if words[: len(wanted)] == wanted:
+            return int(number)
+    return None
 
 
 def apply_case(text: str, case: CaptionCase) -> str:
@@ -70,6 +129,8 @@ def build_caption_track(
     if not transcripts:
         raise ValueError("captions need at least one transcript")
     full_first = cfg.first_cue_full_sentence and not opening_text
+    phrase = cfg.mode == "phrase"
+    breaks_before = conjunctions(transcripts[0].language) if phrase else frozenset()
     cues: list[CaptionCue] = []
     index = 1
 
@@ -131,6 +192,13 @@ def build_caption_track(
             if opening
             else len(current) >= cfg.max_words_per_cue or len(prospective) > cfg.max_chars_per_cue
         )
+        if phrase and current and not opening:
+            # A phrase cue breaks before a conjunction once it holds a phrase,
+            # and never stays on screen past PHRASE_MAX_SECONDS.
+            if _key(token.text) in breaks_before and len(current) >= PHRASE_MIN_WORDS:
+                over_limit = True
+            if out_end - current[0].start > PHRASE_MAX_SECONDS:
+                over_limit = True
         if current and over_limit:
             flush()
             current_speaker = token.speaker
@@ -142,16 +210,15 @@ def build_caption_track(
         # already substantial, so short asides do not become their own caption.
         stripped = token.text.rstrip("\"')]}")
         last = stripped[-1] if stripped else ""
-        ends_sentence = last in SENTENCE_END
-        ends_clause = (
-            not opening
-            and last in CLAUSE_END
-            and len(current) >= max(2, cfg.max_words_per_cue // 2)
-        )
-        if ends_sentence or ends_clause:
+        # A phrase cue ends at any clause mark: the phrase is the unit.
+        clause_floor = 2 if phrase else max(2, cfg.max_words_per_cue // 2)
+        ends_clause = not opening and last in CLAUSE_END and len(current) >= clause_floor
+        if last in SENTENCE_END or ends_clause:
             flush()
 
     flush()
+    if cfg.step_numbers:
+        cues = _numbered_steps(cues, transcripts[0].language, cfg.case)
     if full_first and cues:
         cues[0].start = 0.0
     if opening_text and opening_text.strip():
@@ -159,7 +226,35 @@ def build_caption_track(
     cues = _deoverlap(cues)
     if cfg.hold_through_pauses:
         cues = hold_through_pauses(cues, timeline)
-    return CaptionTrack(language=transcripts[0].language, cues=cues)
+    return CaptionTrack(
+        language=transcripts[0].language,
+        cues=cues,
+        mode="phrase" if phrase else "karaoke",
+        step_numbers=cfg.step_numbers,
+    )
+
+
+def _numbered_steps(
+    cues: list[CaptionCue], language: str | None, case: CaptionCase
+) -> list[CaptionCue]:
+    """Put "2." in front of a cue that starts the second step.
+
+    Only the caption changes: the number is joined to the cue's first word,
+    so a highlighted word still lights on time, and the transcript is untouched.
+    """
+    numbered = []
+    for cue in cues:
+        number = step_number(cue.text, language)
+        if number is not None and cue.words and not cue.text.startswith(f"{number}."):
+            first = cue.words[0].model_copy(update={"text": f"{number}. {cue.words[0].text}"})
+            cue = cue.model_copy(
+                update={
+                    "text": apply_case(f"{number}. {cue.text}", case),
+                    "words": [first, *cue.words[1:]],
+                }
+            )
+        numbered.append(cue)
+    return numbered
 
 
 def hold_through_pauses(cues: list[CaptionCue], timeline: Timeline) -> list[CaptionCue]:

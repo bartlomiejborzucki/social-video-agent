@@ -9,8 +9,10 @@ from social_video.captions.features import (
     ACTIVE_WORD_HIGHLIGHT,
     ACTIVE_WORD_UNAVAILABLE,
     CAPTION_ANIMATION_UNAVAILABLE,
+    CAPTION_MODE_PHRASE,
     EMPHASIS_MARK,
     KEYWORD_EMPHASIS,
+    STEP_NUMBERS,
     UPCOMING_WORDS_DIMMED,
 )
 from social_video.edl.voice import (
@@ -166,6 +168,31 @@ def check_brand(
             ),
         )
         add(
+            "caption mode",
+            style.mode != "phrase" or CAPTION_MODE_PHRASE in applied,
+            (
+                "phrase cues, as contracted"
+                if CAPTION_MODE_PHRASE in applied
+                else "karaoke cues, as contracted"
+                if style.mode != "phrase"
+                else "the contract cuts captions as phrases but this track was cut by word "
+                "count; rebuild the captions (compile or `captions`) after the config change"
+            ),
+        )
+        add(
+            "caption step numbers",
+            not style.step_numbers or STEP_NUMBERS in applied,
+            (
+                "not requested by the contract"
+                if not style.step_numbers
+                else "applied"
+                if STEP_NUMBERS in applied
+                else "the contract numbers steps but this track was built without; rebuild "
+                "the captions"
+            ),
+            warning=True,
+        )
+        add(
             "caption weight",
             not style.bold or "bold" in applied,
             "bold applied" if "bold" in applied else "the contract asks for bold captions",
@@ -211,7 +238,55 @@ def check_brand(
         "logo applied" if render.logo_applied else "no logo evidence in render manifest",
     )
     _check_film_segments(add, contract, render)
+    _check_ending(add, contract, render)
     return report
+
+
+def _check_ending(add: _Add, contract: BrandContract, render: RenderManifest) -> None:
+    """The ending the contract expects, against what the render drew in its last seconds.
+
+    Only the Remotion route draws a teaser or a card; a render without that
+    evidence is reported against an `overlay` contract, never assumed to pass.
+    """
+    ending = render.ending_applied
+    expected = contract.end_style
+    if not ending:
+        if expected in ("overlay", "both"):
+            add(
+                "ending as contracted",
+                False,
+                f"end_style is {expected} but the render recorded no ending (an end teaser "
+                "is drawn by Remotion only)",
+            )
+        return
+    overlay, card, cta = (
+        bool(ending.get("overlay")),
+        bool(ending.get("end_card")),
+        bool(ending.get("cta")),
+    )
+    window = ending.get("window_s", 3)
+    add(
+        "something closes the reel",
+        overlay or card or cta,
+        "a teaser, end card or call to action is on screen at the end"
+        if overlay or card or cta
+        else f"the last {window:g} s show no call to action, teaser or end card",
+        warning=True,
+    )
+    if expected == "none":
+        return
+    wanted = {
+        "overlay": overlay,
+        "end_card": card,
+        "both": overlay and card,
+    }[expected]
+    drawn = ", ".join(k for k, v in (("overlay", overlay), ("end_card", card)) if v) or "none"
+    add(
+        "ending as contracted",
+        wanted,
+        f"end_style is {expected}; drawn at the end: {drawn}",
+        warning=True,
+    )
 
 
 def _check_film_segments(add: _Add, contract: BrandContract, render: RenderManifest) -> None:

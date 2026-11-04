@@ -27,10 +27,13 @@ from social_video.motion.icons import IconDictionary
 from social_video.motion.semantic import AccentWords, load_accent_words
 from social_video.schemas.edl import EDL, EDLRange
 from social_video.schemas.motion import (
+    EFFECT_EARLIEST,
     ICON_LIMIT,
     AccentCandidate,
     AccentCandidateSet,
     AccentKind,
+    Effect,
+    EffectType,
     MotionElement,
     MotionElementType,
     MotionPlan,
@@ -78,6 +81,10 @@ def find_accents(
     icons: IconDictionary | None = None,
     quotes: list[str] | None = None,
     sensitive: bool = False,
+    effects: bool = False,
+    punch_words: list[str] | None = None,
+    props=None,
+    hook_title_end: float | None = None,
 ) -> AccentCandidateSet:
     """Accents found in what is said.
 
@@ -93,6 +100,12 @@ def find_accents(
     (``bubble``), a sequence of stages (``process``) and a word the project's
     ``icons`` dictionary lists (``icon``). None is proposed for a
     ``sensitive`` reel, and no icon at the calm energy, which allows none.
+
+    ``effects`` (the project's ``motion_effects: auto``) adds picture effects
+    on sentence boundaries, 6-10 s apart, never in the first second or under
+    the hook title, which ends at ``hook_title_end``. ``punch_words`` adds a
+    push in on each of those words; ``props`` (a prop library) a prop where a
+    word of its keywords is said.
     """
     words = _output_words(transcript, edl)
     duration = edl.total_duration
@@ -112,6 +125,12 @@ def find_accents(
         found += _sequences(words, vocab, duration)
         if icons is not None and ICON_LIMIT.get(energy.name, 0) > 0:
             found += _icons(words, icons, duration)
+        if props is not None and props.props:
+            found += _props(words, props, duration)
+    if effects:
+        found += _effects(sentences, energy, duration, after=hook_title_end, sensitive=sensitive)
+    if punch_words:
+        found += _word_punches(words, punch_words, energy, duration)
     heard = {transcript.source_id: transcript, **(transcripts or {})}
     found += _transitions(edl, energy, heard)
     if opening is not None:
@@ -150,10 +169,11 @@ def accept_accents(
     current = plan or MotionPlan(
         rationale="Accents accepted from `motion suggest`, each with the reason it was found."
     )
-    elements, punches, transitions = (
+    elements, punches, transitions, effects = (
         list(current.elements),
         list(current.punch_ins),
         list(current.transitions),
+        list(current.effects),
     )
     skipped: list[str] = []
     for candidate in chosen:
@@ -171,6 +191,12 @@ def accept_accents(
             if any(abs(t.at - candidate.transition.at) < 0.05 for t in transitions):
                 continue
             transitions.append(candidate.transition)
+        elif candidate.effect is not None:
+            new_effect = candidate.effect
+            if any(new_effect.start < e.end and e.start < new_effect.end for e in effects):
+                skipped.append(f"{candidate.id}: overlaps an effect already in the plan")
+                continue
+            effects.append(new_effect)
         elif candidate.range_zoom is not None:
             # A jump replaces any transition on its cut.
             transitions = [t for t in transitions if abs(t.at - candidate.at) >= 0.05]
@@ -179,6 +205,7 @@ def accept_accents(
             "elements": sorted(elements, key=lambda e: e.start),
             "punch_ins": sorted(punches, key=lambda p: p.start),
             "transitions": sorted(transitions, key=lambda t: t.at),
+            "effects": sorted(effects, key=lambda e: e.start),
         }
     )
     return MotionPlan.model_validate(updated.model_dump()), skipped
@@ -744,6 +771,146 @@ def _icons(words: list[Word], icons: IconDictionary, duration: float) -> list[Ac
     return found
 
 
+#: Effects on a static camera, in the order they are proposed, by energy. The
+#: louder ones only at bold; none at all on a sensitive reel but a tilt.
+EFFECT_ROTATION = {
+    "lively": (EffectType.FRAME_IN_FRAME, EffectType.TILT, EffectType.SPLIT_MIRROR),
+    "bold": (
+        EffectType.FRAME_IN_FRAME, EffectType.SPEED_LINES, EffectType.TRIPTYCH,
+        EffectType.BW_FLASH, EffectType.TILT, EffectType.DEVICE_FRAME,
+    ),
+}  # fmt: skip
+#: A proposed effect lasts this long, unless its type allows less.
+EFFECT_LENGTH = 1.2
+#: Effects are proposed this far apart, at least and at most.
+EFFECT_GAP = (6.0, 10.0)
+
+
+def _effects(
+    sentences: list[list[Word]],
+    energy: EnergyPreset,
+    duration: float,
+    *,
+    after: float | None = None,
+    sensitive: bool = False,
+) -> list[AccentCandidate]:
+    """A picture effect where a new sentence starts, every 6-10 s, within the energy."""
+    from social_video.motion.energy import EFFECTS_PER_30S
+    from social_video.schemas.motion import EFFECT_LENGTHS, LOUD_EFFECTS
+
+    per = EFFECTS_PER_30S.get(energy.name, 0)
+    allowed = int(per * max(duration, 1.0) / 30.0 + 1e-9)
+    rotation = [
+        kind
+        for kind in EFFECT_ROTATION.get(energy.name, ())
+        if not (sensitive and kind in LOUD_EFFECTS)
+    ]
+    if allowed <= 0 or not rotation:
+        return []
+    earliest = max(EFFECT_EARLIEST, after or 0.0)
+    found: list[AccentCandidate] = []
+    last = -EFFECT_GAP[0]
+    for sentence in sentences[1:]:
+        at = sentence[0].start
+        if len(found) >= allowed or at < earliest or at - last < EFFECT_GAP[0]:
+            continue
+        kind = rotation[len(found) % len(rotation)]
+        low, high = EFFECT_LENGTHS[kind]
+        length = min(max(EFFECT_LENGTH, low), high)
+        if at + length > duration:
+            break
+        confidence = "high" if at - last <= EFFECT_GAP[1] or not found else "medium"
+        found.append(
+            _candidate(
+                AccentKind.EFFECT, confidence, at,
+                f"a new sentence starts here; {kind.value} changes the picture on the turn",
+                quote=_text(sentence[:6]),
+                effect=Effect(
+                    type=kind, start=round(at, 3), end=round(at + length, 3),
+                    reason=f"The picture changes as the sentence {_text(sentence[:4])!r} starts.",
+                ),
+            )
+        )  # fmt: skip
+        last = at
+    return found
+
+
+#: A push in on a listed word: just before it, held for the word and a beat.
+WORD_PUNCH_LEAD = 0.05
+WORD_PUNCH_LENGTH = 0.9
+
+
+def _word_punches(
+    words: list[Word], wanted: list[str], energy: EnergyPreset, duration: float
+) -> list[AccentCandidate]:
+    """A push in on every word of the project's `punch_in_words`, once per word."""
+    keys = {normalise(w) for w in wanted}
+    scale = round(min(1.15, energy.punch_in_max), 2)
+    found = []
+    for index, word in enumerate(words):
+        if normalise(word.text) not in keys or word.start < EARLIEST:
+            continue
+        start = max(0.0, word.start - WORD_PUNCH_LEAD)
+        end = min(duration, start + WORD_PUNCH_LENGTH)
+        if end - start < 0.4:
+            continue
+        anchor = _anchor(words, index)
+        found.append(
+            _candidate(
+                AccentKind.WORD_PUNCH, "high", word.start,
+                f"'{word.text}' is one of the project's punch_in_words: a push in on it",
+                quote=word.text,
+                punch_in=PunchIn(
+                    start=round(start, 3), end=round(end, 3), scale=scale,
+                    at_word=anchor.word, occurrence=anchor.occurrence,
+                    reason=f"'{word.text}' marked, as the project asks.",
+                ),
+            )
+        )  # fmt: skip
+    return found
+
+
+#: A prop stays this long on its word.
+PROP_LENGTH = 2.5
+
+
+def _props(words: list[Word], library, duration: float) -> list[AccentCandidate]:
+    """A prop where a word of its keywords is said, once per prop."""
+    from social_video.motion.broll import _stem_match
+
+    tags = {
+        prop.id: {normalise(k) for k in prop.keywords if len(normalise(k)) >= 3}
+        for prop in library.props
+        if prop.rights.strip() and not prop.child_face_visible
+    }
+    found = []
+    seen: set[str] = set()
+    for index, word in enumerate(words):
+        key = normalise(word.text)
+        if len(key) < 3 or word.start < EARLIEST or word.start + PROP_LENGTH > duration:
+            continue
+        for prop_id, keywords in tags.items():
+            if prop_id in seen or not (key in keywords or _stem_match(key, keywords)):
+                continue
+            seen.add(prop_id)
+            anchor = _anchor(words, index)
+            found.append(
+                _candidate(
+                    AccentKind.PROP, "high" if key in keywords else "medium", word.start,
+                    f"'{word.text}' names the prop {prop_id!r} from the project's library",
+                    quote=word.text,
+                    element=MotionElement(
+                        type=MotionElementType.PROP, start=round(word.start, 3),
+                        end=round(word.start + PROP_LENGTH, 3), prop=prop_id,
+                        at_word=anchor.word, occurrence=anchor.occurrence,
+                        reason=f"The {prop_id} the speaker names, shown.",
+                    ),
+                )
+            )  # fmt: skip
+            break
+    return found
+
+
 #: Silence at a cut up to this long still counts as talking through it.
 TALKING_GAP = 0.3
 #: The framing a sharp jump goes to, inside the 1.08-1.12 band that reads as a
@@ -862,6 +1029,9 @@ def _space(
         AccentKind.ICON: 5,
         AccentKind.CONTRAST: 5,
         AccentKind.TRANSITION: 6,
+        AccentKind.PROP: 2,
+        AccentKind.WORD_PUNCH: 4,
+        AccentKind.EFFECT: 6,
     }
     rank[AccentKind.JUMP] = -1
     rank[AccentKind.OPENING] = -1
@@ -884,6 +1054,10 @@ def _space(
             if transitions < transition_budget:
                 kept.append(candidate)
                 transitions += 1
+            continue
+        if candidate.effect is not None:
+            # Effects have their own budget and spacing (see `_effects`).
+            kept.append(candidate)
             continue
         accents = [k for k in kept if k.transition is None]
         if len(accents) >= budget:

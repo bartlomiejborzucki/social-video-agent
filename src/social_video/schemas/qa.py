@@ -148,3 +148,14 @@ class RenderManifest(Artifact):
     #: drawn (with its SHA-256), and each one left out with the reasons.
     custom_applied: list[dict] = Field(default_factory=list)
     custom_rejected: list[dict] = Field(default_factory=list)
+    #: Each prop drawn: its id, file, SHA-256 and the rights props.yaml gives.
+    props_applied: list[dict] = Field(default_factory=list)
+    #: Each picture effect drawn: type, time, and ``mask: none`` for the
+    #: ones laid over the whole frame without cutting the person out.
+    effects_applied: list[dict] = Field(default_factory=list)
+    #: How the render ended: an end teaser drawn over the speaker (overlay),
+    #: an end card, and whether anything (CTA, teaser, card) was on screen in
+    #: the last seconds. Brand QA checks the contract's `end_style` here.
+    ending_applied: dict = Field(default_factory=dict)
+    #: The hook title drawn, if any: its start and text.
+    hook_title_applied: dict = Field(default_factory=dict)

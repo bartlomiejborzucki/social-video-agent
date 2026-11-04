@@ -49,6 +49,8 @@ OPENING_CARDS = frozenset(
 )
 STILL_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff"})
 STILL_CODECS = frozenset({"png", "mjpeg", "bmp", "gif", "webp", "tiff"})
+#: The first word should be heard within this many seconds.
+FIRST_WORD_BY = 0.5
 #: A first caption this late is not "from frame 0".
 FIRST_CUE_TOLERANCE = 0.04
 #: Mean change between frame 0 and ``STILL_PROBE`` seconds in, in 8-bit levels,
@@ -89,6 +91,8 @@ class OpeningReport(Artifact):
     end_card_only_at_end: bool
     ready: bool
     issues: list[str] = Field(default_factory=list)
+    #: Worth a look, never blocking: speech that starts late, a late title.
+    warnings: list[str] = Field(default_factory=list)
     variant: str = ""
 
 
@@ -324,6 +328,7 @@ def check_opening(
             f"first caption {first_cue.text!r} is not the brief's first line "  # type: ignore[union-attr]
             f"{brief_first_text!r} -- check the brief import and the caption track"
         )
+    warnings = opening_warnings(plan, cues)
     ready = policy.opening_policy != "content_first" or not issues
     report = OpeningReport(
         policy=policy.opening_policy,
@@ -340,12 +345,37 @@ def check_opening(
         end_card_only_at_end=not ends,
         ready=ready,
         issues=issues,
+        warnings=warnings,
         variant="" if ready else _variant(issues),
     )
     if analysis_dir is not None:
         save_artifact(report, analysis_dir / "opening-qa.json")
         (analysis_dir / "opening-qa.md").write_text(render_report(report), encoding="utf-8")
     return report
+
+
+def opening_warnings(plan: MotionPlan | None, cues) -> list[str]:
+    """What slows the first second without breaking the content-first rule."""
+    from social_video.schemas.motion import HOOK_TITLE_EXPECTED_BY
+
+    found: list[str] = []
+    spoken = next((c for c in cues if c.words), None)
+    first_word = spoken.words[0].start if spoken else None
+    if first_word is None or first_word > FIRST_WORD_BY:
+        when = (
+            "no word is said" if first_word is None else f"the first word is at {first_word:.2f}s"
+        )
+        found.append(
+            f"{when}; a viewer should hear speech within {FIRST_WORD_BY:g} s "
+            "-- move the in-point to the first word"
+        )
+    for element in plan.elements if plan else []:
+        if element.type is MotionElementType.HOOK_TITLE and element.start > HOOK_TITLE_EXPECTED_BY:
+            found.append(
+                f"hook_title enters at {element.start:.2f}s, after {HOOK_TITLE_EXPECTED_BY:g} s "
+                "-- bring it to 0.4 s, while the first sentence is said"
+            )
+    return found
 
 
 def render_report(report: OpeningReport) -> str:
@@ -367,6 +397,8 @@ def render_report(report: OpeningReport) -> str:
     ]
     if report.issues:
         lines += ["", "## Fix", *[f"- {issue}" for issue in report.issues]]
+    if report.warnings:
+        lines += ["", "## Worth a look", *[f"- {item}" for item in report.warnings]]
     if report.variant:
         lines += ["", "## Proposed variant", report.variant]
     return "\n".join(lines) + "\n"
@@ -385,6 +417,7 @@ def manifest_fields(report: OpeningReport) -> dict:
         "end_card_only_at_end": report.end_card_only_at_end,
         "opening_ready": report.ready,
         "opening_issues": report.issues,
+        "opening_warnings": report.warnings,
     }
 
 

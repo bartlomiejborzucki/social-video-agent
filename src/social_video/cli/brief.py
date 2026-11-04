@@ -11,6 +11,60 @@ from social_video.cli._apps import app, brief_app, hook_app
 from social_video.cli._common import _guard, console
 
 
+@brief_app.command("story")
+def brief_story(
+    file: Path = typer.Argument(
+        ..., help='The story, one line per shot: "Sentence." -> clip.mp4 [@ 2.0] [1.4s].'
+    ),
+    workspace_dir: Path = typer.Option(..., "--workspace", "-w"),
+    cut_every: float = typer.Option(
+        1.25, "--cut-every", help="How long each shot is held, 1.0-1.5 s, unless its line says."
+    ),
+    force: bool = typer.Option(False, "--force", help="Replace an existing edit-plan.json."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Write a text story's edit plan: a sentence per shot, no speech, nothing transcribed.
+
+    The shots must already be sources of the edit (`ingest`). Then `compile`
+    builds the muted cut and the sentences as centred captions; add a licensed
+    music bed as for any edit.
+    """
+    from social_video.editorial.story import parse_story, story_plan
+    from social_video.errors import ValidationError
+    from social_video.schemas.base import load_artifact, save_artifact
+    from social_video.schemas.source import SourceManifest
+    from social_video.workspace.layout import Workspace
+
+    ws = Workspace.at(workspace_dir)
+
+    def run():
+        if ws.edit_plan.is_file() and not force:
+            raise ValidationError(f"{ws.edit_plan} already exists; pass --force to replace it")
+        if not ws.source_manifest.is_file():
+            raise ValidationError(f"no sources at {ws.source_manifest}; ingest the shots first")
+        sources = load_artifact(SourceManifest, ws.source_manifest)
+        lines = parse_story(file.read_text(encoding="utf-8"))
+        plan = story_plan(lines, sources, cut_every=cut_every)
+        save_artifact(plan, ws.edit_plan)
+        return plan
+
+    plan = _guard(run)
+    if as_json:
+        console.print_json(plan.to_json())
+        return
+    total = sum(item.end - item.start for item in plan.items)
+    console.print(f"text story: {len(plan.items)} shots, {total:.1f}s")
+    for item in plan.items:
+        said = escape(item.story_text or "")
+        console.print(f"  {item.source:12} {item.start:6.2f}-{item.end:6.2f}s  {said}")
+    last = (plan.items[-1].story_text or "").strip()
+    if not last.endswith("?"):
+        console.print(
+            "[yellow]note[/yellow] the last sentence is not a question; one invites replies"
+        )
+    console.print(f"[green]written[/green] {ws.edit_plan}", soft_wrap=True)
+
+
 @brief_app.command("import")
 def brief_import(
     file: Path = typer.Argument(
@@ -170,7 +224,13 @@ def hook_check(
             (p for p in (ws.final / "final.mp4", ws.previews / "preview.mp4") if p.is_file()), None
         )
         track = resolve_caption_track(Path(edl.captions))[0] if edl.captions else None
-        return check_hook(track, target, analysis_dir=ws.analysis, words=workspace_words(ws))
+        return check_hook(
+            track,
+            target,
+            analysis_dir=ws.analysis,
+            words=workspace_words(ws),
+            title=_hook_title(ws),
+        )
 
     report = _guard(run)
     if as_json:
@@ -183,6 +243,17 @@ def hook_check(
         if not finding.ok and finding.fix:
             console.print(f"         -> {escape(finding.fix)}", soft_wrap=True)
     console.print(f"[green]written[/green] {ws.analysis / 'hook-check.json'}", soft_wrap=True)
+
+
+def _hook_title(ws) -> str | None:
+    """The motion plan's hook title, when it has one."""
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.motion import MotionElementType, MotionPlan
+
+    if not ws.motion_plan.is_file():
+        return None
+    plan = load_artifact(MotionPlan, ws.motion_plan)
+    return next((e.text for e in plan.elements if e.type is MotionElementType.HOOK_TITLE), None)
 
 
 @app.command("reel-check")

@@ -10,6 +10,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from social_video.schemas.base import Artifact
 from social_video.schemas.brand import BrandProfile, CaptionBackgroundStyle, CaptionOutlineStyle
 
+#: How cues are cut and lit; see `CaptionConfig.mode`.
+CaptionMode = Literal["karaoke", "phrase"]
+
 
 class CaptionConfig(BaseModel):
     """Caption presentation, in units that survive a change of resolution.
@@ -68,6 +71,31 @@ class CaptionConfig(BaseModel):
     #: so a pause in the speech never leaves the scene frame empty. A cut to
     #: another range, or a pause of more than two seconds, still clears it.
     hold_through_pauses: bool = False
+    #: `karaoke` (the default): cues follow the word and character limits and
+    #: may light the spoken word. `phrase`: cues of 3-6 words that break where
+    #: the sentence breaks (punctuation, a conjunction), never lit word by
+    #: word, each on screen at most 2.5 s.
+    mode: CaptionMode = "karaoke"
+    #: Width of the caption outline, as a percentage of the font size. Empty
+    #: keeps the renderer's default; used when `outline_or_shadow` is outline.
+    outline_width_pct: float | None = Field(default=None, ge=1.0, le=25.0)
+    #: Put "1." / "2." in front of a cue that starts a step ("po pierwsze",
+    #: "krok 2"). The transcript is never changed, only the caption text.
+    step_numbers: bool = False
+
+    @model_validator(mode="after")
+    def _phrase_is_not_lit(self) -> CaptionConfig:
+        if self.mode == "phrase" and self.active_word_highlight:
+            raise ValueError(
+                "phrase captions are not lit word by word; set active_word_highlight: false "
+                "or mode: karaoke"
+            )
+        if self.mode == "phrase" and self.upcoming_word_opacity < 1.0:
+            raise ValueError(
+                "phrase captions show the whole phrase at once; set upcoming_word_opacity: 1 "
+                "or mode: karaoke"
+            )
+        return self
 
     @field_validator("emphasis_words")
     @classmethod
@@ -96,6 +124,15 @@ class CaptionConfig(BaseModel):
         except ValueError as exc:
             raise ValueError("must be a #RRGGBB colour") from exc
         return value.upper()
+
+
+class StoryCaptionConfig(BaseModel):
+    """The sentence of a `text_story` reel: one per shot, not a spoken cue."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    font_size_pct: float = Field(default=5.0, ge=2.0, le=12.0)
+    position: Literal["center", "top", "lower_safe_zone"] = "center"
 
 
 class OpeningPolicy(BaseModel):
@@ -143,6 +180,10 @@ class ProjectVideoConfig(BaseModel):
     font: str = "Lato"
     font_file: str | None = None
     font_fallback: list[str] = Field(default_factory=lambda: ["Noto Sans", "DejaVu Sans"])
+    #: The font of a `hook_title` and an `end_teaser`, apart from the captions'
+    #: font. Empty means the captions' font.
+    title_font: str | None = None
+    title_font_file: str | None = None
     brand_colors: list[str] = Field(default_factory=list)
     logo_file: str | None = None
     logo_usage: Literal["none", "optional", "required"] = "none"
@@ -168,6 +209,10 @@ class ProjectVideoConfig(BaseModel):
     #: root), e.g. `.social-video/icons.yaml`. `motion suggest` proposes an
     #: `icon` only for a word it lists; see `motion.icons`.
     icon_dictionary: str | None = None
+    #: The project's prop library, relative to the project root: PNG/WebP
+    #: pictures described in a `props.yaml` beside them. Empty means
+    #: `assets/props` (see `motion.props`).
+    prop_library: str | None = None
     music_policy: Literal["none", "optional", "required"] = "none"
     sfx_policy: Literal["none", "optional", "required"] = "none"
     #: Voice cleanup. `measured` is the default: the render measures this
@@ -201,6 +246,24 @@ class ProjectVideoConfig(BaseModel):
     first_cue_full_sentence: bool = True
     first_cue_max_words: int = Field(default=8, ge=1, le=20)
     max_leading_silence_s: float = Field(default=0.3, ge=0.0, le=3.0)
+    #: How a reel is expected to end. `overlay`: an `end_teaser` over the
+    #: speaker; `end_card`: an end card; `both`; `none` (the default): no
+    #: expectation, nothing is checked.
+    end_style: Literal["none", "overlay", "end_card", "both"] = "none"
+    #: Words that earn a punch-in when said ("ważne", "zapamiętaj"); `motion
+    #: suggest` proposes one on each and `motion qa` notes one said without.
+    punch_in_words: list[str] = Field(default_factory=list, max_length=50)
+    #: Picture effects (frame in frame, tear, flash...). `off`: none may be
+    #: used; `manual`: the plan may use them; `auto`: `motion suggest` also
+    #: proposes them at sentence boundaries, within the energy budget.
+    motion_effects: Literal["off", "manual", "auto"] = "off"
+    #: A credibility line for the post description template ("I have taught
+    #: for 12 years"). Never written by the code; only copied from here.
+    author_signature: str | None = Field(default=None, max_length=300)
+    #: The share call to action of the post description template.
+    share_cta: str | None = Field(default=None, max_length=200)
+    #: How a `text_story` reel draws its sentences: centred and larger.
+    story_caption: StoryCaptionConfig = Field(default_factory=lambda: StoryCaptionConfig())
     #: Where the finished clip is posted. Drives platform safe-zone checks.
     target_platforms: list[str] = Field(default_factory=list)
     default_aspect_ratio: Literal["9:16", "1:1", "16:9"] = "9:16"
@@ -227,6 +290,18 @@ class ProjectVideoConfig(BaseModel):
     @classmethod
     def _colours(cls, values: list[str]) -> list[str]:
         return [CaptionConfig._colour(value) for value in values]
+
+    @field_validator("punch_in_words")
+    @classmethod
+    def _punch_in_words(cls, values: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for value in values:
+            word = value.strip()
+            if not word or any(ch.isspace() for ch in word):
+                raise ValueError(f"punch_in_words entries are single words; got {value!r}")
+            if word.casefold() not in {w.casefold() for w in cleaned}:
+                cleaned.append(word)
+        return cleaned
 
     @field_validator("secondary_color")
     @classmethod
@@ -335,6 +410,8 @@ class BrandContract(Artifact):
     output_fps: str
     delivery_output: str | None = None
     resolved_font_file: str | None = None
+    #: The `hook_title`/`end_teaser` font file; empty means the captions' font.
+    resolved_title_font_file: str | None = None
     resolved_logo_file: str | None = None
     safe_margins: dict[str, float] = Field(default_factory=dict)
     image_generation_enabled: bool = False
@@ -353,8 +430,22 @@ class BrandContract(Artifact):
     #: Compiled from the project config. `measured` cleans only what this
     #: recording measures as broken; `none` renders the audio as recorded.
     audio_cleanup_policy: Literal["none", "measured", "required"] = "measured"
+    #: Compiled from the project config: how the reel is expected to end.
+    end_style: Literal["none", "overlay", "end_card", "both"] = "none"
+    #: Compiled from the project config; see `ProjectVideoConfig`.
+    punch_in_words: list[str] = Field(default_factory=list)
+    motion_effects: Literal["off", "manual", "auto"] = "off"
+    author_signature: str | None = None
+    share_cta: str | None = None
+    story_caption: StoryCaptionConfig = Field(default_factory=lambda: StoryCaptionConfig())
+    #: The prop library folder, resolved inside the project root.
+    prop_library: str | None = None
 
     def validate_assets(self) -> None:
-        for label, value in (("font", self.resolved_font_file), ("logo", self.resolved_logo_file)):
+        for label, value in (
+            ("font", self.resolved_font_file),
+            ("title font", self.resolved_title_font_file),
+            ("logo", self.resolved_logo_file),
+        ):
             if value is not None and not Path(value).is_file():
                 raise ValueError(f"configured {label} asset no longer exists: {value}")

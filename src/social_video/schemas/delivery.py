@@ -60,6 +60,8 @@ class DeliveryManifest(Artifact):
     #: ready, and `opening_issues` says what to fix.
     opening_ready: bool | None = None
     opening_issues: list[str] = Field(default_factory=list)
+    #: Advisory opening findings (late speech, a late hook title); never blocking.
+    opening_warnings: list[str] = Field(default_factory=list)
     #: Short-form practices that measure (`reel-check`): advisory, never
     #: blocking. "passed/total" and what to consider.
     reel_check: str | None = None

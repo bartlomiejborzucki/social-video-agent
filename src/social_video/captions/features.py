@@ -36,6 +36,14 @@ CAPTION_LAYOUT_ESTIMATED = "caption_layout_estimated"
 UPCOMING_WORDS_DIMMED = "upcoming_words_dimmed"
 #: Recorded when labels were drawn as the title of a frame around the captions.
 SCENE_FRAME = "scene_frame"
+#: Recorded when the track's cues were cut as phrases (`caption_style.mode`).
+CAPTION_MODE_PHRASE = "caption_mode_phrase"
+#: Recorded when step numbers were put in front of the cues that start a step.
+STEP_NUMBERS = "step_numbers"
+#: Recorded when the outline was drawn at its share of the font size.
+OUTLINE_WIDTH = "outline_width"
+#: Recorded when the cues were a text story's sentences, centred.
+CAPTION_STORY = "caption_story"
 
 
 def highlight_possible(style: CaptionStyle | None, captions: CaptionTrack | None) -> bool:
@@ -76,4 +84,12 @@ def caption_features(
         applied.append(f"background_{style.background_style.value}")
     if style.bold:
         applied.append("bold")
+    if captions.mode == "phrase":
+        applied.append(CAPTION_MODE_PHRASE)
+    if captions.step_numbers:
+        applied.append(STEP_NUMBERS)
+    if style.outline_width_pct is not None and style.outline_width > 0:
+        applied.append(OUTLINE_WIDTH)
+    if captions.origin == "story":
+        applied.append(CAPTION_STORY)
     return applied

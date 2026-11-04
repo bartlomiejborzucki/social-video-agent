@@ -41,9 +41,41 @@ def word_times(captions: CaptionTrack) -> list[tuple[str, float, float]]:
 
 
 def needs_anchoring(plan: MotionPlan) -> bool:
-    return any(e.at_word or e.item_at_words or e.replace_at_word for e in plan.elements) or any(
-        s.at_word for s in plan.shakes
+    return (
+        any(e.at_word or e.item_at_words or e.replace_at_word for e in plan.elements)
+        or any(s.at_word for s in plan.shakes)
+        or any(p.at_word for p in plan.punch_ins)
+        or any(f.at_word for f in plan.effects)
     )
+
+
+def place_end_teasers(plan: MotionPlan, duration: float | None) -> tuple[MotionPlan, list[str]]:
+    """An end teaser covers the last ``from_end`` seconds of speech. Says what moved.
+
+    ``duration`` is the whole edit; end cards held after the last word are
+    taken off it, so the teaser stays over the speaker and the cards follow.
+    """
+    if duration is None or not any(e.type is MotionElementType.END_TEASER for e in plan.elements):
+        return plan, []
+    # Held end cards come after the last word; the teaser is over the speaker.
+    held = sum(
+        e.end - e.start for e in plan.elements if e.type is MotionElementType.END_CARD and e.hold
+    )
+    duration = max(duration - held, 0.0)
+    notes: list[str] = []
+    elements = []
+    for element in plan.elements:
+        if element.type is MotionElementType.END_TEASER:
+            length = min(element.from_end or element.end - element.start, duration)
+            start, end = round(max(0.0, duration - length), 3), round(duration, 3)
+            if abs(start - element.start) > 1e-3 or abs(end - element.end) > 1e-3:
+                notes.append(f"end_teaser placed over the last {length:g}s, {start:.2f}-{end:.2f}s")
+                element = element.model_copy(update={"start": start, "end": end})
+        elements.append(element)
+    if not notes:
+        return plan, []
+    updated = plan.model_copy(update={"elements": sorted(elements, key=lambda e: e.start)})
+    return MotionPlan.model_validate(updated.model_dump()), notes
 
 
 def anchor_to_words(
@@ -54,12 +86,13 @@ def anchor_to_words(
     A list or strike that stays on to show its last point is never held past
     ``duration``, the edit's length, when it is given.
     """
+    plan, placed = place_end_teasers(plan, duration)
     if not needs_anchoring(plan):
-        return plan, []
+        return plan, placed
     if captions is None:
         raise ValueError("graphics anchored to a word (at_word) need the caption track")
     words = word_times(captions)
-    notes: list[str] = []
+    notes: list[str] = list(placed)
 
     def find(word: str, occurrence: int) -> float:
         key = word_key(word)
@@ -93,8 +126,28 @@ def anchor_to_words(
                 notes.append(f"shake on {shake.at_word!r} placed at {start:.2f}s")
             shake = shake.model_copy(update={"start": start, "end": round(start + length, 3)})
         moved_shakes.append(shake)
+
+    def moved(items, name):
+        result = []
+        for item in items:
+            if item.at_word:
+                start = find(item.at_word, item.occurrence)
+                length = item.end - item.start
+                if abs(start - item.start) > 1e-3:
+                    notes.append(f"{name(item)} on {item.at_word!r} placed at {start:.2f}s")
+                item = item.model_copy(update={"start": start, "end": round(start + length, 3)})
+            result.append(item)
+        return result
+
     updated = plan.model_copy(
-        update={"elements": sorted(elements, key=lambda e: e.start), "shakes": moved_shakes}
+        update={
+            "elements": sorted(elements, key=lambda e: e.start),
+            "shakes": moved_shakes,
+            "punch_ins": sorted(
+                moved(plan.punch_ins, lambda _p: "punch-in"), key=lambda p: p.start
+            ),
+            "effects": sorted(moved(plan.effects, lambda f: f.type.value), key=lambda f: f.start),
+        }
     )
     return MotionPlan.model_validate(updated.model_dump()), notes
 

@@ -48,6 +48,10 @@ LONGEST_HOLD = 5.0
 TAIL_SECONDS = 0.6
 #: An end card longer than this costs completion.
 END_CARD_SECONDS = 2.0
+#: The last seconds should carry what next: a call to action, a teaser, a card.
+ENDING_SECONDS = 4.0
+#: A phrase caption on screen longer than this is read, then stared at.
+PHRASE_CUE_SECONDS = 2.5
 CAPTION_COVERAGE = 0.95
 SILENCE_FLOOR_DB = -40
 #: Words asking for the two signals that reach people beyond followers.
@@ -90,7 +94,13 @@ def check_reel(
     _tail(report, words, duration)
     _holds(report, edl, plan)
     _end_card(report, plan, duration)
+    if plan is not None:
+        _ending(report, plan, captions, duration)
     _coverage(report, captions, words)
+    if captions is not None and captions.mode == "phrase":
+        _phrase_cues(report, captions)
+    if captions is not None and captions.origin == "story":
+        _story_question(report, captions)
     if publish is not None:
         _share_ask(report, publish)
     warnings = [f"{c.name}: {c.message}" for c in report.checks if not c.passed]
@@ -210,6 +220,8 @@ def _holds(report: QAReport, edl: EDL, plan: MotionPlan | None) -> None:
         for punch in plan.punch_ins:
             changes.update((punch.start, punch.end))
         changes.update(t.at for t in plan.transitions)
+        for effect in plan.effects:
+            changes.update((effect.start, effect.end))
     times = sorted(t for t in changes if 0.0 <= t <= total)
     gap, at = max(((b - a, a) for a, b in pairwise(times)), default=(0.0, 0.0))
     _add(
@@ -234,6 +246,59 @@ def _end_card(report: QAReport, plan: MotionPlan | None, duration: float) -> Non
         f"end card {longest:.1f}s" if cards else "no end card",
         measured=round(longest, 2),
         expected=END_CARD_SECONDS,
+    )
+
+
+#: A spoken ask in the last seconds closes a reel as well as a graphic does.
+FOLLOW_ASK = re.compile(r"\b(obserwuj|zaobserwuj|follow|subscribe|subskrybuj)\w*", re.IGNORECASE)
+
+
+def _ending(
+    report: QAReport, plan: MotionPlan, captions: CaptionTrack | None, duration: float
+) -> None:
+    """Something in the last seconds says what next: a graphic, or the words."""
+    closing = (MotionElementType.CTA, MotionElementType.END_TEASER, MotionElementType.END_CARD)
+    window = max(0.0, duration - ENDING_SECONDS)
+    found = [e.type.value for e in plan.elements if e.type in closing and e.end > window]
+    said = " ".join(c.text for c in (captions.cues if captions else []) if c.end > window)
+    if SHARE_ASK.search(said) or FOLLOW_ASK.search(said):
+        found.append("a spoken ask")
+    _add(
+        report,
+        "the end says what next",
+        bool(found),
+        f"{', '.join(sorted(set(found)))} in the last {ENDING_SECONDS:g} s"
+        if found
+        else f"no call to action, end teaser or end card in the last {ENDING_SECONDS:g} s; "
+        "an end_teaser over the speaker keeps the face and says what comes next",
+    )
+
+
+def _phrase_cues(report: QAReport, captions: CaptionTrack) -> None:
+    long = [c for c in captions.cues if c.end - c.start > PHRASE_CUE_SECONDS + 1e-6]
+    worst = max(long, key=lambda c: c.end - c.start, default=None)
+    _add(
+        report,
+        "phrase captions change often",
+        not long,
+        f"{len(long)} cue(s) over {PHRASE_CUE_SECONDS:g} s, the longest "
+        f"{worst.end - worst.start:.1f}s at {worst.start:.1f}s"
+        if worst
+        else f"every cue is up to {PHRASE_CUE_SECONDS:g} s",
+        at=round(worst.start, 3) if worst else None,
+        measured=round(worst.end - worst.start, 2) if worst else None,
+        expected=PHRASE_CUE_SECONDS,
+    )
+
+
+def _story_question(report: QAReport, captions: CaptionTrack) -> None:
+    last = captions.cues[-1].text.strip() if captions.cues else ""
+    _add(
+        report,
+        "the story ends on a question",
+        last.endswith("?"),
+        f"last sentence {last!r}"
+        + ("" if last.endswith("?") else "; a question at the end invites the comments"),
     )
 
 

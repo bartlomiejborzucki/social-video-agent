@@ -1,0 +1,76 @@
+# Słowa, przed którymi napis w trybie `phrase` może zacząć nowy cue, i zwroty,
+# po których `step_numbers` stawia numer kroku. Małe litery, bez interpunkcji.
+# Words before which a `phrase` caption may start a new cue, and the phrases
+# that make `step_numbers` put a step number in front. Lower case, no punctuation.
+
+conjunctions:
+  pl:
+    - i
+    - a
+    - ale
+    - albo
+    - lub
+    - bo
+    - że
+    - więc
+    - czyli
+    - który
+    - która
+    - które
+    - którzy
+    - gdy
+    - kiedy
+    - jeśli
+    - jeżeli
+    - żeby
+    - aby
+    - chociaż
+    - dlatego
+    - zanim
+    - potem
+    - oraz
+  en:
+    - and
+    - but
+    - or
+    - because
+    - so
+    - that
+    - which
+    - who
+    - when
+    - if
+    - although
+    - then
+    - before
+
+# Zwrot, którym zaczyna się krok, i jego numer.
+# The phrase a step starts with, and its number.
+steps:
+  pl:
+    po pierwsze: 1
+    po drugie: 2
+    po trzecie: 3
+    po czwarte: 4
+    po piąte: 5
+    krok 1: 1
+    krok 2: 2
+    krok 3: 3
+    krok 4: 4
+    krok 5: 5
+    krok pierwszy: 1
+    krok drugi: 2
+    krok trzeci: 3
+    pierwszy krok: 1
+    drugi krok: 2
+    trzeci krok: 3
+  en:
+    first of all: 1
+    step 1: 1
+    step 2: 2
+    step 3: 3
+    step 4: 4
+    step 5: 5
+    step one: 1
+    step two: 2
+    step three: 3

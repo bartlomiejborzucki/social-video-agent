@@ -182,6 +182,74 @@ def check_text(
     return findings
 
 
+def check_title(text: str, *, words: dict[str, list[str]] | None = None) -> list[HookFinding]:
+    """The hook title: short, and a question, an order, a number or a conflict."""
+    lists = words or load_words()
+    count = len(_tokens(text))
+    findings = [
+        HookFinding(
+            "tytuł: co najwyżej 8 słów",
+            count <= MAX_WORDS,
+            f"{count} słów",
+            f"skróć tytuł do {MAX_WORDS} słów; dwa krótkie wiersze czyta się w sekundę",
+        )
+    ]
+    tokens = _tokens(text)
+    first_two = " ".join(tokens[:2])
+    imperative = [
+        e for e in lists.get("imperative", []) if (first_two + " ").startswith(e + " ")
+    ]  # fmt: skip
+    number = [t for t in tokens if t.isdigit()] + matches(text, lists.get("numbers", []))
+    conflict = matches(text, lists.get("conflict", []))
+    kinds = (
+        (["pytanie"] if "?" in text else [])
+        + (["rozkaz: " + imperative[0]] if imperative else [])
+        + (["liczba: " + number[0]] if number else [])
+        + (["konflikt: " + conflict[0]] if conflict else [])
+    )
+    findings.append(
+        HookFinding(
+            "tytuł: pytanie, rozkaz, liczba albo konflikt",
+            bool(kinds),
+            ", ".join(kinds) if kinds else "żadne z czterech",
+            "przepisz tytuł jako pytanie („Kto pierwszy ustąpi?”), polecenie („Nie odkładaj…”), "
+            "z liczbą („3 kroki…”) albo z wyborem („A czy B?”)",
+        )
+    )
+    return findings
+
+
+#: A list announced this early ("3 kroki") is worth showing as one.
+LIST_WINDOW_S = 5.0
+
+
+def announced_list(
+    captions: CaptionTrack | None, *, words: dict[str, list[str]] | None = None
+) -> HookFinding | None:
+    """ "Zapamiętaj 3 kroki" in the first seconds: suggest a `list` on the spoken points."""
+    if captions is None:
+        return None
+    lists = words or load_words()
+    nouns = lists.get("list_nouns", [])
+    numbers = set(lists.get("numbers", []))
+    for cue in captions.cues:
+        if cue.start > LIST_WINDOW_S:
+            break
+        tokens = _tokens(cue.text)
+        for count, noun in pairwise(tokens):
+            is_number = count.isdigit() or count in numbers
+            if is_number and any(noun.startswith(stem) for stem in nouns):
+                said = f"{count} {noun}"
+                return HookFinding(
+                    "zapowiedziana lista na ekranie",
+                    False,
+                    f"„{said}” w {cue.start:.1f} s",
+                    "dodaj element `list` z punktami i `item_at_words` (każdy punkt wchodzi na "
+                    "swoim słowie); ewentualnie gest liczby palców przy nagraniu",
+                )
+    return None
+
+
 def first_second_movement(video: Path) -> float | None:
     """Mean frame change across the first second, out of 255."""
     from social_video.qa.opening import _pixels
@@ -199,6 +267,7 @@ def check_hook(
     *,
     analysis_dir: Path | None = None,
     words: dict[str, list[str]] | None = None,
+    title: str | None = None,
 ) -> HookReport:
     """The whole hook check; writes `hook-check.json` when given a folder."""
     cue = captions.cues[0] if captions and captions.cues else None
@@ -213,6 +282,11 @@ def check_hook(
         )
     else:
         report.findings += check_text(text, first_word_at=first, words=words)
+    if title:
+        report.findings += check_title(title, words=words)
+    listed = announced_list(captions, words=words)
+    if listed is not None:
+        report.findings.append(listed)
     if video is not None and video.is_file():
         change = first_second_movement(video)
         if change is not None:

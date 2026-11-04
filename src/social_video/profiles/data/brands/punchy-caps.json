@@ -1,0 +1,28 @@
+{
+  "name": "punchy-caps",
+  "description": "Phrase captions in capitals with a thick outline and no box; a test variant beside the default.",
+  "captions": {
+    "font_family": "",
+    "font_size_pct": 4.4,
+    "bold": true,
+    "primary_colour": "#FFFFFF",
+    "outline_colour": "#000000",
+    "outline_width": 7.0,
+    "outline_width_pct": 8.0,
+    "outline_or_shadow": "outline",
+    "background_style": "none",
+    "position": "lower_safe_zone",
+    "margin_pct": 22.0,
+    "case": "upper",
+    "mode": "phrase",
+    "max_words_per_cue": 6,
+    "max_chars_per_cue": 28,
+    "min_cue_duration": 0.5,
+    "highlight_active_word": false,
+    "step_numbers": true,
+    "schema_version": 1
+  },
+  "motion_intensity": 0.4,
+  "punch_in_max": 1.18,
+  "schema_version": 1
+}

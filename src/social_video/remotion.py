@@ -55,6 +55,9 @@ def render_motion_design(
     secondary_colour: str = "#1F2430",
     brand_colours: list[str] | None = None,
     custom_components: dict[str, Path] | None = None,
+    title_font_path: Path | None = None,
+    title_font_family: str | None = None,
+    props_library: dict[str, Path] | None = None,
 ) -> tuple[Path, list[str], CaptionLayout | None]:
     if base_video.resolve() == output.resolve():
         raise ValidationError("Remotion output must not overwrite its technical base video")
@@ -155,6 +158,15 @@ def render_motion_design(
         if font.stat().st_size > 20 * 1024 * 1024:
             raise ValidationError("motion-plan font_path exceeds the 20 MB safety limit")
         font_source = f"brand-font{font.suffix.casefold()}"
+    title_font: Path | None = None
+    title_font_source = None
+    if title_font_path is not None:
+        title_font = Path(title_font_path).expanduser().resolve()
+        if not title_font.is_file() or title_font.suffix.casefold() not in {
+            ".ttf", ".otf", ".woff", ".woff2"
+        }:  # fmt: skip
+            raise ValidationError("the title font must be an existing .ttf, .otf, .woff or .woff2")
+        title_font_source = f"title-font{title_font.suffix.casefold()}"
     logo_source = None
     if logo_path is not None:
         logo_path = logo_path.expanduser().resolve()
@@ -215,6 +227,12 @@ def render_motion_design(
         shutil.copy2(base_video, public / "base.mp4")
         if font is not None and font_source is not None:
             shutil.copy2(font, public / font_source)
+        if title_font is not None and title_font_source is not None:
+            shutil.copy2(title_font, public / title_font_source)
+        if props_library:
+            (public / "props").mkdir()
+            for name, picture in props_library.items():
+                shutil.copy2(picture, public / "props" / f"{name}{picture.suffix.casefold()}")
         if logo_path is not None and logo_source is not None:
             shutil.copy2(logo_path, public / logo_source)
         for asset, name in plate_sources.items():
@@ -243,6 +261,13 @@ def render_motion_design(
             "backgroundColor": plan.background_color,
             "fontFamily": plan.font_family,
             "fontSource": font_source,
+            "titleFontFamily": (
+                "TitleFont" if title_font_source else (title_font_family or plan.font_family)
+            ),
+            "titleFontSource": title_font_source,
+            "effects": [
+                item.model_dump(mode="json", exclude={"schema_version"}) for item in plan.effects
+            ],
             "elements": [
                 _element_payload(
                     item,
@@ -254,6 +279,8 @@ def render_motion_design(
                     tab_sizes=tab_sizes,
                     margins=safe_margins,
                     captions=captions,
+                    title_font=title_font or font,
+                    props_library=props_library,
                 )
                 for item in plan.elements
             ],
@@ -340,6 +367,8 @@ def _element_payload(
     tab_sizes: dict[str, float] | None = None,
     margins: dict[str, float] | None = None,
     captions: CaptionTrack | None = None,
+    title_font: Path | None = None,
+    props_library: dict[str, Path] | None = None,
 ) -> dict:
     """One element as the compositor reads it, its placement resolved."""
     payload = item.model_dump(
@@ -361,6 +390,26 @@ def _element_payload(
         payload["fitted"] = end_card_text(item, width=width, height=height, font=font)
     if item.type is MotionElementType.STRIKE:
         payload["strike_at"], payload["replace_at"] = item.strike_moments
+    if item.type in (MotionElementType.HOOK_TITLE, MotionElementType.END_TEASER):
+        payload.update(
+            title_payload(item, width=width, height=height, font=title_font, margins=margins)
+        )
+    if item.type is MotionElementType.INSERT:
+        payload["video_source"] = plate_sources.get(item.video_asset or "")
+        payload["cut_style"] = item.cut_style.value if item.cut_style else "cut"
+    if item.type is MotionElementType.PROP:
+        from social_video.motion.props import prop_box
+
+        picture = (props_library or {}).get(item.prop or "")
+        if picture is None:
+            raise ValidationError(f"prop {item.prop!r} is not in the project's prop library")
+        payload["image_source"] = f"props/{item.prop}{picture.suffix.casefold()}"
+        payload["prop_style"] = item.prop_style.value if item.prop_style else "object"
+        payload["entry"] = item.entry.value if item.entry else "pop"
+        left, top, right, bottom = prop_box(
+            item, picture, width=width, height=height, margins=margins
+        )
+        payload["box"] = {"left": left, "top": top, "width": right - left, "height": bottom - top}
     if item.type is MotionElementType.INSET:
         from social_video.motion.inset import inset_aspect, inset_box
 
@@ -425,6 +474,39 @@ def end_card_text(item, *, width: int, height: int, font: Path | None) -> dict:
         )  # fmt: skip
         fitted["secondary"] = secondary.payload()
     return fitted
+
+
+def title_payload(
+    item, *, width: int, height: int, font: Path | None, margins: dict[str, float] | None = None
+) -> dict:
+    """A hook title's or end teaser's lines, measured, in capitals, at most two."""
+    from social_video.motion.anchors import word_key
+    from social_video.motion.text_fit import fit_text
+
+    u = height / 1920
+    side = (margins or {}).get("left", 6.0) + (margins or {}).get("right", 6.0)
+    # The field around each line takes its padding out of the width.
+    max_width = width * (1 - side / 100) - 2 * 28 * u
+    teaser = item.type is MotionElementType.END_TEASER
+    fitted = fit_text(
+        item.text.upper(),
+        max_width=max_width,
+        base_px=round((58 if teaser else 76) * u),
+        min_px=round(36 * u),
+        font_file=font,
+        max_lines=2,
+    )
+    subtitle = " ".join(
+        part for part in (item.secondary_text, item.series.label if item.series else None) if part
+    )
+    default_entry = "pop" if teaser else "typewriter"
+    return {
+        "fitted": {"title": fitted.payload(), "max_width": round(max_width, 1)},
+        "subtitle": subtitle or None,
+        "title_style": item.title_style.value if item.title_style else "highlight",
+        "entry": item.entry.value if item.entry else default_entry,
+        "emphasis_keys": [word_key(w) for w in item.emphasis_words],
+    }
 
 
 def _caption_payload(

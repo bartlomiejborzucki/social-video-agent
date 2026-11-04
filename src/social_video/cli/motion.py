@@ -61,6 +61,33 @@ def _semantic_inputs(ws):
     return load_accent_words(root), icons, quotes, tender
 
 
+def _project_moves(ws):
+    """What the project asks `motion suggest` for beyond the words' meaning.
+
+    Effects when ``motion_effects`` is ``auto``, punch-ins on its
+    ``punch_in_words``, props from its library, and where the hook title ends.
+    """
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.config import BrandContract
+    from social_video.schemas.motion import MotionElementType, MotionPlan
+
+    effects, punch_words, props, title_end = False, [], None, None
+    if ws.brand_contract.is_file():
+        contract = load_artifact(BrandContract, ws.brand_contract)
+        effects = contract.motion_effects == "auto"
+        punch_words = list(contract.punch_in_words)
+        if contract.prop_library and Path(contract.prop_library).is_dir():
+            from social_video.motion.props import load_props
+
+            props = load_props(Path(contract.prop_library))
+    if ws.motion_plan.is_file():
+        plan = load_artifact(MotionPlan, ws.motion_plan)
+        title_end = next(
+            (e.end for e in plan.elements if e.type is MotionElementType.HOOK_TITLE), None
+        )
+    return effects, punch_words, props, title_end
+
+
 @motion_app.command("suggest")
 def motion_suggest(
     source: Path = typer.Argument(..., help="Source video the EDL cuts."),
@@ -134,10 +161,12 @@ def motion_suggest(
                 edl, load_artifact(SourceManifest, ws.source_manifest), heard
             )
         words, icons, quotes, tender = _semantic_inputs(ws)
+        effects, punch_words, props, title_end = _project_moves(ws)
         found = find_accents(
             transcript, edl, preset, beats=beats, content_first=_content_first(ws),
             transcripts=others, opening=opening, hook_punch=hook_punch,
             accent_words=words, icons=icons, quotes=quotes, sensitive=sensitive or tender,
+            effects=effects, punch_words=punch_words, props=props, hook_title_end=title_end,
         )  # fmt: skip
         save_artifact(found, ws.accent_candidates)
         return found
@@ -157,9 +186,11 @@ def motion_suggest(
             if c.range_zoom
             else "in-point"
             if c.range_start
+            else "effect"
+            if c.effect
             else "transition"
         )
-        what = c.element.type.value if c.element else move
+        what = c.element.type.value if c.element else c.effect.type.value if c.effect else move
         colour = "green" if c.confidence == "high" else "yellow"
         console.print(
             f"  {c.id}  [{colour}]{c.confidence:6}[/{colour}] {c.kind.value:10} {what:10} "
