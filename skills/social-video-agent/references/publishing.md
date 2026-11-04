@@ -46,6 +46,14 @@ them and the CLI validates them. Nothing generates this file for you.
 }
 ```
 
+`deliver WORKSPACE --description-template` writes `publish.template.md` in
+the workspace: the parts of a description in the order that works for a reel
+(the hook, 2-4 sentences, a share ask, the author's credibility line, a
+source), filled only from what exists -- the `hook_title`, the first caption,
+and `share_cta` and `author_signature` from the config -- and
+`[[placeholders]]` for the rest. It writes nothing for you; `--publish`
+refuses copy that still holds a placeholder.
+
 When the render manifest's `stickers_applied` has a `credit` (an animated
 emoji, CC BY 4.0), end the description with that credit line.
 

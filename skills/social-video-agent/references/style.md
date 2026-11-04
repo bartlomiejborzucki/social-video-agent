@@ -122,6 +122,36 @@ Remotion with per-word spans. Either way it needs word timings in the caption
 data, and brand QA fails when the contract asks for it and the renderer did not
 draw it.
 
+`caption_style.mode: phrase` cuts cues where the sentence breaks instead of
+by word count: 3 to `max_words_per_cue` words (6 suits it), ending at any
+comma or sentence mark and before a conjunction (`i`, `ale`, `bo`, `że`,
+`który`...; the lists are in `captions/data/phrases.yaml`), each on screen at
+most 2.5 s, never lit word by word (`active_word_highlight` and
+`upcoming_word_opacity` are refused with it). `outline_width_pct` sets the
+outline as a share of the font size, drawn outside the glyph; `step_numbers`
+puts "1." / "2." in front of a cue that starts a step ("po pierwsze", "krok
+2"), in the caption only. Brand QA checks the track was built in the
+contracted mode. A test variant beside the house style:
+
+```yaml
+caption_style:
+  mode: phrase
+  case: upper
+  max_words_per_cue: 6
+  max_chars_per_cue: 28
+  outline_or_shadow: outline
+  outline_width_pct: 8
+  background_style: none
+  step_numbers: true
+```
+
+The `punchy-caps` brand profile is the same look for an edit without a
+project config. Colours stay the brand's; which variant wins is decided from
+the published reels' numbers, not by the tool.
+
+`title_font` (or `title_font_file`) is the font of the `hook_title` and the
+`end_teaser`, apart from the captions' `font`.
+
 Unicode works: Polish, German, French, Cyrillic are checked against the font
 before rendering. If the chosen font lacks glyphs, `doctor` says so rather than
 letting it render as empty boxes.
@@ -185,6 +215,10 @@ about `0.6`, face region `cover` at `0.4`. Choose it per range; a whole
 interview in split screen is as tiring as one never in it.
 
 ## Punch-ins
+
+`punch_in_words` in the config lists words that earn a push in when said
+("ważne", "zapamiętaj"); `motion suggest` proposes one on each (1.10-1.18,
+anchored with `at_word`) and `motion qa` notes one said without.
 
 Off by default. When enabled, a punch-in should mark an editorial moment — a
 shift in argument, the arrival of the point. Do not apply them on a timer.

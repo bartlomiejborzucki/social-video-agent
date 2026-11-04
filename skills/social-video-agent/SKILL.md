@@ -277,6 +277,7 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 | Agent on Windows, engine in WSL2 | [hybrid-runtime.md](references/hybrid-runtime.md) |
 | The opening, the cover and the montage brief | [opening.md](references/opening.md) |
 | Short-form practices, length, reach | [short-form.md](references/short-form.md) |
+| A reel of sentences over shots, no speech | [text-story.md](references/text-story.md) |
 | How a reference video holds attention | [reference-analysis.md](references/reference-analysis.md) |
 | Hook card, graphics, graphics on the word, punch-ins, transitions, b-roll | [motion-design.md](references/motion-design.md) |
 | Hook, chapter or end card designed in Claude Motion | [motion-film.md](references/motion-film.md) |

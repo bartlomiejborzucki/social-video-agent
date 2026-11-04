@@ -333,6 +333,16 @@ margin, line/word/character limit, truncation, overflow, logo, resolution, or
 aspect mismatch. Accepted deviations remain named warnings rather than
 disappearing.
 
+Since 2.10 a render manifest also records `effects_applied` (each picture
+effect, with `mask: none` for the ones laid over the whole frame),
+`props_applied` (each prop's id, file hash and rights), `hook_title_applied`
+and `ending_applied` (`overlay`, `end_card`, `cta` in the last 3 s). Brand QA
+checks the contract's `caption_style.mode` against the track
+(`caption_mode_phrase`) and `end_style` against `ending_applied`; an
+`end_style: overlay` with no ending evidence (the FFmpeg route) fails. The
+caption track records `mode`, `step_numbers` and `origin` (`speech`, or
+`story` for a text story's sentences).
+
 Captions are never shortened to fit. Cue length is part of the contract, so
 rebuild the caption track after changing `max_chars_per_cue`,
 `max_words_per_cue` or `font_size_pct`; re-chunking uses the same transcript

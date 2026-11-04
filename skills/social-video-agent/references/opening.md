@@ -116,6 +116,9 @@ It gives:
 - **Punch the hook word.** `motion suggest --hook-punch` adds a push-in of 1.16
   (capped by the energy) on the first key word 1.0-1.5 s in; a `sticker` on
   that word is the other option. Never on frame 0, never a card.
+- **Title it.** A `hook_title` over the speaker from ~0.4 s is not a card:
+  the speech and captions still run from 0.0 s
+  ([motion-design.md](motion-design.md)).
 - **Judge it.** `hook check WORKSPACE` and hook variants:
   [short-form.md](short-form.md).
 
@@ -133,6 +136,7 @@ the delivered video and records it in `delivery-manifest.json`:
 | Field | Meaning |
 |---|---|
 | `first_frame_is_content` | Frame 0 is a moving scene, not black, white, flat or held |
+| `opening_warnings` | Advisory: no word heard in the first 0.5 s, a `hook_title` after 1.0 s |
 | `first_frame_note` | One sentence on what frame 0 shows |
 | `first_cue_start_s` | When the first caption appears; must be 0.0 |
 | `first_cue_text` | What it says |

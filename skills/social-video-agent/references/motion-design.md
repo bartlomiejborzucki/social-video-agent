@@ -114,12 +114,19 @@ already carries the hook. See [opening.md](opening.md).
 | `kinetic_word` | one key word built letter by letter | `text`: one word ≤ 12, `at_word`; one per reel, not `calm` |
 | `inset` | a picture or clip from the project over the speaker | `image_asset` or `video_asset`, `rights`, `size_pct`, `at_word` |
 | `custom` | a sentence no type above can say | `component` (`motion/custom/<id>.tsx`); see below |
+| `hook_title` | the reel's title over the speaker, from ~0.4 s | `text` ≤ 8 words, `secondary_text` ("część 1."), `series`, `title_style`, `entry`, `emphasis_words`; one per reel |
+| `end_teaser` | what comes next, over the speaker in the last seconds | `text` ≤ 12 words, `from_end` (default 4 s), `series`; one per reel |
+| `insert` | a second shot of the scene over the whole frame, the voice going on | `video_asset`, `rights`, `at_word`, 0.5–2.5 s, `cut_style` `cut` or `whoosh` |
+| `prop` | a picture from the project's prop library on its word | `prop` (id in `props.yaml`), `at_word`, 1.5–4.5 s, `position`, `entry` `pop`/`slide`, `prop_style` `screenshot` |
 | `progress`, `logo_reveal`, `end_card`, `hook` | as named | see artifacts.md |
 
 `shakes` (in the plan, beside `punch_ins`) shake the whole picture for a
 moment: `{start, end, amplitude_pct, frequency_hz}`, 0.15–2 s, or anchored
 with `at_word`. Both renderers draw them, so the "trzęsący" scene of a script
 needs no derivative file; for a whole range use `grade: shake`.
+
+`effects` (in the plan, beside `shakes`) change the whole picture for a
+moment on a static camera; see "Picture effects" below.
 
 `transitions` (`zoom`, `slide`, `flash`, `light_leak`) sit on cuts only.
 `light_leak` is a warm film leak tinted to the accent that covers the whole
@@ -310,6 +317,85 @@ line has been read, but never past the end of the edit.
 playful graphic (sticker, strike, bubble, icon, process, kinetic word, inset,
 custom) and `motion suggest` proposes none. Points on their words and dimmed
 caption words (`upcoming_word_opacity`) stay allowed.
+
+## The hook title and the end teaser
+
+A `hook_title` is the reel's title over the speaker, not a card: the speech
+and the first caption run from 0.0 s, and the title enters word by word
+(`entry: typewriter`, or `pop`) from about 0.4 s, stays 2-4 s and leaves. Two
+lines at most, in capitals, in the brand's `title_font` (else the captions'
+font): `highlight` puts each line on a marker field in the accent colour,
+`pill` puts them in one pill in the second colour, `plain` outlines them.
+`secondary_text` ("część 1.") and `series: {part: 2, total: 4}` make the
+subtitle box under it, which enters with a short glitch. `emphasis_words`
+colour words of the title. It sits under the top safe zone (`position: top`,
+or `center`), so motion QA measures it against the captions and the scene
+frame like any graphic. Opening QA never counts it as a card; it warns when
+it enters after 1.0 s. `hook check` reads it too: at most 8 words, and a
+question, an instruction, a number or a choice.
+
+```json
+{"type": "hook_title", "start": 0.4, "end": 3.4, "text": "Kto pierwszy ustąpi?",
+ "secondary_text": "część 1.", "emphasis_words": ["ustąpi"], "reason": "The question the reel answers."}
+```
+
+An `end_teaser` says what comes next ("Jutro: część 2") over the speaker in
+the last `from_end` seconds (1-6, default 4), styled like the title; `compile`
+and the render place it, before any held end card. `end_style` in the config
+says how a reel is expected to end (`overlay`, `end_card`, `both`); brand QA
+compares it with what the render drew, and both QA and `reel-check` note an
+ending with no call to action, teaser or end card.
+
+## Picture effects
+
+`effects` redraw the base picture for a moment, on a static camera:
+`frame_in_frame`, `device_frame` (a phone, natural under "send this to
+someone"), `split_mirror`, `triptych`, `tilt` (`tilt_deg` 2-5), `bw_flash`
+(0.2-0.4 s), `whip_blur` (0.2-0.5 s), `tear` (a torn-paper sweep with grain),
+`halftone_bg` and `speed_lines`. All are drawn in Remotion from CSS and SVG,
+with no texture or footage added. There is no segmentation, so `halftone_bg`
+and `speed_lines` are a translucent layer over the whole frame rather than
+behind a cut-out person; the render records them with `mask: none`.
+
+```json
+"effects": [{"type": "frame_in_frame", "start": 6.1, "end": 7.3, "at_word": "Dlatego",
+             "reason": "The turn of the argument."}]
+```
+
+Rules: never in the first second, never under the `hook_title`, one at a time,
+and within `motion_energy` (calm 0, lively 2, bold 4 per 30 s). The project
+switches them on with `motion_effects`: `off` refuses them at render, `manual`
+lets the plan use them, `auto` also has `motion suggest` propose one on a
+sentence boundary every 6-10 s. `motion qa` reports effects, shakes and
+transitions together per 30 s, the gaps between effects, an effect that starts
+mid-sentence, and a loud one (tear, flash, speed lines, halftone, whip, phone)
+on a `sensitive_topic` reel.
+
+## Inserts and props
+
+An `insert` cuts a second shot of the same scene in over the whole frame for
+0.5-2.5 s ("as the author of the book..." over a shot with the book) while
+the main recording's voice goes on: the insert is muted and the base audio is
+muxed under the render, so `edl.json` is not touched. `cut_style: whoosh`
+whips it in and out. It needs `rights`; a clip with a child's face is refused.
+
+A `prop` is a large picture on its word from the project's library,
+`assets/props/` (or `prop_library`) with a `props.yaml`:
+
+```yaml
+props:
+  - id: okladka
+    file: okladka.png          # PNG or WebP, inside the folder
+    description: Okładka poradnika
+    keywords: [poradnik, książka]
+    rights: własne zdjęcie
+```
+
+A prop without `rights`, or with `child_face_visible: true`, is refused; the
+render records each one's file hash and rights in `props_applied`.
+`motion suggest` proposes a prop where a word of its `keywords` is said, and
+a punch-in on each word of the config's `punch_in_words` (`motion qa` notes
+one said without a push or shake on it).
 
 ## A component written for one sentence (`custom`)
 
