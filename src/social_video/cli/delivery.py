@@ -256,6 +256,18 @@ def deliver(
         help="Keep every delivered video under this many MB (e.g. 30): a larger one is "
         "re-encoded in two passes, its audio copied untouched.",
     ),
+    name: str | None = typer.Option(
+        None,
+        "--name",
+        help="What the delivered videos are called before -FINAL (NAME-FINAL.mp4). "
+        "Default: the edit's name, else the first recording's id.",
+    ),
+    music_variants: bool = typer.Option(
+        True,
+        "--music-variants/--one-audio",
+        help="With a music bed in the edit, also deliver NAME-FINAL-no-music.mp4 for a "
+        "platform where the sound is added in the app. --one-audio delivers the bed only.",
+    ),
     description_template: bool = typer.Option(
         False,
         "--description-template",
@@ -300,14 +312,21 @@ def deliver(
             first_frame_note=first_frame_note,
             max_size_mb=max_size_mb,
             hook_variants=hook_variants,
+            name=name,
+            music_variants=music_variants,
         )
     )
     if as_json:
         console.print_json(manifest.to_json())
     else:
         console.print(f"[green]delivered[/green] {manifest.destination}")
+        for item in manifest.items:
+            if item.kind == "video":
+                console.print(f"  {Path(item.path).name}", soft_wrap=True)
         manifest_path = Path(manifest.destination) / "delivery-manifest.json"
         console.print(f"[green]manifest[/green] {manifest_path}")
+        for note in manifest.posting_notes:
+            console.print(f"[cyan]posting[/cyan] {note}", soft_wrap=True)
 
 
 @app.command("apply-editorial-qa")

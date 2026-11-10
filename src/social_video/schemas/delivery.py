@@ -68,3 +68,7 @@ class DeliveryManifest(Artifact):
     reel_check_warnings: list[str] = Field(default_factory=list)
     #: Delivered opening variants are not an A/B test once posted organically.
     variant_comparison_caveat: str | None = None
+    #: Which delivered video goes to which platform (with the bed mixed in, or
+    #: without it where the sound is added in the app), and the caution about
+    #: music in commercial posts. Advice for the person posting; never a gate.
+    posting_notes: list[str] = Field(default_factory=list)

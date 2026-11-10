@@ -58,7 +58,7 @@ below is either measured by `reel-check` or a judgement for you to make.
   the whole variant, so they sound like the full render. Render the chosen one
   with `--full --only NAME` (at `final` quality unless `--quality` says
   otherwise), then `deliver --hook-variants` delivers it as
-  `final-hook-<name>.mp4` with its own opening QA. The record is
+  `NAME-FINAL-hook-<name>.mp4` with its own opening QA. The record is
   `analysis/hook-variants.json` (the set made last, the one delivered), and
   each axis keeps its own `analysis/hook-variants-<axis>.json`, so a
   first-shot run does not lose the text set: `--axis text --full --only a`

@@ -84,6 +84,10 @@ compressor on the music, so the bed retreats when the speaker talks and returns
 in the gaps — that is what makes music sound mixed rather than laid on top. QA
 warns when a bed is louder than -12 dB or is not ducked.
 
+Delivery writes the edit twice when it has a bed — with it and without it —
+so that a platform where the sound is added in the app gets a file with no
+music of its own. See Stage 5 in `workflow.md`.
+
 A bed shorter than the edit is an error. Set `loop: true` only when the track is
 built to loop; an audible seam is worse than no music.
 

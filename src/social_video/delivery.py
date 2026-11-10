@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import hashlib
+import re
 from pathlib import Path
 
 from social_video.captions.srt import write_srt, write_vtt
 from social_video.errors import ValidationError
 from social_video.ffmpeg.probe import probe
 from social_video.ffmpeg.run import run_ffmpeg
-from social_video.fsutil import atomic_copy
+from social_video.fsutil import atomic_copy, sha256_file
 from social_video.motion.hook_variants import COMPARISON_CAVEAT
 from social_video.pipeline import load_workspace_artifacts, stage_render
 from social_video.profiles import load_platform
@@ -27,6 +27,35 @@ from social_video.schemas.workflow import Renderer
 from social_video.size_fit import fit_to_size
 from social_video.workflow import load_workflow
 from social_video.workspace.layout import Workspace
+
+#: The word every delivered video carries, so the finished file is the one
+#: that says so among drafts and previews in a folder.
+FINAL = "FINAL"
+#: The EDL's name when nobody gave it one.
+UNNAMED_EDL = "main"
+
+
+def delivery_name(edl, sources, override: str | None = None) -> str:
+    """What a delivery's videos are called, before ``-FINAL``.
+
+    The name asked for, else the edit's own name, else the first recording's
+    id, made safe as part of a file name on every drive the delivery may land
+    on. Letters with diacritics stay; separators and punctuation become ``-``.
+    """
+    raw = (override or "").strip()
+    if not raw and edl.name != UNNAMED_EDL:
+        raw = edl.name
+    if not raw and sources.sources:
+        raw = sources.sources[0].id
+    name = re.sub(r"[^\w.-]+", "-", raw).strip("-._")[:60].rstrip("-._")
+    if override and not name:
+        raise ValidationError(f"--name {override!r} leaves nothing usable in a file name")
+    return name or "video"
+
+
+def final_name(name: str, variant: str = "") -> str:
+    """``NAME-FINAL.mp4``, or ``NAME-FINAL-<variant>.mp4``."""
+    return f"{name}-{FINAL}{'-' + variant if variant else ''}.mp4"
 
 
 def deliver_workspace(
@@ -47,8 +76,18 @@ def deliver_workspace(
     first_frame_note: str = "",
     max_size_mb: float | None = None,
     hook_variants: bool = False,
+    name: str | None = None,
+    music_variants: bool = True,
 ) -> DeliveryManifest:
+    """Write the delivery's files and its verified manifest.
+
+    Videos are named ``NAME-FINAL...mp4`` (see `delivery_name`). When the edit
+    has a music bed and ``music_variants`` is on, the captioned video is
+    delivered twice: as approved, and without the bed, for a platform where
+    the sound is added in the app.
+    """
     manifest, edl = load_workspace_artifacts(workspace)
+    name = delivery_name(edl, manifest, name)
     contract = (
         load_artifact(BrandContract, workspace.brand_contract)
         if workspace.brand_contract.is_file()
@@ -64,6 +103,8 @@ def deliver_workspace(
     if not allow_temporary and (destination == Path("/tmp") or Path("/tmp") in destination.parents):
         raise ValidationError("Stage 5 destination must be durable and cannot be under /tmp")
     destination.mkdir(parents=True, exist_ok=True)
+    main = destination / final_name(name)
+    clean = destination / final_name(name, "no-captions")
     if not any(
         (
             with_captions, no_captions, srt, vtt, poster, cover, publish, resolutions, languages,
@@ -81,7 +122,7 @@ def deliver_workspace(
     if max_size_mb is not None and max_size_mb <= 0:
         raise ValidationError("--max-size-mb must be positive")
     limit = round(max_size_mb * 1_000_000) if max_size_mb else None
-    before = _sha256(workspace.edl)
+    before = sha256_file(workspace.edl)
     caption_track, _caption_path = _captions(edl)
     items: list[DeliveryItem] = []
     workflow = load_workflow(workspace) if workspace.workflow_state.is_file() else None
@@ -95,11 +136,32 @@ def deliver_workspace(
         source = workspace.final / "final.mp4"
         if not source.is_file():
             raise ValidationError(f"approved final with captions does not exist: {source}")
-        target = destination / "final.mp4"
-        _copy_atomic(source, target)
-        items.append(_video_item(target, edl, caption_track, destination, specs, contract, limit))
+        _copy_atomic(source, main)
+        items.append(_video_item(main, edl, caption_track, destination, specs, contract, limit))
+        if edl.audio_bed is not None and music_variants:
+            # The same edit without its bed: where the sound is chosen in the
+            # app, a bed mixed in would play under it.
+            target = destination / final_name(name, "no-music")
+            quiet_edl = edl.model_copy(deep=True)
+            quiet_edl.audio_bed = None
+            stage_render(
+                quiet_edl,
+                manifest,
+                workspace,
+                quality="final",
+                captions=_caption_path,
+                output=target,
+                renderer=renderer,
+                motion_plan=motion_plan,
+                remotion_license_attestation=attestation,
+                persist_artifacts=False,
+                base_name="no-music",
+            )
+            items.append(
+                _video_item(target, quiet_edl, caption_track, destination, specs, contract, limit)
+            )
     if no_captions:
-        target = destination / "final-no-captions.mp4"
+        target = clean
         clean_edl = edl.model_copy(deep=True)
         clean_edl.captions = None
         stage_render(
@@ -119,7 +181,7 @@ def deliver_workspace(
         variant_edl = edl.model_copy(deep=True)
         variant_edl.output_width = width
         variant_edl.output_height = height
-        target = destination / f"final-{width}x{height}.mp4"
+        target = destination / final_name(name, f"{width}x{height}")
         stage_render(
             variant_edl,
             manifest,
@@ -136,7 +198,7 @@ def deliver_workspace(
         )
     if hook_variants:
         items += _hook_variant_items(
-            workspace, edl, destination, specs, contract, limit, sources=manifest
+            workspace, edl, destination, specs, contract, limit, sources=manifest, name=name
         )
     for language in languages or []:
         from social_video.captions.translate import check_language, translated_paths
@@ -148,7 +210,7 @@ def deliver_workspace(
                 f"`captions translate` and `captions apply` first"
             )
         translated = load_artifact(CaptionTrack, paths["json"])
-        target = destination / f"final-{language}.mp4"
+        target = destination / final_name(name, language)
         stage_render(
             edl,
             manifest,
@@ -178,15 +240,14 @@ def deliver_workspace(
         target = write_vtt(caption_track, destination / "captions.vtt")
         items.append(_file_item("captions", target, "vtt"))
     if poster:
-        source = destination / "final.mp4"
-        if not source.is_file():
-            source = destination / "final-no-captions.mp4"
+        source = main if main.is_file() else clean
         if not source.is_file():
             raise ValidationError("poster requires a delivered video variant")
         target = destination / "poster.jpg"
         run_ffmpeg(
             ["-y", "-ss", "0", "-i", str(source), "-frames:v", "1", "-q:v", "2", str(target)],
             desc="extract delivery poster",
+            timeout=300,
         )
         items.append(_file_item("poster", target, "jpeg"))
     content_first = contract is not None and contract.opening.opening_policy == "content_first"
@@ -214,12 +275,12 @@ def deliver_workspace(
         items.append(_file_item("publish_metadata", target, "json"))
 
     opening = _opening(
-        workspace, destination, items, edl, manifest, caption_track, motion_plan, contract,
+        workspace, main, clean, items, edl, manifest, caption_track, motion_plan, contract,
         first_frame_note,
     )  # fmt: skip
-    opening |= _reel_check(workspace, destination, items, edl, caption_track, motion_plan, specs)
-    opening |= _hook_check(workspace, destination, items, caption_track)
-    after = _sha256(workspace.edl)
+    opening |= _reel_check(workspace, main, items, edl, caption_track, motion_plan, specs)
+    opening |= _hook_check(workspace, main, items, caption_track)
+    after = sha256_file(workspace.edl)
     if before != after:
         raise ValidationError("Stage 5 changed edl.json; delivery was aborted")
     cover_item = next((item for item in items if item.kind == "cover"), None)
@@ -232,6 +293,7 @@ def deliver_workspace(
         items=items,
         cover_path=cover_item.path if cover_item else None,
         variant_comparison_caveat=COMPARISON_CAVEAT if hook_variants else None,
+        posting_notes=posting_notes(items, main, has_bed=edl.audio_bed is not None),
         **opening,
     )
     save_artifact(result, destination / "delivery-manifest.json")
@@ -254,6 +316,7 @@ def _hook_variant_items(
     contract,
     limit: int | None,
     sources=None,
+    name: str = "video",
 ) -> list[DeliveryItem]:
     """Full-length opening variants from `motion variants`, each with its own opening QA."""
     from social_video.motion.film import load_registry
@@ -272,7 +335,7 @@ def _hook_variant_items(
     policy = contract.opening if contract else OpeningPolicy(opening_policy="free")
     items = []
     for variant in whole:
-        target = destination / f"final-hook-{variant.name}.mp4"
+        target = destination / final_name(name, f"hook-{variant.name}")
         _copy_atomic(Path(variant.full), target)
         own_captions = Path(variant.captions) if variant.captions else None
         if own_captions is None and (workspace.captions / f"hook-{variant.name}.json").is_file():
@@ -309,13 +372,46 @@ def _hook_variant_items(
     return items
 
 
-def _hook_check(
-    workspace: Workspace, destination: Path, items: list[DeliveryItem], captions
-) -> dict:
+def posting_notes(items: list[DeliveryItem], main: Path, *, has_bed: bool) -> list[str]:
+    """Which delivered video goes where, for the person posting it.
+
+    A bed mixed into the file and a sound added in the app play together, so
+    the two ways of having music need different files. The tool never sources
+    or clears music; these notes say what the files are, not what is allowed.
+    """
+    videos = [Path(i.path) for i in items if i.kind == "video"]
+    if main not in videos:
+        return []
+    quiet = next((v for v in videos if v.name.endswith("-no-music.mp4")), None)
+    if quiet is not None:
+        notes = [
+            f"Instagram Reels: post {quiet.name} and add a sound in the app, turned down "
+            "under the voice.",
+            f"TikTok and YouTube Shorts: post {main.name}; its music is already mixed in.",
+        ]
+    elif has_bed:
+        notes = [
+            f"{main.name} has its music mixed in; do not add another sound over it in an app. "
+            "A version without the bed was not asked for."
+        ]
+    else:
+        notes = [
+            f"{main.name} has no music: the edit has no audio_bed. On Instagram Reels add a "
+            "sound in the app, turned down under the voice; for a version with music mixed "
+            "in, give the edit a bed (a file you hold the rights to) and deliver again."
+        ]
+    notes.append(
+        "An ad, a paid partnership or a business account: the popular music in the apps' "
+        "libraries is not licensed for it. Use music you hold the rights to, or the "
+        "platform's library for commercial use."
+    )
+    return notes
+
+
+def _hook_check(workspace: Workspace, video: Path, items: list[DeliveryItem], captions) -> dict:
     """Advisory hook findings for the delivered video; never blocking."""
     from social_video.qa.hook import check_hook
 
-    video = destination / "final.mp4"
     if not any(Path(i.path) == video for i in items):
         return {}
     from social_video.qa.hook import workspace_words
@@ -328,7 +424,7 @@ def _hook_check(
 
 def _reel_check(
     workspace: Workspace,
-    destination: Path,
+    video: Path,
     items: list[DeliveryItem],
     edl,
     captions: CaptionTrack | None,
@@ -338,7 +434,6 @@ def _reel_check(
     """Advisory short-form findings for the delivered video; never blocking."""
     from social_video.qa.reel import check_reel
 
-    video = destination / "final.mp4"
     if not any(Path(i.path) == video for i in items):
         return {}
     result = check_reel(
@@ -355,7 +450,8 @@ def _reel_check(
 
 def _opening(
     workspace: Workspace,
-    destination: Path,
+    main: Path,
+    clean: Path,
     items: list[DeliveryItem],
     edl,
     sources,
@@ -371,8 +467,7 @@ def _opening(
     from social_video.schemas.config import OpeningPolicy
 
     videos = [Path(i.path) for i in items if i.kind == "video"]
-    video = destination / "final.mp4" if (destination / "final.mp4") in videos else None
-    video = video or (videos[0] if videos else None)
+    video = main if main in videos else (videos[0] if videos else None)
     if video is None:
         return {}
     # Without a compiled project contract the facts are recorded, not enforced.
@@ -382,7 +477,7 @@ def _opening(
         video,
         edl,
         plan,
-        captions if video.name != "final-no-captions.mp4" else None,
+        captions if video != clean else None,
         policy,
         sources=sources,
         film_segments=load_registry(workspace).segments,
@@ -400,19 +495,19 @@ def validate_delivery_manifest(manifest: DeliveryManifest, *, require_ready: boo
         )
     if manifest.edl_sha256_before != manifest.edl_sha256_after:
         raise ValidationError("delivery manifest records a changed EDL")
-    if _sha256(Path(manifest.edl_path)) != manifest.edl_sha256_after:
+    if sha256_file(Path(manifest.edl_path)) != manifest.edl_sha256_after:
         raise ValidationError("current EDL hash no longer matches delivery manifest")
     for item in manifest.items:
         path = Path(item.path)
         if not path.is_file():
             raise ValidationError(f"delivered file is missing: {path}")
-        if _sha256(path) != item.sha256:
+        if sha256_file(path) != item.sha256:
             raise ValidationError(f"delivered file hash mismatch: {path}")
         if item.qa_report:
             report_path = Path(item.qa_report)
             if not report_path.is_file():
                 raise ValidationError(f"delivery QA report is missing: {report_path}")
-            if item.qa_report_sha256 != _sha256(report_path):
+            if item.qa_report_sha256 != sha256_file(report_path):
                 raise ValidationError(f"delivery QA report hash mismatch: {report_path}")
 
 
@@ -490,10 +585,10 @@ def _video_item(
         path=str(path),
         size_bytes=path.stat().st_size,
         format="mp4",
-        sha256=_sha256(path),
+        sha256=sha256_file(path),
         qa_status=str(report.status),
         qa_report=str(report_path),
-        qa_report_sha256=_sha256(report_path),
+        qa_report_sha256=sha256_file(report_path),
         size_limit_bytes=limit_bytes,
         video_bitrate_kbps=fit.video_kbps if fit else None,
         av_error_ms=(
@@ -508,21 +603,13 @@ def _file_item(kind: str, path: Path, format_name: str) -> DeliveryItem:
         path=str(path),
         size_bytes=path.stat().st_size,
         format=format_name,
-        sha256=_sha256(path),
+        sha256=sha256_file(path),
         qa_status="not_applicable",
     )
 
 
 def _copy_atomic(source: Path, target: Path) -> None:
     atomic_copy(source, target)
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _parse_resolution(value: str) -> tuple[int, int]:

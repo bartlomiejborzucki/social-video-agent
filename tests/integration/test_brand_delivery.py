@@ -8,7 +8,7 @@ import pytest
 
 from social_video.captions.ass import write_ass
 from social_video.captions.srt import write_srt
-from social_video.delivery import deliver_workspace
+from social_video.delivery import deliver_workspace, delivery_name, final_name
 from social_video.ffmpeg.probe import probe
 from social_video.pipeline import stage_qa, stage_render
 from social_video.project_config import apply_contract_to_edl
@@ -27,10 +27,9 @@ from tests.conftest import make_video, requires_ffmpeg
 
 @pytest.mark.integration
 @pytest.mark.slow
+@pytest.mark.remotion
 @requires_ffmpeg
 def test_executable_brand_contract_and_stage_5_delivery(tmp_path: Path) -> None:
-    if shutil.which("node") is None or not Path("node_modules/remotion").is_dir():
-        pytest.skip("Remotion dependencies are not installed")
     system_font = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
     if not system_font.is_file():
         pytest.skip("deterministic test font is unavailable")
@@ -160,10 +159,12 @@ default_fps_policy: \"30\"
     )
     after = hashlib.sha256(workspace.edl.read_bytes()).hexdigest()
     assert before == after == delivered.edl_sha256_after
-    assert (project / "delivery/final.mp4").is_file()
-    assert (project / "delivery/final-no-captions.mp4").is_file()
+    name = delivery_name(edl, manifest)
+    assert "film" in name, "named after the recording when the edit has no name of its own"
+    assert (project / "delivery" / final_name(name)).is_file()
+    assert (project / "delivery" / final_name(name, "no-captions")).is_file()
     clean_render = load_artifact(
-        RenderManifest, workspace.renders / "final-no-captions.manifest.json"
+        RenderManifest, workspace.renders / f"{name}-FINAL-no-captions.manifest.json"
     )
     assert not clean_render.captions_burned
     assert all(Path(item.path).is_file() for item in delivered.items)

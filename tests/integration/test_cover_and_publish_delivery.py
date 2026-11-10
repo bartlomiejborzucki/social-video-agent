@@ -8,15 +8,16 @@ from pathlib import Path
 import pytest
 
 from social_video.cover import CoverStyle, compose_cover, extract_frame
-from social_video.delivery import deliver_workspace
+from social_video.delivery import deliver_workspace, delivery_name, final_name, posting_notes
 from social_video.errors import ValidationError
 from social_video.pipeline import stage_qa, stage_render
 from social_video.schemas.base import save_artifact
-from social_video.schemas.edl import EDL, EDLRange
+from social_video.schemas.delivery import DeliveryItem
+from social_video.schemas.edl import EDL, AudioBed, EDLRange
 from social_video.schemas.publish import PublishMetadata
 from social_video.sources import build_manifest
 from social_video.workspace.layout import Workspace
-from tests.conftest import make_video, requires_ffmpeg
+from tests.conftest import ffmpeg, make_video, requires_ffmpeg
 
 
 @pytest.mark.integration
@@ -112,3 +113,105 @@ def test_delivering_a_cover_that_was_never_composed_names_the_command(tmp_path: 
             cover=True,
             allow_temporary=True,
         )
+
+
+def _delivered(tmp_path: Path, *, bed: bool, **options):
+    project = tmp_path / "project"
+    source = make_video(project / "media" / "kamera.mp4", duration=4.0)
+    workspace = Workspace.at(project / "edit").ensure()
+    manifest = build_manifest([source])
+    save_artifact(manifest, workspace.source_manifest)
+    music = None
+    if bed:
+        track = project / "audio" / "podklad.m4a"
+        track.parent.mkdir(parents=True)
+        ffmpeg("-f", "lavfi", "-i", "sine=frequency=330:duration=6", "-c:a", "aac", str(track))
+        music = AudioBed(path=str(track), gain_db=-12.0, reason="Podkład pod całą rolkę.")
+    edl = EDL(
+        name="main", ranges=[EDLRange(source=manifest.ids[0], start=0.0, end=3.5)], audio_bed=music
+    )
+    save_artifact(edl, workspace.edl)
+    stage_render(edl, manifest, workspace, quality="final")
+    before = workspace.edl.read_bytes()
+    delivered = deliver_workspace(
+        workspace, project / "delivery", with_captions=True, no_captions=False, srt=False,
+        vtt=False, poster=False, allow_temporary=True, **options,
+    )  # fmt: skip
+    assert workspace.edl.read_bytes() == before, "a variant never changes the edit"
+    return delivered, project / "delivery"
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+@requires_ffmpeg
+def test_an_edit_with_a_bed_is_delivered_with_and_without_its_music(tmp_path: Path) -> None:
+    from social_video.ffmpeg.probe import probe
+    from social_video.motion.hook_variants import audio_sha256
+
+    delivered, folder = _delivered(tmp_path, bed=True)
+
+    videos = sorted(Path(i.path).name for i in delivered.items if i.kind == "video")
+    assert videos == ["kamera-FINAL-no-music.mp4", "kamera-FINAL.mp4"]
+    with_music, without = folder / "kamera-FINAL.mp4", folder / "kamera-FINAL-no-music.mp4"
+    assert audio_sha256(with_music) != audio_sha256(without)
+    assert probe(with_music).duration == pytest.approx(probe(without).duration, abs=0.05)
+    assert all(i.qa_status.startswith("passed") for i in delivered.items if i.kind == "video")
+    reels, others, commercial = delivered.posting_notes
+    assert "Reels" in reels and "kamera-FINAL-no-music.mp4" in reels
+    assert "TikTok" in others and "Shorts" in others and "kamera-FINAL.mp4" in others
+    assert "not licensed" in commercial
+
+
+@pytest.mark.integration
+@requires_ffmpeg
+def test_one_audio_delivers_the_approved_mix_alone_under_the_name_asked_for(
+    tmp_path: Path,
+) -> None:
+    delivered, folder = _delivered(
+        tmp_path, bed=True, music_variants=False, name="Rolka 12: trzy błędy"
+    )
+
+    videos = [Path(i.path).name for i in delivered.items if i.kind == "video"]
+    assert videos == ["Rolka-12-trzy-błędy-FINAL.mp4"]
+    assert (folder / "Rolka-12-trzy-błędy-FINAL.qa.json").is_file()
+    assert "not asked for" in delivered.posting_notes[0]
+
+
+@pytest.mark.integration
+@requires_ffmpeg
+def test_an_edit_without_a_bed_has_one_final_and_says_it_has_no_music(tmp_path: Path) -> None:
+    delivered, _folder = _delivered(tmp_path, bed=False)
+
+    videos = [Path(i.path).name for i in delivered.items if i.kind == "video"]
+    assert videos == ["kamera-FINAL.mp4"]
+    assert "has no music" in delivered.posting_notes[0]
+    assert "not licensed" in delivered.posting_notes[-1]
+
+
+def test_a_delivery_is_named_after_what_was_asked_then_the_edit_then_the_recording(
+    tmp_path: Path,
+) -> None:
+    from types import SimpleNamespace
+
+    sources = SimpleNamespace(sources=[SimpleNamespace(id="kamera")])
+    unnamed = EDL(ranges=[EDLRange(source="kamera", start=0, end=1)])
+    named = EDL(name="odcinek-7", ranges=[EDLRange(source="kamera", start=0, end=1)])
+
+    assert delivery_name(unnamed, sources) == "kamera"
+    assert delivery_name(named, sources) == "odcinek-7"
+    assert delivery_name(named, sources, " Jak zacząć? / część 2 ") == "Jak-zacząć-część-2"
+    assert delivery_name(unnamed, SimpleNamespace(sources=[])) == "video"
+    with pytest.raises(ValidationError, match="nothing usable"):
+        delivery_name(unnamed, sources, "///")
+    assert final_name("kamera") == "kamera-FINAL.mp4"
+    assert final_name("kamera", "1080x1350") == "kamera-FINAL-1080x1350.mp4"
+
+
+def test_posting_notes_are_only_written_for_a_delivered_main_video(tmp_path: Path) -> None:
+    main = tmp_path / "kamera-FINAL.mp4"
+    sidecar = DeliveryItem(
+        kind="captions", path=str(tmp_path / "captions.srt"), size_bytes=1, format="srt",
+        sha256="0" * 64, qa_status="not_applicable",
+    )  # fmt: skip
+
+    assert posting_notes([sidecar], main, has_bed=True) == []

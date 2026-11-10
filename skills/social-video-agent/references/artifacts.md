@@ -36,7 +36,7 @@ edit/
   assets/motion/          one imported Claude Motion segment per scene
   exports/motion-film/    film specs for a Claude session to author
   previews/preview.mp4    stable preview artifact
-  final/final.mp4         stable delivery artifact
+  final/final.mp4         approved render; delivered as NAME-FINAL.mp4
   qa/qa-report.json       canonical technical QA report
   qa/qa-brand.json        blocking brand-contract QA
   qa/qa-motion.json       measured motion QA, required at Stage 3 on Remotion

@@ -70,7 +70,7 @@ def test_a_language_variant_is_rendered_and_delivered_with_its_sidecars(tmp_path
     )  # fmt: skip
 
     delivered = {Path(item.path).name for item in manifest.items}
-    assert {"final-en.mp4", "captions.en.srt", "captions.srt"} <= delivered
-    assert probe(destination / "final-en.mp4").video.display_size == (W, H)
+    assert {"talk-FINAL-en.mp4", "captions.en.srt", "captions.srt"} <= delivered
+    assert probe(destination / "talk-FINAL-en.mp4").video.display_size == (W, H)
     assert "First, captions" in (destination / "captions.en.srt").read_text(encoding="utf-8")
     validate_delivery_manifest(manifest)

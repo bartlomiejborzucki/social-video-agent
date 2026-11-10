@@ -292,6 +292,29 @@ matters, not as a mechanical afterthought. Every video gets QA and
 every item gets size, format, SHA-256 and status. Verify the EDL hash before and
 after; Stage 5 must not change cuts or story, and `/tmp` is not a delivery target.
 
+**Names.** Every delivered video is `NAME-FINAL.mp4`, with a variant after it:
+`NAME-FINAL-no-music.mp4`, `-no-captions`, `-en`, `-1080x1350`,
+`-hook-<name>`. `NAME` is `--name`, else the edit's own name, else the first
+recording's id. `final/final.mp4` in the workspace is Stage 4's artifact and
+keeps its name. Tell the user which file is the finished one by its name.
+
+**With music and without.** When the edit has an `audio_bed` and
+`--with-captions` is delivered, Stage 5 also renders the same edit without the
+bed as `NAME-FINAL-no-music.mp4` (`--one-audio` skips it). A bed mixed into the
+file and a sound added in an app play together, so the two ways of having
+music need different files. The manifest's `posting_notes`, printed after the
+delivery, say which goes where; relay them:
+
+- Instagram Reels: the file without music, and a sound added in the app,
+  turned down under the voice.
+- TikTok and YouTube Shorts: `NAME-FINAL.mp4`, its music mixed in.
+- An ad, a paid partnership or a business account: the popular music in the
+  apps' libraries is not licensed for it. Say so every time; it is the user's
+  call, and the tool never sources or clears music.
+
+An edit without a bed has one video and the notes say it has no music. Do not
+add a bed the user did not supply to make a second version.
+
 `--max-size-mb 30` keeps every delivered video under a size (some routes to a
 phone refuse anything larger): a larger one is re-encoded in two passes at
 the bitrate its length and audio leave, the audio stream is copied untouched,
