@@ -9,6 +9,7 @@ import pytest
 from social_video.errors import ValidationError
 from social_video.remotion import render_motion_design
 from social_video.schemas.motion import MotionElement, MotionElementType, MotionPlan
+from tests.conftest import fake_compositor
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -42,11 +43,10 @@ def test_motion_element_must_fit_timeline(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.remotion
 def test_bridge_uses_argument_array_and_never_mutates_source(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    if not (ROOT / "node_modules/remotion").is_dir():
-        pytest.skip("Remotion dependencies not installed")
     source = tmp_path / "Mój film źródłowy.mp4"
     source.write_bytes(b"immutable")
     before = source.read_bytes()
@@ -59,7 +59,12 @@ def test_bridge_uses_argument_array_and_never_mutates_source(
         Path(args[-1]).write_bytes(b"rendered")
         return subprocess.CompletedProcess(args, 0, "", "")
 
+    def fake_node(args, **kwargs):
+        fake_run(args)
+        return 0, ""
+
     monkeypatch.setattr(subprocess, "run", fake_run)
+    fake_compositor(monkeypatch, tmp_path, fake_node)
     monkeypatch.setattr("social_video.remotion._verify_staged_output", lambda *args, **kwargs: None)
     render_motion_design(
         source,
@@ -107,11 +112,10 @@ def test_a_missing_end_card_plate_is_a_plan_error_not_a_toolchain_error(tmp_path
         )
 
 
+@pytest.mark.remotion
 def test_an_end_card_plate_is_staged_under_a_neutral_name(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    if not (ROOT / "node_modules/remotion").is_dir():
-        pytest.skip("Remotion dependencies not installed")
     from PIL import Image
 
     source = tmp_path / "base.mp4"
@@ -133,12 +137,12 @@ def test_an_end_card_plate_is_staged_under_a_neutral_name(
     )
     props: dict = {}
 
-    def fake_run(args, **kwargs):
+    def fake_node(args, **kwargs):
         props.update(json.loads(Path(args[-2]).read_text(encoding="utf-8")))
         Path(args[-1]).write_bytes(b"rendered")
-        return subprocess.CompletedProcess(args, 0, "", "")
+        return 0, ""
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    fake_compositor(monkeypatch, tmp_path, fake_node)
     monkeypatch.setattr("social_video.remotion._verify_staged_output", lambda *a, **k: None)
     monkeypatch.setattr(
         "social_video.remotion.mux_base_audio",

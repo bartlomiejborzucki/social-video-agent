@@ -119,9 +119,12 @@ known-first-party = ["social_video", "tests"]
 testpaths = ["tests"]
 # tests/ is a package so integration tests can import shared fixture builders.
 pythonpath = ["."]
+# A misspelt marker selects nothing and skips nothing; refuse it instead.
+addopts = "--strict-markers"
 markers = [
     "integration: requires ffmpeg and generates media fixtures",
     "slow: takes more than a few seconds",
+    "remotion: renders with the Remotion compositor; skipped unless it is installed",
 ]
 
 [tool.coverage.run]

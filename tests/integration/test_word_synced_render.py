@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -14,13 +13,12 @@ from social_video.schemas.motion import MotionElement, MotionPlan
 from tests.conftest import requires_ffmpeg
 
 ROOT = Path(__file__).resolve().parents[2]
-HAS_REMOTION = shutil.which("node") is not None and (ROOT / "node_modules/.remotion").is_dir()
 WIDTH, HEIGHT = 360, 640
 
 pytestmark = [
     pytest.mark.integration,
     requires_ffmpeg,
-    pytest.mark.skipif(not HAS_REMOTION, reason="Remotion dependencies/browser not installed"),
+    pytest.mark.remotion,
 ]
 
 

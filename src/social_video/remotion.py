@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 from pathlib import Path
 from uuid import uuid4
 
@@ -30,10 +29,14 @@ from social_video.motion.layout import (
     scene_frame_geometry,
     tab_font_px,
 )
+from social_video.remotion_node import ensure_bundle, run_node, stage_serve_dir
 from social_video.remotion_runtime import locate_runtime
 from social_video.schemas.brand import CaptionCase, CaptionStyle
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.motion import MotionElementType, MotionPlan
+
+#: A render that takes longer than this is not going to finish.
+RENDER_TIMEOUT_S = 4 * 3600
 
 
 def render_motion_design(
@@ -327,20 +330,19 @@ def render_motion_design(
         props_path = work / "props.json"
         props_path.write_text(json.dumps(props, ensure_ascii=False), encoding="utf-8")
         staged = work / "rendered.mp4"
-        proc = subprocess.run(
-            [node, str(script), str(entry), str(public), str(props_path), str(staged)]
-            + ([str(registry)] if registry is not None else []),
+        # The compositor is built once per version of its sources and reused;
+        # this render's files go beside a private copy of it.
+        bundle = ensure_bundle(node, runtime, registry, work)
+        serve = stage_serve_dir(bundle, public, work)
+        code, said = run_node(
+            [node, str(script), "render", str(serve), str(props_path), str(staged)],
             cwd=project_root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=14400,
-            check=False,
+            timeout=RENDER_TIMEOUT_S,
+            desc="The Remotion render",
         )
-        if proc.returncode != 0 or not staged.is_file():
-            detail = "\n".join((proc.stderr or proc.stdout).strip().splitlines()[-30:])
-            raise RemotionError(f"Remotion render failed (exit {proc.returncode}):\n{detail}")
+        if code != 0 or not staged.is_file():
+            detail = "\n".join(said.strip().splitlines()[-30:])
+            raise RemotionError(f"Remotion render failed (exit {code}):\n{detail}")
         muxed = work / "muxed.mp4"
         mux_base_audio(staged, base_video, muxed)
         _verify_staged_output(

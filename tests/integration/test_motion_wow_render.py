@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -21,11 +20,6 @@ from social_video.transcribe.normalize import synthesize_spacing
 from tests.conftest import ffmpeg, make_video, requires_ffmpeg
 
 ROOT = Path(__file__).resolve().parents[2]
-HAS_REMOTION = (
-    shutil.which("node") is not None
-    and (ROOT / "node_modules/remotion").is_dir()
-    and (ROOT / "node_modules/.remotion").is_dir()
-)
 pytestmark = [pytest.mark.integration, requires_ffmpeg]
 W, H = 540, 960
 
@@ -52,7 +46,7 @@ def _sharpness(pixels: np.ndarray) -> float:
     return float(lap.var())
 
 
-@pytest.mark.skipif(not HAS_REMOTION, reason="Remotion dependencies/browser not installed")
+@pytest.mark.remotion
 def test_graphics_transitions_and_style_pack_render(tmp_path: Path) -> None:
     from social_video.remotion import render_motion_design
 

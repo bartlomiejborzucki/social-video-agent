@@ -7,7 +7,6 @@ that lights every word *not yet* spoken -- produced perfectly valid ASS.
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -131,14 +130,9 @@ def test_a_brand_keyword_is_drawn_in_its_colour(tmp_path: Path) -> None:
 
 
 ROOT = Path(__file__).resolve().parents[2]
-HAS_REMOTION = (
-    shutil.which("node") is not None
-    and (ROOT / "node_modules/remotion").is_dir()
-    and (ROOT / "node_modules/.remotion").is_dir()
-)
 
 
-@pytest.mark.skipif(not HAS_REMOTION, reason="Remotion dependencies/browser not installed")
+@pytest.mark.remotion
 def test_remotion_draws_the_keyword_and_the_highlight(tmp_path: Path) -> None:
     from social_video.remotion import render_motion_design
     from social_video.schemas.motion import MotionPlan
@@ -221,7 +215,7 @@ def test_remotion_draws_the_keyword_and_the_highlight(tmp_path: Path) -> None:
     assert 0.2 < share < 0.8
 
 
-@pytest.mark.skipif(not HAS_REMOTION, reason="Remotion dependencies/browser not installed")
+@pytest.mark.remotion
 def test_a_punch_in_scales_the_picture_and_only_while_it_runs(tmp_path: Path) -> None:
     from social_video.remotion import render_motion_design
     from social_video.schemas.motion import MotionPlan, PunchIn
@@ -271,7 +265,7 @@ def test_a_punch_in_scales_the_picture_and_only_while_it_runs(tmp_path: Path) ->
     assert held / before == pytest.approx(1.3**2, rel=0.08)
 
 
-@pytest.mark.skipif(not HAS_REMOTION, reason="Remotion dependencies/browser not installed")
+@pytest.mark.remotion
 def test_every_new_graphic_is_drawn_in_its_interval(tmp_path: Path) -> None:
     from social_video.remotion import render_motion_design
     from social_video.schemas.motion import MotionElement, MotionPlan

@@ -9,7 +9,6 @@ prevent. A pixel check is the only honest test for it.
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import pytest
@@ -31,16 +30,11 @@ from social_video.workspace.layout import Workspace
 from tests.conftest import make_video, requires_ffmpeg
 
 ROOT = Path(__file__).resolve().parents[2]
-HAS_REMOTION = (
-    shutil.which("node") is not None
-    and (ROOT / "node_modules/remotion").is_dir()
-    and (ROOT / "node_modules/.remotion").is_dir()
-)
 
 pytestmark = [
     pytest.mark.integration,
     requires_ffmpeg,
-    pytest.mark.skipif(not HAS_REMOTION, reason="Remotion dependencies/browser not installed"),
+    pytest.mark.remotion,
 ]
 
 

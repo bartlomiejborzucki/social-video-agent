@@ -15,6 +15,28 @@ import pytest
 
 HAS_FFMPEG = shutil.which("ffmpeg") is not None
 
+ROOT = Path(__file__).resolve().parents[1]
+#: Node, the locked npm packages and the browser Remotion renders in.
+HAS_REMOTION = (
+    shutil.which("node") is not None
+    and (ROOT / "node_modules/remotion").is_dir()
+    and (ROOT / "node_modules/.remotion").is_dir()
+)
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """A test marked `remotion` needs the compositor installed, and skips without it.
+
+    One marker rather than a skip condition repeated per file, so the CI job
+    that has the compositor can select every such test with `-m remotion`.
+    """
+    if HAS_REMOTION:
+        return
+    skip = pytest.mark.skip(reason="Remotion dependencies/browser not installed")
+    for item in items:
+        if item.get_closest_marker("remotion") is not None:
+            item.add_marker(skip)
+
 
 @pytest.fixture(autouse=True)
 def _private_render_log(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
@@ -24,7 +46,32 @@ def _private_render_log(tmp_path_factory: pytest.TempPathFactory, monkeypatch: p
     return log
 
 
+@pytest.fixture(scope="session")
+def _session_bundles(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return tmp_path_factory.mktemp("remotion-bundles")
+
+
+@pytest.fixture(autouse=True)
+def _private_bundle_cache(_session_bundles: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Tests share one compositor bundle for the run, and leave the machine's own alone."""
+    monkeypatch.setenv("SOCIAL_VIDEO_REMOTION_BUNDLE_CACHE", str(_session_bundles))
+    return _session_bundles
+
+
 requires_ffmpeg = pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg not installed")
+
+
+def fake_compositor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, node) -> None:
+    """Stand in for the bundle and the Node render; the staging around them is real.
+
+    ``node`` takes the argument list the script would get (props second to
+    last, the output last) and returns an exit code and what it printed.
+    """
+    bundle = tmp_path / "kept-bundle"
+    bundle.mkdir()
+    (bundle / "index.html").write_text("<html></html>", encoding="utf-8")
+    monkeypatch.setattr("social_video.remotion.ensure_bundle", lambda *args, **kwargs: bundle)
+    monkeypatch.setattr("social_video.remotion.run_node", node)
 
 
 def ffmpeg(*args: str) -> None:

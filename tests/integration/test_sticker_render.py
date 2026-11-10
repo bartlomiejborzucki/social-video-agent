@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -20,7 +19,6 @@ from social_video.workspace.layout import Workspace
 from tests.conftest import make_video, requires_ffmpeg
 
 ROOT = Path(__file__).resolve().parents[2]
-HAS_REMOTION = shutil.which("node") is not None and (ROOT / "node_modules/.remotion").is_dir()
 
 pytestmark = [pytest.mark.integration, requires_ffmpeg]
 
@@ -78,7 +76,7 @@ def test_ffmpeg_route_shakes_the_picture_inside_the_window_only(tmp_path: Path) 
     assert np.abs(_frame(shaken, 2.5) - _frame(steady, 2.5)).mean() < 2
 
 
-@pytest.mark.skipif(not HAS_REMOTION, reason="Remotion dependencies/browser not installed")
+@pytest.mark.remotion
 def test_remotion_draws_the_sticker_and_the_shake(tmp_path: Path) -> None:
     _source, edl, manifest, ws, plan = _setup(tmp_path)
     output = tmp_path / "final.mp4"
@@ -100,11 +98,10 @@ def test_remotion_draws_the_sticker_and_the_shake(tmp_path: Path) -> None:
     assert evidence.stickers_applied and "image" in evidence.stickers_applied[0]
 
 
+@pytest.mark.remotion
 def test_remotion_plays_an_animated_emoji_sticker_and_credits_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    if not HAS_REMOTION:
-        pytest.skip("Remotion dependencies/browser not installed")
     # A red square with alpha stands in for the downloaded clip: tests never fetch.
     clip = tmp_path / "joy-0.5x.webm"
     subprocess.run(

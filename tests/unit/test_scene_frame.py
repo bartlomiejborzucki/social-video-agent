@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -28,6 +27,7 @@ from social_video.schemas.motion import (
     MotionPlan,
 )
 from social_video.workspace.layout import Workspace
+from tests.conftest import fake_compositor
 
 ROOT = Path(__file__).resolve().parents[2]
 STYLE = CaptionStyle(
@@ -176,11 +176,10 @@ def test_the_ass_route_draws_the_same_frame_and_flips_the_title() -> None:
     assert free_top != framed_top
 
 
+@pytest.mark.remotion
 def test_the_compositor_gets_the_frame_and_the_framed_cues(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    if not (ROOT / "node_modules/remotion").is_dir():
-        pytest.skip("Remotion dependencies not installed")
     source = tmp_path / "base.mp4"
     source.write_bytes(b"video")
     plan = MotionPlan(
@@ -190,12 +189,12 @@ def test_the_compositor_gets_the_frame_and_the_framed_cues(
     track = CaptionTrack(cues=[_cue(1, 0.0, 2.0), _cue(2, 6.2, 6.9)])
     props: dict = {}
 
-    def fake_run(args, **kwargs):
+    def fake_node(args, **kwargs):
         props.update(json.loads(Path(args[-2]).read_text(encoding="utf-8")))
         Path(args[-1]).write_bytes(b"rendered")
-        return subprocess.CompletedProcess(args, 0, "", "")
+        return 0, ""
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    fake_compositor(monkeypatch, tmp_path, fake_node)
     monkeypatch.setattr("social_video.remotion._verify_staged_output", lambda *a, **k: None)
     monkeypatch.setattr(
         "social_video.remotion.mux_base_audio",
