@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from social_video.schemas.transcript import TokenType, Transcript, TranscriptToken
+from social_video.schemas.transcript import Transcript, TranscriptToken
 
 #: How far a boundary may move to reach a word edge. Beyond this, the requested
 #: time was probably deliberate and is left alone.
@@ -169,7 +169,3 @@ def words_in(transcript: Transcript, start: float, end: float) -> list[Transcrip
 
 def text_in(transcript: Transcript, start: float, end: float) -> str:
     return " ".join(w.text for w in words_in(transcript, start, end))
-
-
-def pause_tokens(transcript: Transcript, minimum: float) -> list[TranscriptToken]:
-    return [t for t in transcript.tokens if t.type is TokenType.SPACING and t.duration >= minimum]

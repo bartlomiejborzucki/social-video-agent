@@ -101,6 +101,42 @@ def run_ffmpeg(
     return _run(argv, desc=desc, timeout=timeout).stderr
 
 
+def run_ffmpeg_bytes(
+    args: Sequence[str],
+    *,
+    desc: str = "ffmpeg invocation",
+    timeout: float | None = 600,
+) -> bytes:
+    """Run ffmpeg and return its raw stdout: samples or frames decoded to a pipe.
+
+    The text runner decodes stdout as UTF-8, which destroys PCM and raw video.
+    Everything else is the same: an argv list, ``-nostdin``, a timeout, and a
+    failure that carries stderr rather than an empty buffer read as "nothing
+    there".
+    """
+    argv = [find_binary("ffmpeg"), "-hide_banner", "-nostdin", *args]
+    log.debug("exec: %s", argv)
+    try:
+        proc = subprocess.run(argv, capture_output=True, timeout=timeout, check=False)
+    except FileNotFoundError as exc:  # pragma: no cover - guarded by find_binary
+        raise ToolNotFoundError(f"{argv[0]} disappeared between lookup and exec") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise FFmpegError(
+            f"{desc}: timed out after {timeout}s",
+            args_used=argv,
+            returncode=-1,
+            stderr=(exc.stderr or b"").decode("utf-8", "replace"),
+        ) from exc
+    if proc.returncode != 0:
+        raise FFmpegError(
+            desc,
+            args_used=argv,
+            returncode=proc.returncode,
+            stderr=proc.stderr.decode("utf-8", "replace"),
+        )
+    return proc.stdout
+
+
 def run_ffprobe(
     args: Sequence[str],
     *,

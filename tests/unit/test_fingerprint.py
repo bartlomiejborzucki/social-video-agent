@@ -53,6 +53,28 @@ class TestFileFingerprint:
         a.write_bytes(bytes(big))
         assert file_fingerprint(a) != before
 
+    def test_detects_a_change_past_the_first_chunk_of_a_mid_sized_file(self, tmp_path):
+        # Between one and two chunks nothing after the first was hashed, so a
+        # same-length change there went unnoticed.
+        mid = bytearray(b"a" * (1024 * 1024 + 512 * 1024))
+        a = write(tmp_path, "a.bin", bytes(mid))
+        before = file_fingerprint(a)
+        mid[1024 * 1024 + 100] = ord("b")
+        a.write_bytes(bytes(mid))
+        assert file_fingerprint(a) != before
+
+    def test_a_long_file_keeps_the_fingerprint_its_caches_were_keyed_on(self, tmp_path):
+        import hashlib
+
+        chunk = 1024 * 1024
+        data = bytes(range(256)) * (3 * chunk // 256)
+        a = write(tmp_path, "a.bin", data)
+        expected = hashlib.blake2b(digest_size=16)
+        expected.update(str(len(data)).encode())
+        expected.update(data[:chunk])
+        expected.update(data[-chunk:])
+        assert file_fingerprint(a) == expected.hexdigest()
+
 
 class TestOptionsFingerprint:
     def test_order_does_not_matter(self):

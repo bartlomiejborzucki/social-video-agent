@@ -44,6 +44,7 @@ def audio_bytes(path: Path) -> int:
     packets = run_ffprobe_json(
         ["-select_streams", "a:0", "-show_entries", "packet=size", str(path)],
         desc=f"measure the audio of {path.name}",
+        timeout=1800,
     ).get("packets", [])
     return sum(int(p.get("size", 0)) for p in packets)
 
@@ -128,7 +129,9 @@ def _encode(source: Path, work: Path, kbps: int, fps: str) -> Path:
         "-passlogfile",
         str(log),
     ]
-    run_ffmpeg([*common, "-pass", "1", "-an", "-f", "null", "-"], desc="size fit, pass 1")
+    run_ffmpeg(
+        [*common, "-pass", "1", "-an", "-f", "null", "-"], desc="size fit, pass 1", timeout=14400
+    )
     staged = work / "fitted.mp4"
     run_ffmpeg(
         [

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Literal
 
 from social_video.errors import ValidationError
-from social_video.fsutil import atomic_target, atomic_write_bytes, utc_timestamp
+from social_video.fsutil import atomic_target, atomic_write_bytes, sha256_file, utc_timestamp
 from social_video.imagegen.providers import ImageProviderStatus, detect_image_provider
 from social_video.imagegen.service import (
     Transport,
@@ -22,7 +22,6 @@ from social_video.imagegen.service import (
     generate_plate,
     strip_guardrail,
 )
-from social_video.imaging import sha256_file
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.config import BrandContract
 from social_video.schemas.visuals import (

@@ -8,12 +8,12 @@ it needs nothing beyond numpy and the ffmpeg already required.
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import numpy as np
 
-from social_video.ffmpeg.run import find_binary
+from social_video.errors import FFmpegError
+from social_video.ffmpeg.run import run_ffmpeg_bytes
 
 RATE = 11025
 HOP = 256
@@ -25,15 +25,15 @@ def detect_beats(
     audio: Path, *, start_at: float = 0.0, duration: float | None = None
 ) -> list[float]:
     """Beat times in seconds from ``start_at`` into the file."""
-    argv = [find_binary("ffmpeg"), "-hide_banner", "-nostdin", "-v", "error",
-            "-ss", f"{max(0.0, start_at):.6f}"]  # fmt: skip
+    argv = ["-v", "error", "-ss", f"{max(0.0, start_at):.6f}"]
     if duration is not None:
         argv += ["-t", f"{max(0.1, duration):.6f}"]
     argv += ["-i", str(audio), "-map", "0:a:0", "-ac", "1", "-ar", str(RATE), "-f", "f32le", "-"]
-    proc = subprocess.run(argv, capture_output=True, check=False, timeout=600)
-    if proc.returncode != 0 or not proc.stdout:
+    try:
+        raw = run_ffmpeg_bytes(argv, desc=f"decode {audio.name} for beats", timeout=600)
+    except FFmpegError:
         return []
-    return onsets(np.frombuffer(proc.stdout, dtype=np.float32), RATE)
+    return onsets(np.frombuffer(raw, dtype=np.float32), RATE) if raw else []
 
 
 def onsets(signal: np.ndarray, rate: int = RATE) -> list[float]:

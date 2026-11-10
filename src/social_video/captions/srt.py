@@ -4,18 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from social_video.fsutil import atomic_write_text
 from social_video.schemas.captions import CaptionTrack
 
 
 def _srt_time(seconds: float) -> str:
-    seconds = max(0.0, seconds)
-    hours, rest = divmod(seconds, 3600)
-    minutes, secs = divmod(rest, 60)
-    whole = int(secs)
-    millis = round((secs - whole) * 1000)
-    if millis == 1000:  # rounding can carry
-        whole, millis = whole + 1, 0
-    return f"{int(hours):02d}:{int(minutes):02d}:{whole:02d},{millis:03d}"
+    # Whole milliseconds first, so rounding carries all the way up.
+    total = round(max(0.0, seconds) * 1000)
+    rest, millis = divmod(total, 1000)
+    rest, secs = divmod(rest, 60)
+    hours, minutes = divmod(rest, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
 def render_srt(track: CaptionTrack) -> str:
@@ -29,9 +28,7 @@ def render_srt(track: CaptionTrack) -> str:
 
 
 def write_srt(track: CaptionTrack, path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_srt(track), encoding="utf-8", newline="")
-    return path
+    return atomic_write_text(path, render_srt(track), newline="")
 
 
 def render_vtt(track: CaptionTrack) -> str:
@@ -44,6 +41,4 @@ def render_vtt(track: CaptionTrack) -> str:
 
 
 def write_vtt(track: CaptionTrack, path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_vtt(track), encoding="utf-8")
-    return path
+    return atomic_write_text(path, render_vtt(track))

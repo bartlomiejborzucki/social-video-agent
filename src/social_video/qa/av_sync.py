@@ -16,14 +16,13 @@ picture and sound moved together is still in sync with itself.
 
 from __future__ import annotations
 
-import subprocess
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
 
-from social_video.ffmpeg.run import find_binary
+from social_video.ffmpeg.run import run_ffmpeg_bytes
 from social_video.schemas.qa import QACheck, QASeverity
 
 RATE = 48000
@@ -65,12 +64,10 @@ class SyncMeasurement:
 
 def envelope(path: Path) -> np.ndarray:
     """Log RMS of the first audio track on a 5 ms grid."""
-    proc = subprocess.run(
+    raw = run_ffmpeg_bytes(
         [
-            find_binary("ffmpeg"),
             "-v",
             "error",
-            "-nostdin",
             "-i",
             str(path),
             "-map",
@@ -83,10 +80,10 @@ def envelope(path: Path) -> np.ndarray:
             "f32le",
             "-",
         ],
-        capture_output=True,
-        check=True,
+        desc=f"decode the sound of {path.name}",
+        timeout=1800,
     )
-    return envelope_of(np.frombuffer(proc.stdout, dtype=np.float32))
+    return envelope_of(np.frombuffer(raw, dtype=np.float32))
 
 
 def envelope_of(signal: np.ndarray) -> np.ndarray:
@@ -136,12 +133,10 @@ def envelope_lag(reference: np.ndarray, candidate: np.ndarray) -> float | None:
 
 def _thumbnails(path: Path) -> np.ndarray:
     width, height = _THUMB
-    proc = subprocess.run(
+    raw = run_ffmpeg_bytes(
         [
-            find_binary("ffmpeg"),
             "-v",
             "error",
-            "-nostdin",
             "-i",
             str(path),
             "-map",
@@ -152,10 +147,10 @@ def _thumbnails(path: Path) -> np.ndarray:
             "rawvideo",
             "-",
         ],
-        capture_output=True,
-        check=True,
+        desc=f"sample the picture of {path.name}",
+        timeout=1800,
     )
-    data = np.frombuffer(proc.stdout, dtype=np.uint8)
+    data = np.frombuffer(raw, dtype=np.uint8)
     return data[: len(data) // (width * height) * width * height].reshape(-1, height, width)
 
 

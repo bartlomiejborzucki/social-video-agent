@@ -12,7 +12,13 @@ from rich.markup import escape
 from social_video.cli._apps import (
     app,
 )
-from social_video.cli._common import _guard, _print_qa, console, err_console
+from social_video.cli._common import (
+    _guard,
+    _print_qa,
+    console,
+    err_console,
+    overwrites_a_source,
+)
 from social_video.errors import SocialVideoError
 
 
@@ -78,9 +84,7 @@ def edit(
             if requested.suffix.lower() != ".mp4"
             else requested
         )
-        same_path = copy_destination.resolve(strict=False) == source_path
-        same_file = copy_destination.exists() and copy_destination.samefile(source_path)
-        if same_path or same_file:
+        if overwrites_a_source(copy_destination, [source_path]):
             err_console.print("[red]error:[/red] output must not overwrite the source video")
             raise typer.Exit(1)
 
@@ -166,11 +170,11 @@ def render(
     ws = Workspace.at(workspace_dir)
     manifest, edl = _guard(lambda: load_workspace_artifacts(ws))
     destination = _guard(lambda: normalize_user_path(output)) if output else None
-    if destination is not None:
-        source_paths = {entry.resolved_path().resolve() for entry in manifest.sources}
-        if destination.resolve(strict=False) in source_paths:
-            err_console.print("[red]error:[/red] output must not overwrite source media")
-            raise typer.Exit(1)
+    if destination is not None and overwrites_a_source(
+        destination, [entry.resolved_path() for entry in manifest.sources]
+    ):
+        err_console.print("[red]error:[/red] output must not overwrite source media")
+        raise typer.Exit(1)
     captions = Path(edl.captions) if edl.captions else None
     license_root: Path | None = None
     if ws.workflow_state.is_file():

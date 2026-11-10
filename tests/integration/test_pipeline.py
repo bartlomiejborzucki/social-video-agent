@@ -230,6 +230,28 @@ class TestCaptionBurnIn:
         render_edl(edl, manifest, out, quality=DRAFT, caption_file=ass)
         assert out.is_file()
 
+    def test_captions_asked_of_an_ffmpeg_without_libass_are_refused(
+        self, landscape, tmp_path, monkeypatch
+    ):
+        """It used to render without them and record the video as captioned."""
+        from social_video.captions.ass import write_ass
+        from social_video.errors import CapabilityError
+        from social_video.schemas.brand import CaptionStyle
+
+        monkeypatch.setattr("social_video.edl.render.has_libass", lambda: False)
+        track = CaptionTrack(cues=[CaptionCue(index=1, start=0.1, end=1.0, text="hi")])
+        ass = write_ass(track, CaptionStyle(), tmp_path / "c.ass", width=540, height=960)
+        edl = EDL(
+            output_width=540,
+            output_height=960,
+            ranges=[EDLRange(source="landscape", start=0.0, end=1.2)],
+        )
+        out = tmp_path / "uncaptioned.mp4"
+
+        with pytest.raises(CapabilityError, match="libass"):
+            render_edl(edl, build_manifest([landscape]), out, quality=DRAFT, caption_file=ass)
+        assert not out.exists()
+
 
 class TestQA:
     def test_passes_a_good_render(self, landscape, tmp_path):

@@ -24,6 +24,7 @@ from pathlib import Path
 
 import yaml
 
+from social_video.fsutil import atomic_write_text
 from social_video.schemas.captions import CaptionTrack
 
 WORDS_FILE = Path(__file__).with_name("data") / "hook_pl.yaml"
@@ -310,8 +311,8 @@ def check_hook(
                 )
             )
     if analysis_dir is not None:
-        analysis_dir.mkdir(parents=True, exist_ok=True)
-        (analysis_dir / "hook-check.json").write_text(
-            json.dumps(report.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
+        atomic_write_text(
+            analysis_dir / "hook-check.json",
+            json.dumps(report.to_dict(), indent=2, ensure_ascii=False),
         )
     return report

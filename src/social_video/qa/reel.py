@@ -21,15 +21,16 @@ Every finding is a warning. It never blocks a delivery: the editor decides.
 from __future__ import annotations
 
 import re
-import subprocess
 from itertools import pairwise
 from pathlib import Path
 
 from pydantic import Field
 
 from social_video.edl.timeline import Timeline
+from social_video.errors import FFmpegError
 from social_video.ffmpeg.probe import probe
-from social_video.ffmpeg.run import find_binary
+from social_video.ffmpeg.run import run_ffmpeg
+from social_video.fsutil import atomic_write_text
 from social_video.schemas.base import Artifact, save_artifact
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.edl import EDL
@@ -114,7 +115,7 @@ def check_reel(
     )
     if analysis_dir is not None:
         save_artifact(result, analysis_dir / "reel-check.json")
-        (analysis_dir / "reel-check.md").write_text(render(result), encoding="utf-8")
+        atomic_write_text(analysis_dir / "reel-check.md", render(result))
     return result
 
 
@@ -346,15 +347,18 @@ def _silences(video: Path) -> list[tuple[float, float]]:
     info = probe(video)
     if not info.has_audio:
         return []
-    proc = subprocess.run(
-        [find_binary("ffmpeg"), "-hide_banner", "-nostdin", "-i", str(video), "-map", "0:a:0",
-         "-af", f"silencedetect=noise={SILENCE_FLOOR_DB}dB:d={DEAD_AIR_SECONDS / 2:.2f}",
-         "-f", "null", "-"],
-        capture_output=True, text=True, check=False, timeout=600,
-    )  # fmt: skip
+    try:
+        heard = run_ffmpeg(
+            ["-i", str(video), "-map", "0:a:0",
+             "-af", f"silencedetect=noise={SILENCE_FLOOR_DB}dB:d={DEAD_AIR_SECONDS / 2:.2f}",
+             "-f", "null", "-"],
+            desc=f"find the silences in {video.name}", timeout=600,
+        )  # fmt: skip
+    except FFmpegError as exc:
+        heard = exc.stderr
     spans: list[tuple[float, float]] = []
     start: float | None = None
-    for began, ended in _SILENCE.findall(proc.stderr):
+    for began, ended in _SILENCE.findall(heard):
         if began:
             start = float(began)
         elif ended and start is not None:

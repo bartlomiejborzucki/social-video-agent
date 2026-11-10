@@ -84,19 +84,18 @@ REFERENCE_DB = -14.0
 
 def effect_level(path: Path) -> float | None:
     """The loudest 50 ms of an effect, in dBFS; None when it cannot be decoded."""
-    import subprocess
 
     import numpy as np
 
-    from social_video.ffmpeg.run import find_binary
+    from social_video.ffmpeg.run import run_ffmpeg_bytes
 
     # At the mix's own rate: a click's energy is in the highs a speech rate drops.
     rate = 48000
     try:
-        argv = [find_binary("ffmpeg"), "-v", "error", "-nostdin", "-i", str(path),
+        argv = ["-v", "error", "-i", str(path),
                 "-map", "0:a:0", "-ac", "1", "-ar", str(rate), "-f", "f32le", "-"]  # fmt: skip
-        raw = subprocess.run(argv, capture_output=True, check=True).stdout
-    except (OSError, subprocess.CalledProcessError, SocialVideoError):
+        raw = run_ffmpeg_bytes(argv, desc=f"measure {path.name}", timeout=120)
+    except (OSError, SocialVideoError):
         return None
     samples = np.frombuffer(raw, dtype=np.float32).astype(np.float64)
     window = int(rate * 0.05)

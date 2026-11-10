@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import re
 import statistics
-import subprocess
 from fractions import Fraction
 from itertools import pairwise
 from pathlib import Path
@@ -22,9 +21,8 @@ import numpy as np
 from social_video.edl.render import allocate_range_frames, end_hold_frames
 from social_video.edl.timeline import Timeline
 from social_video.errors import FFmpegError
-from social_video.ffmpeg.filters import LOUDNORM_I
 from social_video.ffmpeg.probe import parse_fps, probe
-from social_video.ffmpeg.run import find_binary, run_ffmpeg, run_ffprobe_json
+from social_video.ffmpeg.run import run_ffmpeg, run_ffmpeg_bytes, run_ffprobe_json
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.edl import EDL, VisualFillStrategy
 from social_video.schemas.qa import QACheck, QAReport, QASeverity
@@ -396,9 +394,6 @@ def _check_ending_visual_continuity(report: QAReport, output: Path, info, edl: E
     begin = max(0.0, info.duration - 10.0)
     frame_size = 64 * 64
     argv = [
-        find_binary("ffmpeg"),
-        "-hide_banner",
-        "-nostdin",
         "-v",
         "error",
         "-ss",
@@ -413,8 +408,9 @@ def _check_ending_visual_continuity(report: QAReport, output: Path, info, edl: E
         "gray",
         "-",
     ]
-    proc = subprocess.run(argv, capture_output=True, check=False, timeout=1800)
-    if proc.returncode != 0:
+    try:
+        raw = run_ffmpeg_bytes(argv, desc=f"sample the ending of {output.name}", timeout=1800)
+    except FFmpegError:
         report.checks.append(
             QACheck(
                 name="ending visual continuity",
@@ -424,9 +420,9 @@ def _check_ending_visual_continuity(report: QAReport, output: Path, info, edl: E
             )
         )
         return
-    count = len(proc.stdout) // frame_size
+    count = len(raw) // frame_size
     frames = [
-        np.frombuffer(proc.stdout[index * frame_size : (index + 1) * frame_size], dtype=np.uint8)
+        np.frombuffer(raw[index * frame_size : (index + 1) * frame_size], dtype=np.uint8)
         for index in range(count)
     ]
     static_edges = [
@@ -645,14 +641,3 @@ def _check_captions(report: QAReport, captions: CaptionTrack, info) -> None:
             at=past_end[0].start if past_end else None,
         )
     )
-
-
-def loudness_comment(measured: float | None) -> str:
-    """Describe measured loudness against the social target."""
-    if measured is None:
-        return "not measured"
-    delta = measured - LOUDNORM_I
-    if abs(delta) <= LOUDNESS_TOLERANCE:
-        return f"{measured:.1f} LUFS, on target"
-    direction = "louder" if delta > 0 else "quieter"
-    return f"{measured:.1f} LUFS, {abs(delta):.1f} LU {direction} than target"

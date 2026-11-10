@@ -107,6 +107,20 @@ class TestAssDocument:
         assert format_timestamp(3661.5) == "1:01:01.50"
         assert format_timestamp(-5) == "0:00:00.00"
 
+    def test_rounding_carries_into_the_minute_and_the_hour(self):
+        # 59.996 s used to print a 60th second, which is not a timestamp.
+        assert format_timestamp(59.996) == "0:01:00.00"
+        assert format_timestamp(3599.999) == "1:00:00.00"
+        assert format_timestamp(59.994) == "0:00:59.99"
+
+    def test_srt_and_vtt_times_carry_the_same_way(self):
+        from social_video.captions.srt import _srt_time
+
+        assert _srt_time(59.9996) == "00:01:00,000"
+        assert _srt_time(3599.9996) == "01:00:00,000"
+        assert _srt_time(59.9994) == "00:00:59,999"
+        assert _srt_time(3661.5) == "01:01:01,500"
+
     def test_escapes_override_characters(self):
         assert escape_text("a{b}c") == "a\\{b\\}c"
         assert escape_text("a\nb") == "a\\Nb"

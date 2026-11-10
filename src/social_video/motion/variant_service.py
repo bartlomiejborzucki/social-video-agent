@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Literal
 
 from social_video.errors import ValidationError
-from social_video.imaging import sha256_file
+from social_video.fsutil import sha256_file
 from social_video.motion.hook_variants import (
     BUILT_AXES,
     PREVIEW_SECONDS,

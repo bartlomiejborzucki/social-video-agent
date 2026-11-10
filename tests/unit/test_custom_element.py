@@ -53,6 +53,12 @@ def test_the_template_passes_its_own_checks() -> None:
         ("const m = require('fs');", "require()"),
         ("const u = 'https://example.com/a.png';", "uses a URL"),
         ("const s = localStorage.getItem('a');", "browser storage"),
+        ("const x = Math.random();", "Math.random"),
+        ("const t = Date.now();", "the clock"),
+        ("const t = performance.now();", "the clock"),
+        ("const d = new Date();", "the clock"),
+        ("setTimeout(() => null, 10);", "a timer"),
+        ("const id = setInterval(tick, 10);", "a timer"),
     ],
 )
 def test_a_component_may_only_draw(line: str, found: str) -> None:
@@ -125,6 +131,7 @@ def test_a_failing_component_is_left_out_and_the_rest_kept(tmp_path: Path) -> No
     assert [e.component for e in kept.elements] == ["good"]
 
 
+@pytest.mark.remotion
 @pytest.mark.skipif(not HAS_TSC, reason="TypeScript and React types not installed")
 def test_tsc_checks_a_component_against_the_props_it_is_given(tmp_path: Path) -> None:
     _write(tmp_path, "good", TEMPLATE)

@@ -65,6 +65,12 @@ FORBIDDEN = (
     (re.compile(r"\b(localStorage|sessionStorage|indexedDB)\b"), "browser storage"),
     (re.compile(r"\bdangerouslySetInnerHTML\b"), "dangerouslySetInnerHTML"),
     (re.compile(r"https?:|//[a-z0-9.-]+\.[a-z]{2,}/", re.IGNORECASE), "a URL"),
+    # A frame is a function of its number: the same frame drawn twice, or on
+    # two render tabs, has to be the same picture.
+    (re.compile(r"\bMath\s*\.\s*random\b"), "Math.random (use Remotion's seeded random())"),
+    (re.compile(r"\b(Date\s*\.\s*now|performance\s*\.\s*now)\b"), "the clock"),
+    (re.compile(r"\bnew\s+Date\s*\(\s*\)"), "the clock"),
+    (re.compile(r"\b(setTimeout|setInterval|requestAnimationFrame)\b"), "a timer"),
 )
 _IMPORT = re.compile(
     r"^\s*import\s+(?P<type>type\s+)?(?P<what>[^'\";]+?)\s+from\s+['\"](?P<module>[^'\"]+)['\"]",
@@ -341,7 +347,7 @@ def preview_component(workspace, plan: MotionPlan, element, *, video: Path | Non
         ["-y", "-v", "error", "-ss", f"{begin:.3f}", "-to", f"{element.end:.3f}",
          "-i", str(source), "-c:v", "libx264", "-pix_fmt", "yuv420p",
          "-c:a", "aac", "-ar", "48000", "-ac", "2", str(clip)],
-        desc="cut the custom element's range",
+        desc="cut the custom element's range", timeout=1800,
     )  # fmt: skip
     info = probe(clip)
     if info.video is None:

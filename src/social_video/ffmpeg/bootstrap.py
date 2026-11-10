@@ -8,7 +8,6 @@ licensing mistake.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import platform
 import shutil
@@ -20,6 +19,7 @@ import zipfile
 from pathlib import Path
 
 from social_video.errors import SocialVideoError
+from social_video.fsutil import sha256_file
 from social_video.paths import ensure_dir, tools_dir
 
 log = logging.getLogger(__name__)
@@ -125,7 +125,13 @@ def _extract(archive: Path, dest: Path) -> None:
             _guard_members(
                 [member.linkname for member in members if member.issym() or member.islnk()]
             )
-            tf.extractall(dest)
+            # The names were checked above; where this Python has extraction
+            # filters, "data" also refuses devices, setuid bits and links that
+            # leave the destination.
+            if hasattr(tarfile, "data_filter"):
+                tf.extractall(dest, filter="data")
+            else:  # pragma: no cover - Python older than 3.10.12 / 3.11.4
+                tf.extractall(dest)
 
 
 def _verify_checksum(archive: Path, checksums: Path) -> None:
@@ -138,11 +144,7 @@ def _verify_checksum(archive: Path, checksums: Path) -> None:
             break
     if not expected or len(expected) != 64:
         raise SocialVideoError(f"no SHA-256 entry found for {archive.name}")
-    digest = hashlib.sha256()
-    with archive.open("rb") as source:
-        while chunk := source.read(1 << 20):
-            digest.update(chunk)
-    if digest.hexdigest() != expected:
+    if sha256_file(archive) != expected:
         raise SocialVideoError(f"SHA-256 verification failed for {archive.name}")
 
 

@@ -12,18 +12,16 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 from fractions import Fraction
 from pathlib import Path
 from typing import Literal, cast
 
 import numpy as np
 
-from social_video.errors import ValidationError
+from social_video.errors import FFmpegError, ValidationError
 from social_video.ffmpeg.probe import probe
-from social_video.ffmpeg.run import find_binary, run_ffmpeg
-from social_video.fsutil import atomic_target, atomic_write_bytes, utc_timestamp
-from social_video.imaging import sha256_file
+from social_video.ffmpeg.run import run_ffmpeg, run_ffmpeg_bytes
+from social_video.fsutil import atomic_target, atomic_write_bytes, sha256_file, utc_timestamp
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.config import BrandContract
 from social_video.schemas.edl import EDL, Overlay, OverlayKind
@@ -282,7 +280,7 @@ def import_film(
                  "-t", f"{scene.duration:.6f}", "-map", "0:v:0", "-an",
                  "-vf", f"fps={rate},format=yuv420p", "-c:v", "libx264", "-crf", "16",
                  "-preset", "medium", "-movflags", "+faststart", "-f", "mp4", str(temporary)],
-                desc=f"cut Motion scene {scene.id}",
+                desc=f"cut Motion scene {scene.id}", timeout=1800,
             )  # fmt: skip
         cut = probe(target)
         if cut.video is None or cut.duration + frame < scene.duration:
@@ -460,15 +458,17 @@ def palette_share(
     shares = []
     for index in range(samples):
         at = info.duration * (index + 0.5) / samples
-        proc = subprocess.run(
-            [find_binary("ffmpeg"), "-hide_banner", "-nostdin", "-v", "error",
-             "-ss", f"{at:.3f}", "-i", str(path), "-frames:v", "1",
-             "-vf", "scale=64:-2:flags=area", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
-            capture_output=True, check=False, timeout=120,
-        )  # fmt: skip
-        if proc.returncode != 0 or not proc.stdout:
+        try:
+            raw = run_ffmpeg_bytes(
+                ["-v", "error", "-ss", f"{at:.3f}", "-i", str(path), "-frames:v", "1",
+                 "-vf", "scale=64:-2:flags=area", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                desc=f"sample {path.name}", timeout=120,
+            )  # fmt: skip
+        except FFmpegError:
             continue
-        pixels = np.frombuffer(proc.stdout, dtype=np.uint8).reshape(-1, 3).astype(float)
+        if not raw:
+            continue
+        pixels = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 3).astype(float)
         nearest = np.min(np.linalg.norm(pixels[:, None, :] - palette[None, :, :], axis=2), axis=1)
         shares.append(float(np.mean(nearest <= tolerance)))
     return round(float(np.mean(shares)), 3) if shares else 0.0

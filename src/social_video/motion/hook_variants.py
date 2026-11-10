@@ -24,7 +24,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import subprocess
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -406,16 +405,18 @@ def shift_plan(plan: MotionPlan, *, old_first: float, new_first: float) -> Motio
 
 def audio_sha256(video: Path) -> str | None:
     """Hash of the decoded first audio stream; None when there is none."""
-    from social_video.ffmpeg.run import find_binary
+    from social_video.errors import FFmpegError
+    from social_video.ffmpeg.run import run_ffmpeg_bytes
 
-    done = subprocess.run(
-        [find_binary("ffmpeg"), "-v", "error", "-nostdin", "-i", str(video), "-map", "0:a:0",
-         "-f", "s16le", "-ac", "2", "-ar", "48000", "-"],
-        check=False, capture_output=True, timeout=600,
-    )  # fmt: skip
-    if done.returncode != 0 or not done.stdout:
+    try:
+        raw = run_ffmpeg_bytes(
+            ["-v", "error", "-i", str(video), "-map", "0:a:0",
+             "-f", "s16le", "-ac", "2", "-ar", "48000", "-"],
+            desc=f"decode the sound of {video.name}", timeout=600,
+        )  # fmt: skip
+    except FFmpegError:
         return None
-    return hashlib.sha256(done.stdout).hexdigest()
+    return hashlib.sha256(raw).hexdigest() if raw else None
 
 
 def head_of(edl: EDL, plan: MotionPlan | None, seconds: float) -> tuple[EDL, MotionPlan | None]:

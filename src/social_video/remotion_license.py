@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from social_video.compatibility import component_versions
+from social_video.compatibility import component_versions, release_line
 from social_video.errors import RemotionLicenseError, ValidationError
 from social_video.fsutil import utc_timestamp
 from social_video.schemas.base import load_artifact, save_artifact
@@ -107,7 +107,7 @@ def _evaluate(path: Path, declaration: RemotionLicenseDeclaration) -> Declaratio
         )
     current = component_versions().get("cli", "")
     declared = declaration.component_versions.get("cli", "")
-    if _release_line(declared) != _release_line(current):
+    if release_line(declared) != release_line(current):
         return DeclarationStatus(
             path,
             "stale_release",
@@ -136,12 +136,6 @@ def _evaluate(path: Path, declaration: RemotionLicenseDeclaration) -> Declaratio
         f"{declaration.attestation.value} declared on {declaration.declared_at}",
         declaration,
     )
-
-
-def read_declaration(project_root: str | Path) -> RemotionLicenseDeclaration | None:
-    """Return the stored declaration only when a workflow may rely on it."""
-    status = declaration_status(project_root)
-    return status.declaration if status.usable else None
 
 
 def attest(
@@ -293,10 +287,6 @@ def _parse(value: RemotionLicenseAttestation | str) -> RemotionLicenseAttestatio
             f"{value!r} is not a Remotion license declaration; use one of: {_CHOICES}. "
             "No other value is accepted, and eligibility is never inferred."
         ) from exc
-
-
-def _release_line(version: str) -> str:
-    return ".".join(version.split(".")[:2])
 
 
 def _age_days(declared_at: str) -> int | None:

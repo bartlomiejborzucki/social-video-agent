@@ -27,7 +27,7 @@ from social_video.edl.loudness import loudnorm_filter, measure_loudness
 from social_video.edl.timeline import Timeline
 from social_video.edl.validate import validate_edl
 from social_video.edl.voice import NO_CLEANUP, VoiceCleanup, measure_voice, plan_cleanup
-from social_video.errors import ValidationError
+from social_video.errors import CapabilityError, ValidationError
 from social_video.ffmpeg.filters import (
     LOUDNORM_I,
     TONEMAP_CHAIN,
@@ -714,10 +714,13 @@ def render_edl(
     rate = float(Fraction(fps))
 
     if caption_file is not None and not has_libass():
-        log.warning(
-            "this ffmpeg has no libass, so captions cannot be burned in; rendering without them"
+        # Rendering on without them would publish a video the manifest and
+        # brand QA both describe as captioned.
+        raise CapabilityError(
+            "this ffmpeg has no libass, so it cannot burn in the captions this render asks "
+            "for. Run `social-video-agent doctor --install-ffmpeg` (or install an ffmpeg "
+            "built with libass), or render without captions on purpose."
         )
-        caption_file = None
 
     inputs, render_ranges, next_input = _collect_inputs(
         edl, manifest, video_infos, frame_counts, rate
@@ -782,7 +785,6 @@ def render_edl(
     )
     try:
         run_ffmpeg(args, desc=f"render {output.name}", timeout=14400)
-        rendered = probe(staged)
         run_ffmpeg(
             ["-v", "error", "-i", str(staged), "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"],
             desc=f"decode validation for {output.name}",
@@ -1054,7 +1056,3 @@ def _quick_silence_check(inputs: list[str], audio_graph: str, audio_label: str):
 def expected_duration(edl: EDL) -> float:
     """What the output should be, for QA to compare against."""
     return Timeline(edl).duration
-
-
-def fps_float(rate: str) -> float:
-    return float(Fraction(rate))

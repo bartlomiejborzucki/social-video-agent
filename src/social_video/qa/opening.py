@@ -16,17 +16,18 @@ from frame 0. This module makes that a rule:
 
 from __future__ import annotations
 
+import contextlib
 import re
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 from pydantic import Field
 
-from social_video.errors import ValidationError
+from social_video.errors import FFmpegError, ValidationError
 from social_video.ffmpeg.probe import probe
-from social_video.ffmpeg.run import find_binary
+from social_video.ffmpeg.run import run_ffmpeg, run_ffmpeg_bytes
+from social_video.fsutil import atomic_write_text
 from social_video.schemas.base import Artifact, save_artifact
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.config import OpeningPolicy
@@ -234,11 +235,12 @@ def first_frame(video: Path, still: Path | None = None) -> tuple[bool, str]:
         return False, "the file has no picture"
     if still is not None:
         still.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
-            [find_binary("ffmpeg"), "-v", "error", "-y", "-i", str(video), "-frames:v", "1",
-             str(still)],
-            check=False, timeout=120,
-        )  # fmt: skip
+        # The still is an illustration for the report; the verdict is measured below.
+        with contextlib.suppress(FFmpegError):
+            run_ffmpeg(
+                ["-v", "error", "-y", "-i", str(video), "-frames:v", "1", str(still)],
+                desc=f"save frame 0 of {video.name}", timeout=120,
+            )  # fmt: skip
     zero = _pixels(video, 0.0)
     later = _pixels(video, min(STILL_PROBE, max(0.0, info.duration - 0.05)))
     if zero is None:
@@ -266,14 +268,16 @@ def leading_silence(video: Path, *, window: float = 3.0) -> float:
     info = probe(video)
     if not info.has_audio:
         return round(min(window, info.duration), 3)
-    proc = subprocess.run(
-        [find_binary("ffmpeg"), "-hide_banner", "-nostdin", "-t", f"{window:.3f}", "-i", str(video),
-         "-map", "0:a:0", "-af", f"silencedetect=noise={SILENCE_FLOOR_DB}dB:d=0.05",
-         "-f", "null", "-"],
-        capture_output=True, text=True, check=False, timeout=120,
-    )  # fmt: skip
-    starts = [float(m) for m in _SILENCE_START.findall(proc.stderr)]
-    ends = [float(m) for m in _SILENCE_END.findall(proc.stderr)]
+    try:
+        heard = run_ffmpeg(
+            ["-t", f"{window:.3f}", "-i", str(video), "-map", "0:a:0",
+             "-af", f"silencedetect=noise={SILENCE_FLOOR_DB}dB:d=0.05", "-f", "null", "-"],
+            desc=f"measure the opening silence of {video.name}", timeout=120,
+        )  # fmt: skip
+    except FFmpegError as exc:
+        heard = exc.stderr
+    starts = [float(m) for m in _SILENCE_START.findall(heard)]
+    ends = [float(m) for m in _SILENCE_END.findall(heard)]
     if not starts or starts[0] > 0.02:
         return 0.0
     return round(ends[0] if ends else min(window, info.duration), 3)
@@ -350,7 +354,7 @@ def check_opening(
     )
     if analysis_dir is not None:
         save_artifact(report, analysis_dir / "opening-qa.json")
-        (analysis_dir / "opening-qa.md").write_text(render_report(report), encoding="utf-8")
+        atomic_write_text(analysis_dir / "opening-qa.md", render_report(report))
     return report
 
 
@@ -438,15 +442,17 @@ def _variant(issues: list[str]) -> str:
 
 
 def _pixels(video: Path, at: float) -> np.ndarray | None:
-    proc = subprocess.run(
-        [find_binary("ffmpeg"), "-hide_banner", "-nostdin", "-v", "error", "-ss", f"{at:.3f}",
-         "-i", str(video), "-frames:v", "1", "-vf", "scale=96:-2:flags=area",
-         "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
-        capture_output=True, check=False, timeout=120,
-    )  # fmt: skip
-    if proc.returncode != 0 or not proc.stdout:
+    try:
+        raw = run_ffmpeg_bytes(
+            ["-v", "error", "-ss", f"{at:.3f}", "-i", str(video), "-frames:v", "1",
+             "-vf", "scale=96:-2:flags=area", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+            desc=f"read a frame of {video.name}", timeout=120,
+        )  # fmt: skip
+    except FFmpegError:
         return None
-    return np.frombuffer(proc.stdout, dtype=np.uint8).reshape(-1, 3).astype(float)
+    if not raw:
+        return None
+    return np.frombuffer(raw, dtype=np.uint8).reshape(-1, 3).astype(float)
 
 
 def _still_clip(path: Path) -> bool:

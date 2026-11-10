@@ -49,11 +49,30 @@ def validate_component_versions(
     return versions
 
 
+def release_line(version: str) -> str:
+    """The ``major.minor`` a version belongs to; patch releases share one line."""
+    return ".".join(version.split(".")[:2])
+
+
 def validate_saved_versions(saved: dict[str, str]) -> None:
+    """Refuse a workspace started on another release line.
+
+    A patch release only fixes, so a workspace started on 2.10.0 resumes on
+    2.10.1. A minor release may change what the stages write, and the schema
+    version is exact by definition.
+    """
     current = validate_component_versions()
     for key in ("cli", "skill", "plugin", "schema"):
-        if key in saved and key in current and saved[key] != current[key]:
+        if key not in saved or key not in current:
+            continue
+        same = (
+            saved[key] == current[key]
+            if key == "schema"
+            else release_line(saved[key]) == release_line(current[key])
+        )
+        if not same:
             raise ValidationError(
                 f"workflow was created with {key}={saved[key]}, but the active component is "
-                f"{current[key]}. Run bootstrap/update and migrate or recreate this workspace."
+                f"{current[key]}. Start a new workspace with `social-video-agent workflow init`, "
+                f"or install the {release_line(saved[key])} release to finish this one."
             )

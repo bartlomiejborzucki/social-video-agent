@@ -57,6 +57,7 @@ def emoji_font() -> EmojiFont | None:
         capture_output=True,
         text=True,
         check=False,
+        timeout=30,
     )
     family, _, file = proc.stdout.partition("\n")
     path = Path(file.strip())

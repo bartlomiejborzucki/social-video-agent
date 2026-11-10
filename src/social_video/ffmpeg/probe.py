@@ -7,7 +7,6 @@ caching, so a 40-cut edit drawn from one file pays for 80 subprocesses.
 
 from __future__ import annotations
 
-import argparse
 import functools
 import re
 from dataclasses import dataclass
@@ -15,7 +14,6 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
-from social_video.errors import FFmpegError
 from social_video.ffmpeg.filters import HDR_TRANSFERS
 from social_video.ffmpeg.run import run_ffprobe_json
 from social_video.paths import normalize_user_path
@@ -120,14 +118,6 @@ def parse_fps(value: str) -> str:
     if rate.numerator > max_component or rate.denominator > max_component:
         raise ValueError(f"frame rate {value!r} precision or magnitude is too large")
     return f"{rate.numerator}/{rate.denominator}"
-
-
-def parse_fps_arg(value: str) -> str:
-    """argparse/typer-friendly wrapper around :func:`parse_fps`."""
-    try:
-        return parse_fps(value)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
 def _normalise_rotation(stream: dict[str, Any]) -> int:
@@ -296,19 +286,6 @@ def resolve_output_fps(sources: list[MediaInfo], override: str | None = None) ->
         return "60000/1001" if all(abs(float(rate - ntsc60)) < 0.02 for rate in high) else "60/1"
     ntsc30 = Fraction(30000, 1001)
     return "30000/1001" if all(abs(float(rate - ntsc30)) < 0.02 for rate in parsed) else "30/1"
-
-
-def probe_audio_track_count(path: str | Path) -> int:
-    """How many audio tracks a source carries.
-
-    Multi-track sources are common: OBS records desktop audio on track 0 and
-    the microphone on track 1, so transcribing track 0 by default silently
-    transcribes game audio.
-    """
-    try:
-        return len(probe(path).audio)
-    except (FFmpegError, FileNotFoundError):
-        return 0
 
 
 def frame_aligned_duration(duration: float, frame_rate: str) -> float:

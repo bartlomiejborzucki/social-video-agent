@@ -25,7 +25,7 @@ from pathlib import Path
 from pydantic import Field, field_validator
 
 from social_video.errors import ValidationError
-from social_video.imaging import sha256_file
+from social_video.fsutil import sha256_file
 from social_video.schemas.base import Artifact
 from social_video.schemas.motion import ElementPosition, MotionElement, MotionElementType
 

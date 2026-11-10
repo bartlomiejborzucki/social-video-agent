@@ -7,14 +7,12 @@ and makes them reproducible without a browser.
 
 from __future__ import annotations
 
-import hashlib
-import subprocess
 from pathlib import Path
 
 from PIL import Image
 
 from social_video.errors import ValidationError
-from social_video.ffmpeg.run import find_binary
+from social_video.ffmpeg.run import run_ffmpeg
 
 #: What we accept as a background plate or logo.
 SUPPORTED_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
@@ -57,14 +55,6 @@ def cover_crop(image: Image.Image, width: int, height: int) -> Image.Image:
     return scaled.crop((left, top, left + width, top + height))
 
 
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def contact_sheet(
     video: Path,
     moments: list[tuple[float, str]],
@@ -88,10 +78,10 @@ def contact_sheet(
     try:
         for index, (at, label) in enumerate(moments):
             still = work / f"{index:03d}.png"
-            subprocess.run(
-                [find_binary("ffmpeg"), "-v", "error", "-y", "-ss", f"{at:.3f}", "-i", str(video),
+            run_ffmpeg(
+                ["-v", "error", "-y", "-ss", f"{at:.3f}", "-i", str(video),
                  "-frames:v", "1", "-vf", f"scale={tile_width}:-2", str(still)],
-                check=True, timeout=120,
+                desc=f"frame at {at:.2f}s for {output.name}", timeout=120,
             )  # fmt: skip
             with Image.open(still) as image:
                 tile = image.convert("RGB")

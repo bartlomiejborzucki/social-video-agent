@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, TypeVar
 from uuid import uuid4
@@ -63,8 +64,12 @@ def save_artifacts_atomically(items: dict[Path, Artifact]) -> None:
         for path, artifact in items.items():
             path.parent.mkdir(parents=True, exist_ok=True)
             temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
-            temporary.write_text(artifact.to_json(), encoding="utf-8")
             staged[path] = temporary
+            temporary.write_text(artifact.to_json(), encoding="utf-8")
+            # Flushed before it is renamed, as `atomic_target` does: a rename
+            # can otherwise outlive the data and publish an empty file.
+            with temporary.open("r+b") as handle:
+                os.fsync(handle.fileno())
             originals[path] = path.read_bytes() if path.is_file() else None
         published: list[Path] = []
         try:

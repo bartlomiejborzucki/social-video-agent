@@ -22,13 +22,13 @@ scoring here without changing this module's interface.
 from __future__ import annotations
 
 import logging
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
-from social_video.ffmpeg.run import find_binary
+from social_video.errors import FFmpegError
+from social_video.ffmpeg.run import run_ffmpeg_bytes
 from social_video.reframe.detect import Face, FrameFaces
 
 log = logging.getLogger(__name__)
@@ -108,9 +108,6 @@ def speech_envelope(audio_source: Path, times: list[float], *, window: float = 0
         return []
     start, stop = times[0], times[-1] + window
     argv = [
-        find_binary("ffmpeg"),
-        "-hide_banner",
-        "-nostdin",
         "-v",
         "error",
         "-ss",
@@ -129,11 +126,14 @@ def speech_envelope(audio_source: Path, times: list[float], *, window: float = 0
         "16000",
         "-",
     ]
-    proc = subprocess.run(argv, capture_output=True, check=False, timeout=1800)
-    if proc.returncode != 0 or not proc.stdout:
+    try:
+        raw = run_ffmpeg_bytes(argv, desc="decode speech for speaker framing", timeout=1800)
+    except FFmpegError:
+        raw = b""
+    if not raw:
         log.debug("could not read audio for speaker detection")
         return [0.0] * len(times)
-    signal = np.frombuffer(proc.stdout, dtype=np.int16).astype(np.float32) / 32768.0
+    signal = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
     rate = 16000
     energies: list[float] = []
     for t in times:

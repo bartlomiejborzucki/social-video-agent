@@ -7,12 +7,12 @@ over a pause.
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import numpy as np
 
-from social_video.ffmpeg.run import find_binary
+from social_video.errors import FFmpegError
+from social_video.ffmpeg.run import run_ffmpeg_bytes
 
 RATE = 16000
 FRAME = 0.01
@@ -22,15 +22,15 @@ MIN_RUN = 3
 
 def decode_mono(path: Path, *, track: int = 0, start: float = 0.0, end: float | None = None):
     """Mono float samples at ``RATE`` of one audio track, optionally a span of it."""
-    argv = [find_binary("ffmpeg"), "-v", "error", "-nostdin"]
+    argv = ["-v", "error"]
     if start > 0:
         argv += ["-ss", f"{start:.3f}"]
     if end is not None:
         argv += ["-t", f"{max(FRAME, end - start):.3f}"]
     argv += ["-i", str(path), "-map", f"0:a:{track}", "-ac", "1", "-ar", str(RATE)]
     argv += ["-f", "f32le", "-"]
-    proc = subprocess.run(argv, capture_output=True, check=True)
-    return np.frombuffer(proc.stdout, dtype=np.float32)
+    raw = run_ffmpeg_bytes(argv, desc=f"decode the sound of {path.name}", timeout=1800)
+    return np.frombuffer(raw, dtype=np.float32)
 
 
 def envelope_db(signal: np.ndarray, rate: int = RATE) -> np.ndarray:
@@ -97,5 +97,5 @@ def recording_quiet_spans(path: Path, *, track: int = 0) -> list[tuple[float, fl
     """Quiet stretches of a whole recording, or None when it cannot be decoded."""
     try:
         return quiet_spans(decode_mono(path, track=track))
-    except (subprocess.CalledProcessError, OSError):
+    except (FFmpegError, OSError):
         return None

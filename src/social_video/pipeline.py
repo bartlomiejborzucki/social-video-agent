@@ -32,7 +32,7 @@ from social_video.edl.timeline import Timeline
 from social_video.errors import ValidationError
 from social_video.ffmpeg.fonts import default_caption_font
 from social_video.ffmpeg.probe import probe
-from social_video.fsutil import utc_timestamp
+from social_video.fsutil import atomic_write_text, utc_timestamp
 from social_video.profiles import load_brand, load_profile
 from social_video.qa.checks import check_render
 from social_video.qa.contact_sheet import boundary_sheets, contact_sheet
@@ -70,14 +70,18 @@ def record_stage(workspace: Workspace, stage: str, detail: dict | None = None) -
     if workspace.state.is_file():
         try:
             state = json.loads(workspace.state.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError) as exc:
+            log.warning(
+                "%s could not be read (%s); the record of finished stages starts again",
+                workspace.state,
+                exc,
+            )
             state = {}
     state[stage] = {
         "at": utc_timestamp(),
         **(detail or {}),
     }
-    workspace.state.parent.mkdir(parents=True, exist_ok=True)
-    workspace.state.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+    atomic_write_text(workspace.state, json.dumps(state, indent=2, ensure_ascii=False))
 
 
 def stage_ingest(
@@ -128,9 +132,9 @@ def stage_transcribe(
 
     quiet = recording_quiet_spans(source, track=options.audio_track)
     quality = assess_transcript(transcript, requested_language=options.language, quiet=quiet)
-    workspace.analysis.mkdir(parents=True, exist_ok=True)
-    (workspace.analysis / f"{transcript.source_id}.transcript-quality.json").write_text(
-        json.dumps(quality.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
+    atomic_write_text(
+        workspace.analysis / f"{transcript.source_id}.transcript-quality.json",
+        json.dumps(quality.to_dict(), indent=2, ensure_ascii=False),
     )
     record_stage(
         workspace,
@@ -175,13 +179,12 @@ def stage_analyze(source: Path, workspace: Workspace) -> list[float]:
     """Scene detection. Informs framing and cut placement; decides nothing."""
     scenes = detect_scenes(source)
     cuts = scene_cut_times(scenes)
-    workspace.analysis.mkdir(parents=True, exist_ok=True)
-    (workspace.analysis / f"{source.stem}.scenes.json").write_text(
+    atomic_write_text(
+        workspace.analysis / f"{source.stem}.scenes.json",
         json.dumps(
             {"scenes": [{"start": s, "end": e} for s, e in scenes], "cuts": cuts},
             indent=2,
         ),
-        encoding="utf-8",
     )
     record_stage(workspace, "analyze", {"scenes": len(scenes)})
     return cuts

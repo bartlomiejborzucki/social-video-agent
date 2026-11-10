@@ -309,6 +309,38 @@ def test_version_1_state_gets_provider_recommendations_on_resume(tmp_path: Path)
     }
 
 
+def _saved_as(workspace: Workspace, version: str) -> None:
+    payload = json.loads(workspace.workflow_state.read_text(encoding="utf-8"))
+    payload["component_versions"] = {
+        **payload["component_versions"],
+        "cli": version,
+        "skill": version,
+        "plugin": version,
+    }
+    workspace.workflow_state.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_a_workspace_resumes_after_a_patch_release(tmp_path: Path) -> None:
+    from social_video import __version__
+
+    _, _, workspace, _ = _setup(tmp_path)
+    major, minor, _patch = __version__.split(".")[:3]
+    _saved_as(workspace, f"{major}.{minor}.999")
+
+    assert load_workflow(workspace).workspace
+
+
+def test_a_workspace_from_another_release_line_is_refused(tmp_path: Path) -> None:
+    from social_video import __version__
+
+    _, _, workspace, _ = _setup(tmp_path)
+    major, minor = __version__.split(".")[:2]
+    _saved_as(workspace, f"{major}.{int(minor) + 1}.0")
+
+    with pytest.raises(ValidationError, match="workflow init"):
+        load_workflow(workspace)
+
+
 def test_failed_technical_qa_blocks_stage_handoff(tmp_path: Path) -> None:
     _, _, workspace, _ = _setup(tmp_path)
     _write_stage_1(workspace)

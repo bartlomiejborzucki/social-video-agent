@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from social_video import __version__
-from social_video.fsutil import utc_timestamp
+from social_video.fsutil import atomic_write_text, utc_timestamp
 from social_video.paths import app_home
 
 log = logging.getLogger(__name__)
@@ -159,7 +159,7 @@ def _megapixels(width: int, height: int) -> float:
 def _trim(path: Path) -> None:
     lines = path.read_text(encoding="utf-8").splitlines()
     if len(lines) > 2 * KEEP:
-        path.write_text("\n".join(lines[-KEEP:]) + "\n", encoding="utf-8")
+        atomic_write_text(path, "\n".join(lines[-KEEP:]) + "\n")
 
 
 def _clock(seconds: float) -> str:

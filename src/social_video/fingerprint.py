@@ -37,8 +37,10 @@ def file_fingerprint(path: str | Path) -> str:
     h.update(str(size).encode())
     with p.open("rb") as f:
         h.update(f.read(_CHUNK))
-        if size > _CHUNK * 2:
-            f.seek(-_CHUNK, 2)
+        if size > _CHUNK:
+            # Never re-read the head: a file between one and two chunks hashes
+            # whatever follows the first, a longer one its last chunk.
+            f.seek(max(_CHUNK, size - _CHUNK))
             h.update(f.read(_CHUNK))
     return h.hexdigest()
 

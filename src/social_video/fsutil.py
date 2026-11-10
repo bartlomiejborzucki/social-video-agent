@@ -49,6 +49,30 @@ def atomic_write_bytes(target: Path, data: bytes) -> Path:
     return target
 
 
+def atomic_write_text(target: Path, text: str, *, newline: str | None = None) -> Path:
+    """Write ``text`` as UTF-8; ``target`` is never seen truncated or half-written.
+
+    ``newline`` is :func:`open`'s: ``""`` keeps the line endings the text has.
+    """
+    with (
+        atomic_target(target) as partial,
+        partial.open("w", encoding="utf-8", newline=newline) as handle,
+    ):
+        handle.write(text)
+    return target
+
+
+def sha256_file(path: Path) -> str:
+    """The SHA-256 of a file's content, read in chunks so its size does not matter."""
+    import hashlib
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def utc_timestamp() -> str:
     """Now, in UTC, as the ISO-8601 seconds-precision string every artifact uses."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")

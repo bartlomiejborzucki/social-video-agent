@@ -15,7 +15,7 @@ import yaml
 
 from social_video.errors import ValidationError
 from social_video.fingerprint import file_fingerprint
-from social_video.fsutil import utc_timestamp
+from social_video.fsutil import atomic_write_text, utc_timestamp
 from social_video.schemas.base import load_artifact, save_artifact
 from social_video.schemas.project_context import (
     ContextClaim,
@@ -202,9 +202,11 @@ def discover_project_context(
             return cached, cached_sources
 
     context = _build_context(root, sources)
-    save_artifact(sources, workspace.context_sources)
+    # The sources file is the cache key, so it goes last: a run that stops
+    # half-way must not leave a key that vouches for an older context.
     save_artifact(context, workspace.project_context)
-    workspace.project_context_summary.write_text(_to_markdown(context, sources), encoding="utf-8")
+    atomic_write_text(workspace.project_context_summary, _to_markdown(context, sources))
+    save_artifact(sources, workspace.context_sources)
     return context, sources
 
 

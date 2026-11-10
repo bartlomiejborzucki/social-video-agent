@@ -30,7 +30,7 @@ app.add_typer(image_app, name="image")
 app.add_typer(shorts_app, name="shorts")
 app.add_typer(cuts_app, name="cuts")
 motion_app = typer.Typer(
-    help="Propose accents (hook card, figures, steps, punch-ins, transitions) and sound under them."
+    help="Propose accents (figures, steps, punch-ins, transitions) and put sound under them."
 )
 app.add_typer(motion_app, name="motion")
 film_app = typer.Typer(

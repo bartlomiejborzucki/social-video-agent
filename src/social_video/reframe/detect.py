@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from social_video.errors import SocialVideoError
+from social_video.fsutil import atomic_write_bytes
 from social_video.paths import ensure_dir, models_dir
 
 log = logging.getLogger(__name__)
@@ -106,8 +107,8 @@ def ensure_model() -> Path:
             f"Download {_MODEL_NAME} another way and set {MODEL_ENV} to its path, or put it "
             f"at {path}. Reframing can still run with --reframe center, which needs no model."
         ) from exc
-    path.write_bytes(data)
-    return path
+    # Atomic: a truncated model would load as a corrupt network next time.
+    return atomic_write_bytes(path, data)
 
 
 def detect_faces(

@@ -12,13 +12,12 @@ The downloaded file then becomes an ordinary immutable source.
 
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 from pathlib import Path
 
 from social_video.errors import SocialVideoError, ToolNotFoundError, ValidationError
 from social_video.ffmpeg.run import find_binary
-from social_video.fsutil import utc_timestamp
+from social_video.fsutil import sha256_file, utc_timestamp
 from social_video.schemas.base import save_artifact
 from social_video.schemas.source import SourceProvenance
 
@@ -82,16 +81,8 @@ def fetch_url(url: str, directory: Path, *, rights_statement: str) -> tuple[Path
         uploader=str(info.get("uploader") or ""),
         license=info.get("license"),
         downloaded_at=utc_timestamp(),
-        sha256=_sha256(path),
+        sha256=sha256_file(path),
         rights_statement=statement,
     )
     save_artifact(record, provenance_path(path))
     return path, record
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()

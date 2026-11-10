@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from social_video.captions.emphasis import emphasis_keys, is_emphasised
+from social_video.fsutil import atomic_write_text
 from social_video.schemas.brand import CaptionPosition, CaptionStyle
 from social_video.schemas.captions import CaptionTrack
 from social_video.schemas.motion import MotionElement
@@ -56,10 +57,13 @@ def hex_to_ass_colour(value: str, alpha: int = 0) -> str:
 
 def format_timestamp(seconds: float) -> str:
     """ASS timestamps are ``H:MM:SS.cc`` with exactly two decimal places."""
-    seconds = max(0.0, seconds)
-    hours, rest = divmod(seconds, 3600)
-    minutes, secs = divmod(rest, 60)
-    return f"{int(hours)}:{int(minutes):02d}:{secs:05.2f}"
+    # Whole centiseconds first, so rounding carries into the minute and the
+    # hour instead of printing a 60th second.
+    total = round(max(0.0, seconds) * 100)
+    rest, centis = divmod(total, 100)
+    rest, secs = divmod(rest, 60)
+    hours, minutes = divmod(rest, 60)
+    return f"{hours}:{minutes:02d}:{secs:02d}.{centis:02d}"
 
 
 def escape_text(text: str) -> str:
@@ -211,10 +215,8 @@ def write_ass(
     font_name: str | None = None,
 ) -> Path:
     """Write an ASS file as UTF-8, which is the only encoding libass accepts."""
-    path.parent.mkdir(parents=True, exist_ok=True)
     document = render_ass(track, style, width=width, height=height, font_name=font_name)
-    path.write_text(document, encoding="utf-8")
-    return path
+    return atomic_write_text(path, document)
 
 
 #: A cubic Bezier quarter circle: control points sit this fraction of the

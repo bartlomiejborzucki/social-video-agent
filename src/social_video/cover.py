@@ -20,8 +20,8 @@ from PIL import Image, ImageDraw, ImageFont
 from social_video.errors import ValidationError
 from social_video.ffmpeg.fonts import default_caption_font, font_covers
 from social_video.ffmpeg.run import run_ffmpeg
-from social_video.fsutil import atomic_target, utc_timestamp
-from social_video.imaging import cover_crop, load_image, sha256_file
+from social_video.fsutil import atomic_target, sha256_file, utc_timestamp
+from social_video.imaging import cover_crop, load_image
 from social_video.schemas.config import BrandContract
 from social_video.schemas.visuals import CoverDesign
 

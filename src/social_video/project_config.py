@@ -12,6 +12,7 @@ import yaml
 
 from social_video.config_migration import migrate_project_config
 from social_video.errors import ValidationError
+from social_video.fsutil import atomic_write_text
 from social_video.paths import normalize_user_path
 from social_video.schemas.base import save_artifact
 from social_video.schemas.brand import BrandProfile, CaptionCase, CaptionPosition, CaptionStyle
@@ -163,8 +164,8 @@ def init_project_config(
         ProjectVideoConfig.model_validate(yaml.safe_load(text) or {})
     except ValueError as exc:
         raise ValidationError(f"these choices do not make a valid config: {exc}") from exc
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(text, encoding="utf-8")
+    # The file the user edits by hand: never leave it truncated.
+    atomic_write_text(target, text)
     return target
 
 

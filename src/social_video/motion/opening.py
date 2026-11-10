@@ -10,12 +10,11 @@ when nothing is said before the new in-point.
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import numpy as np
 
-from social_video.ffmpeg.run import find_binary
+from social_video.ffmpeg.run import run_ffmpeg_bytes
 from social_video.schemas.edl import EDL
 from social_video.schemas.motion import RangeStart
 from social_video.schemas.source import SourceManifest
@@ -30,13 +29,14 @@ STILL = 3.0
 def picture_change(video: Path, start: float, window: float = WINDOW) -> list[tuple[float, float]]:
     """(source time, change to the next sample) across ``window`` seconds."""
     width, height = 48, 84
-    proc = subprocess.run(
-        [find_binary("ffmpeg"), "-v", "error", "-nostdin", "-ss", f"{start:.3f}", "-t",
-         f"{window:.3f}", "-i", str(video), "-vf",
+    # A decode that fails raises: an empty buffer would read as a still picture.
+    raw = run_ffmpeg_bytes(
+        ["-v", "error", "-ss", f"{start:.3f}", "-t", f"{window:.3f}", "-i", str(video), "-vf",
          f"fps={RATE},scale={width}:{height}:flags=area,format=gray", "-f", "rawvideo", "-"],
-        capture_output=True, check=False,
+        desc=f"measure the opening picture of {video.name}",
+        timeout=300,
     )  # fmt: skip
-    data = np.frombuffer(proc.stdout, dtype=np.uint8)
+    data = np.frombuffer(raw, dtype=np.uint8)
     frames = data[: len(data) // (width * height) * width * height].reshape(-1, height, width)
     frames = frames.astype(np.float32)
     return [

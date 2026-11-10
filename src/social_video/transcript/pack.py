@@ -24,6 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from social_video.fsutil import atomic_write_text
 from social_video.schemas.transcript import TokenType, Transcript, TranscriptToken
 
 #: Gap at or above which a phrase is flushed.
@@ -163,10 +164,9 @@ def pack_transcripts(
 
     document = "\n".join(lines)
     if output is not None:
-        output.parent.mkdir(parents=True, exist_ok=True)
         # UTF-8 explicitly: this document contains a `>=` and arbitrary speech in
         # any language.
-        output.write_text(document, encoding="utf-8")
+        atomic_write_text(output, document)
     return document
 
 
