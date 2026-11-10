@@ -22,6 +22,21 @@ updates:
       - dependency-name: "pyannote.audio"
     labels: ["dependencies"]
 
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    groups:
+      # `remotion` and every `@remotion/*` package must stay on one version, so
+      # they only ever move together. A bump changes what is drawn: run the
+      # Remotion tests and look at a render before merging.
+      remotion:
+        patterns: ["remotion", "@remotion/*"]
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+    labels: ["dependencies"]
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

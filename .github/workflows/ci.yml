@@ -5,12 +5,17 @@ on:
     branches: [main, master]
   pull_request:
 
+# Nothing here writes to the repository; a job that needs more says so itself.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   quality:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -29,6 +34,7 @@ jobs:
           fi
 
   linux-media:
+    timeout-minutes: 45
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -63,6 +69,7 @@ jobs:
   # which is how a frame-padding regression on ffmpeg 7 stayed invisible here
   # while it shortened real renders. Render timing is checked on both.
   ffmpeg-next:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     container: ubuntu:25.04
     env:
@@ -85,6 +92,7 @@ jobs:
       - run: uv run --frozen --no-sync pytest -q tests/integration/test_render_timestamps.py tests/unit
 
   portability-unit:
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -102,6 +110,7 @@ jobs:
       - run: uv run --frozen --no-sync --python 3.12 pytest tests/unit -q
 
   powershell-lint:
+    timeout-minutes: 15
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -114,6 +123,7 @@ jobs:
           if ($findings | Where-Object Severity -eq 'Error') { exit 1 }
 
   package:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -133,6 +143,7 @@ jobs:
             dist/social-video-agent-skill.zip
 
   remotion-smoke:
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     env:
       SOCIAL_VIDEO_FORCE_CPU: '1'
@@ -151,7 +162,10 @@ jobs:
       - run: npm ci
       - run: npm exec tsc -- --noEmit
       - run: npx remotion browser ensure
-      - run: uv run --frozen --no-sync pytest tests/integration/test_remotion.py -q
+      # Every test that needs the compositor: the other jobs have no
+      # node_modules, so there these skip and nothing else would run them.
+      - run: >-
+          uv run --frozen --no-sync pytest -q -m remotion
       - run: uv run --frozen --no-sync social-video-agent doctor --json
       - name: Install the compositor from the wheel, outside the checkout
         working-directory: ${{ runner.temp }}

@@ -13,13 +13,13 @@ if ! find node_modules/.remotion -type f -name 'chrome-headless-shell*' -perm -u
   exit 1
 fi
 
-uv sync --extra dev
+uv sync --frozen --extra dev
 uv run --no-sync ruff check .
 uv run --no-sync ruff format --check .
 uv run --no-sync mypy
 uv run --no-sync pytest -q
 npm exec tsc -- --noEmit
-uv run --no-sync pytest tests/integration/test_remotion.py -q
+uv run --no-sync pytest -q -m remotion
 uv run --no-sync python scripts/validate_distribution.py
 uv build
 ./scripts/build-skill.sh
