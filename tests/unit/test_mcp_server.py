@@ -11,6 +11,8 @@ import typer.main
 from social_video.cli import app
 from social_video.mcp_server import (
     BY_NAME,
+    NOT_TOOLS,
+    OMITTED_OPTIONS,
     TOOLS,
     ToolInputError,
     argv_for,
@@ -49,6 +51,70 @@ def test_every_tool_runs_a_real_command_with_real_options() -> None:
         assert len(positional) <= len(arguments), tool.name
         if tool.json_flag:
             assert "--json" in options, f"{tool.name}: the command has no --json"
+
+
+def test_every_cli_command_is_a_tool_or_says_why_it_is_not() -> None:
+    """The tools fell twenty commands behind the CLI while nothing compared them."""
+    commands = set(_commands())
+    tools = {tool.command for tool in TOOLS}
+
+    undecided = sorted(" ".join(c) for c in commands - tools - set(NOT_TOOLS))
+    assert not undecided, (
+        f"CLI commands with no MCP tool and no entry in NOT_TOOLS: {undecided}. "
+        "Add a Tool in mcp_server.py, or a reason in NOT_TOOLS."
+    )
+    assert not (set(NOT_TOOLS) - commands), "NOT_TOOLS names a command the CLI no longer has"
+    assert not (set(NOT_TOOLS) & tools), "a command is both a tool and in NOT_TOOLS"
+    assert all(reason.strip() for reason in NOT_TOOLS.values())
+
+
+def test_every_option_of_a_tools_command_is_offered_or_says_why_not() -> None:
+    commands = _commands()
+    undecided: list[str] = []
+    stale: list[str] = []
+
+    for tool in TOOLS:
+        offered = {flag for p in tool.params for flag in (p.flag, p.negative) if flag}
+        omitted = OMITTED_OPTIONS.get(tool.name, {})
+        spellings: set[str] = set()
+        for param in commands[tool.command].params:
+            if param.param_type_name != "option":
+                continue
+            names = {*param.opts, *param.secondary_opts}
+            spellings |= names
+            if names & {"--json", "--help"}:
+                continue
+            if not names & (offered | set(omitted)):
+                undecided.append(f"{tool.name}: {'/'.join(sorted(names))}")
+        stale += [f"{tool.name}: {flag}" for flag in omitted if flag not in spellings]
+        both = sorted(offered & set(omitted))
+        assert not both, f"{tool.name} both offers and omits {both}"
+
+    assert not undecided, (
+        f"CLI options a tool neither offers nor omits: {undecided}. Add a Param to the "
+        "tool in mcp_server.py, or a reason in OMITTED_OPTIONS."
+    )
+    assert not stale, f"OMITTED_OPTIONS names options that no longer exist: {stale}"
+    assert not (set(OMITTED_OPTIONS) - set(BY_NAME)), "OMITTED_OPTIONS names an unknown tool"
+
+
+def test_required_arguments_of_a_command_are_required_of_its_tool() -> None:
+    commands = _commands()
+
+    for tool in TOOLS:
+        required_options = {
+            name
+            for param in commands[tool.command].params
+            if param.param_type_name == "option" and param.required
+            for name in param.opts
+        }
+        required_flags = {p.flag for p in tool.params if p.required and p.flag}
+        missing = sorted(
+            option
+            for option in required_options
+            if option.startswith("--") and option not in required_flags
+        )
+        assert not missing, f"{tool.name}: the CLI requires {missing}"
 
 
 def test_the_users_own_acts_are_not_tools() -> None:
@@ -134,6 +200,25 @@ def test_a_call_reports_parsed_results_text_and_errors() -> None:
     assert failed["ok"] is False and failed["error"] == "error: no EDL"
     assert refused == {"ok": False, "error": "render needs workspace"}
     assert "no tool 'dance'" in unknown["error"]
+
+
+def test_a_command_that_never_answers_is_reported_not_waited_for(monkeypatch) -> None:
+    from social_video.mcp_server import DEFAULT_TIMEOUT_S, TIMEOUT_ENV, tool_timeout
+
+    def hangs(argv):
+        raise subprocess.TimeoutExpired(argv, 90.0)
+
+    result = call_tool("render", {"workspace": "e"}, runner=hangs)
+
+    assert result["ok"] is False and "timed out after 90 s" in result["error"]
+    assert result["command"][:1] == ["render"]
+
+    monkeypatch.delenv(TIMEOUT_ENV, raising=False)
+    assert tool_timeout() == DEFAULT_TIMEOUT_S
+    monkeypatch.setenv(TIMEOUT_ENV, "120")
+    assert tool_timeout() == 120.0
+    monkeypatch.setenv(TIMEOUT_ENV, "soon")
+    assert "number of seconds" in call_tool("platforms")["error"]
 
 
 def test_a_real_call_runs_the_cli_in_a_child_process() -> None:
