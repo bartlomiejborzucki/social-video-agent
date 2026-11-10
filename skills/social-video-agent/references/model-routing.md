@@ -7,7 +7,7 @@ Conceptual tiers, not model names, are the durable contract:
 | `editorial_strong` | Astra | Claude Opus 5.5 | high | context, hook, story, editorial review |
 | `execution_balanced` | Sol | Claude Sonnet 5.5 | medium | EDL, captions, render, corrections |
 | `mechanical_fast` | Luna | Claude Haiku 5.5 | low | delivery variants only |
-| `escalation` | Astra | Claude Fable 5.1 | high | exceptional editorial or debugging impasse |
+| `escalation` | Astra | Claude Fable 5.2 | high | exceptional editorial or debugging impasse |
 
 The executable mapping and authoritative current names live only in
 `src/social_video/workflow/model-routing.json`. If names change, update that
@@ -15,7 +15,8 @@ file and its tests. The table above is user-facing documentation. Claude is an
 alternative when available in the user's host; never imply that Codex can
 switch provider or model automatically.
 
-Claude names were verified on 2026-09-17 against Anthropic's
+Claude names were last reviewed on 2026-11-11 (the escalation tier moved to
+Claude Fable 5.2; the others date from release 1.5.1) against Anthropic's
 [current model overview](https://platform.claude.com/docs/en/models/overview).
 Effort is a workflow recommendation only where the selected host/model exposes
 that control.
@@ -28,7 +29,7 @@ Budgets:
 - `quality`: the balanced route, with the `escalation` tier suggested only after
   a documented genuine impasse. Astra is already the strongest OpenAI
   recommendation, so on that side escalation means Astra at high effort with
-  the impasse written down; on Claude it means Claude Fable 5.1. Never choose
+  the impasse written down; on Claude it means Claude Fable 5.2. Never choose
   escalation automatically.
 
 At a guided boundary: save state, verify required artifacts, stop, show both
