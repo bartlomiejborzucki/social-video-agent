@@ -4,6 +4,93 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-11-11
+
+From a review of 2.10.1: what lint, types and the test suite did not see. And
+a delivery that names the finished file and comes with and without its music.
+
+### Added
+
+- A Remotion render reports its progress: a bar on a terminal, a log line per
+  quarter without one, never on stdout. Past four hours it is stopped, with
+  the browser it started, and reported as an error instead of a traceback.
+- The built compositor is kept between renders (`remotion-bundles` under the
+  cache directory, the three most recent) and rebuilt when the compositions,
+  the lockfile or a reel's custom components change. Measured on a 6 s
+  1080x1920 render it saves the 2-3 s of bundling and one copy of the base
+  video; drawing the frames is unchanged. `SOCIAL_VIDEO_REMOTION_BUNDLE_CACHE`
+  moves the directory, and `off` builds one per render.
+- MCP tools for the commands that had none: `hook_check`, `sources_add`,
+  `sources_list`, `captions_fix`, `brief_story`, `brief_show`, `motion_sfx`,
+  `motion_custom_init`, `motion_custom_check`, `motion_film_remove`,
+  `workflow_resume`, `workflow_renderer`, `workflow_brief`, `cover`,
+  `shorts_list`, `shorts_create`, `inspect`, `profiles`, `version`,
+  `config_init`, `config_migrate`, `context_refresh`, `image_status`,
+  `image_prompt` and `image_capabilities`; and the options existing tools
+  lacked, among them `deliver` `max_size_mb` and `description_template`,
+  `compile` `word_edges` and `captions`, `motion_suggest` `hook_punch` and
+  `sensitive`, `transcribe` `refine`. A test fails when a command or an option
+  is added without a tool or a stated reason for having none.
+- Every delivered video is named `NAME-FINAL.mp4`, with its variant after it
+  (`-no-music`, `-no-captions`, `-en`, `-1080x1350`, `-hook-<name>`). `NAME`
+  is `deliver --name`, else the edit's name, else the first recording's id.
+  The workspace's own `final/final.mp4` keeps its name.
+- An edit with a music bed is delivered with it and, as
+  `NAME-FINAL-no-music.mp4`, without it; `--one-audio` delivers the approved
+  mix alone. The manifest's new `posting_notes`, printed after a delivery, say
+  which file goes where: without music to Instagram Reels, where a sound is
+  added in the app under the voice, with music to TikTok and YouTube Shorts,
+  and that the apps' popular music is not licensed for ads, paid partnerships
+  and business accounts. The tool still never sources or clears music.
+- A tool call that never answers is reported after six hours
+  (`SOCIAL_VIDEO_MCP_TIMEOUT`) and the server keeps running.
+- Tests hold `remotion/types.ts` equal to the motion and caption schemas, every
+  written version equal to the package's, and `.env.example` complete.
+
+### Changed
+
+- A workspace resumes after a patch release; only another release line is
+  refused. Any difference in the version used to refuse it, with a message
+  naming a `migrate` command that never existed.
+- An ffmpeg without libass refuses a render that asks for captions. It used to
+  render without them while the manifest recorded the video as captioned.
+- A `custom` component may not use `Math.random`, the clock or a timer: the
+  same frame has to be the same picture on every render tab.
+- State and deliverables that were written in place are written atomically:
+  the stage record, transcript quality, scenes, hook, reel and opening
+  reports, the project config, captions (ASS, SRT, VTT), the packed
+  transcript, the face model. A set of artifacts is flushed before it is
+  published.
+- Every ffmpeg call has a time limit and reports a failure with ffmpeg's own
+  message; the calls that read raw samples or frames share one runner.
+- Delivered videos are no longer called `final.mp4`, `final-no-captions.mp4`,
+  `final-<language>.mp4`, `final-<size>.mp4` or `final-hook-<name>.mp4`; a
+  script that picks them up by those names reads `delivery-manifest.json`
+  instead, or the new names.
+- `render.mjs` takes `bundle` and `render` as two steps.
+- The escalation tier names Claude Fable 5.2. It is still never chosen
+  automatically.
+- CI: read-only token by default, a time limit per job, every compositor test
+  in the Remotion job (`pytest -m remotion`; about ten files ran nowhere), npm
+  updates grouped so `remotion` and `@remotion/*` move together. The release
+  builds from the lockfile, refuses a tag that is not the package version, and
+  only the job that publishes the release can write.
+
+### Fixed
+
+- A caption ending within half a frame of a minute was written with a 60th
+  second (`0:00:60.00`, `00:00:60,000`) in ASS, SRT and VTT.
+- A file between 1 and 2 MiB was fingerprinted by its first megabyte alone, so
+  a same-length change after it kept its cached transcript. Fingerprints of
+  such files change once; longer and shorter files keep theirs.
+- `render --output` compared names only; a source reached through a link, or
+  under another spelling on a case-insensitive drive, could be overwritten.
+- A failed decode while looking for the opening's first movement read as a
+  still picture.
+- README named Claude models the routing file had replaced, counted fifteen
+  graphics of twenty-eight and promised a hook card the default no longer
+  proposes; the roadmap stopped at 2.3; `.env.example` missed eight variables.
+
 ## [2.10.1] - 2026-11-04
 
 Fixes from reviewing 2.10.0 before its release.
