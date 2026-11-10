@@ -111,6 +111,34 @@ class TestPluginManifests:
         portable = json.loads((REPO / "plugin.json").read_text(encoding="utf-8"))
         assert portable["version"] == __version__
 
+    def test_every_other_place_a_version_is_written_agrees(self):
+        """A bump touches seven files by hand; the ones no check read drifted silently."""
+        import re
+
+        from social_video import __version__
+
+        package = json.loads((REPO / "package.json").read_text(encoding="utf-8"))
+        lock = json.loads((REPO / "package-lock.json").read_text(encoding="utf-8"))
+        nested = json.loads(
+            (REPO / "plugins/social-video-agent/.codex-plugin/plugin.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        skill = (REPO / "skills/social-video-agent/SKILL.md").read_text(encoding="utf-8")
+        skill_version = re.search(r"^\s*version:\s*[\"']?([^\s\"']+)", skill, re.MULTILINE)
+        released = re.search(
+            r"^## \[(\d+\.\d+\.\d+)\]", (REPO / "CHANGELOG.md").read_text(encoding="utf-8"),
+            re.MULTILINE,
+        )  # fmt: skip
+
+        assert package["version"] == __version__
+        assert lock["version"] == lock["packages"][""]["version"] == __version__
+        assert nested["version"] == __version__
+        assert skill_version and skill_version.group(1) == __version__
+        assert released and released.group(1) == __version__, (
+            "the newest released entry in CHANGELOG.md is not this version"
+        )
+
     def test_codex_manifest_points_at_the_canonical_skills(self):
         codex = json.loads((REPO / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))
         assert codex["skills"] == "./skills/"

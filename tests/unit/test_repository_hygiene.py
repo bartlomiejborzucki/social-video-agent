@@ -140,3 +140,19 @@ def test_no_term_from_the_users_projects_is_committed() -> None:
             if term.casefold() in text
         ]
     assert not found, "project-private text in tracked files:\n" + "\n".join(found)
+
+
+def test_every_environment_variable_the_code_reads_is_documented() -> None:
+    """`.env.example` is where a user learns a setting exists; it fell eight behind."""
+    import re
+
+    root = Path(__file__).resolve().parents[2]
+    read = set()
+    for source in [*(root / "src").rglob("*.py"), *(root / "scripts").rglob("*.mjs")]:
+        read |= set(re.findall(r"SOCIAL_VIDEO_[A-Z0-9_]+", source.read_text(encoding="utf-8")))
+    documented = set(
+        re.findall(r"SOCIAL_VIDEO_[A-Z0-9_]+", (root / ".env.example").read_text(encoding="utf-8"))
+    )
+
+    assert read, "the scan found no variables, so it checks nothing"
+    assert not (read - documented), f"not in .env.example: {sorted(read - documented)}"
