@@ -16,8 +16,11 @@ and may consume account quota. Review `.plugin-eval/benchmark.json` and run it
 only intentionally. If the executable is unavailable, record that explicitly
 instead of claiming the benchmark ran.
 
-The checked-in schema-v2 benchmark has six reviewed scenarios matching the
-prompt set. Live Codex benchmarks are not part of CI. Run its deterministic
+The checked-in schema-v2 benchmark has six reviewed scenarios and the prompt
+set eleven prompts. Three scenarios carry their prompt's id, three name the
+same case differently (`brand-discovery`, `continuous-mode`,
+`economical-guidance`), and the five newest prompts have no scenario yet. Live
+Codex benchmarks are not part of CI. Run its deterministic
 verifier without account use with:
 
 ```bash

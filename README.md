@@ -51,12 +51,12 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
 **Motion that holds a viewer**
 - One `motion_energy` setting — `calm`, `lively`, `bold` — sets punch-ins,
   transitions, accent density and caption animation together.
-- Accent candidates found in what is said: a hook card from the first line,
-  counting figures, numbered steps, callouts for questions, push-ins on
-  punchlines and turns, transitions on jumping cuts — snapped to the beat of a
-  licensed music bed.
-- Fifteen brand-driven graphics in three style packs, from hook cards and lower
-  thirds to charts, before/after comparisons and logo reveals.
+- Accent candidates found in what is said: counting figures, numbered steps,
+  callouts for questions, push-ins on punchlines and turns, transitions on
+  jumping cuts — snapped to the beat of the music bed. A full-frame hook card
+  from the first line is proposed only under `opening_policy: free`.
+- Brand-driven graphics in three style packs, from lower thirds and stats to
+  charts, before/after comparisons and logo reveals.
 - Graphics on the spoken word: list points that enter as they are said, a
   habit crossed out and replaced, speech and message bubbles, licensed icons
   over the head, a process bar, a word built letter by letter, an image card
@@ -263,20 +263,22 @@ State lives in `edit/workflow-state.json`, so changing model or starting a new
 conversation loses nothing. Each stage is gated on the artifacts the next one
 needs:
 
-| Stage | Work | OpenAI | Claude |
-|---|---|---|---|
-| 0/1 | discovery, licence declaration, editorial plan | Astra (high) | Claude Opus 5 |
-| 2 | EDL, captions, motion plan, preview, technical QA | Sol (medium) | Claude Sonnet 5 |
-| 3 | supervising-editor review | Astra (high) | Claude Opus 5 |
-| 4 | approved fixes, final render, brand QA | Sol (medium) | Claude Sonnet 5 |
-| 5 | delivery variants | Luna (low) | Claude Haiku 4.5 |
+| Stage | Work | Model tier (balanced budget) |
+|---|---|---|
+| 0/1 | discovery, licence declaration, editorial plan | editorial, strong |
+| 2 | EDL, captions, motion plan, preview, technical QA | execution, balanced |
+| 3 | supervising-editor review | editorial, strong |
+| 4 | approved fixes, final render, brand QA | execution, balanced |
+| 5 | delivery variants | mechanical, fast |
 
 At each boundary the agent saves state, stops, names the recommended model and
 gives a short continuation prompt; it never claims to switch models itself. Ask
 *“Where are we?”* to resume. `--workflow-mode continuous` runs every stage
 without stops, with every artifact and check still in place. Budgets are
-`economical`, `balanced` and `quality`; the escalation tier (Claude Fable 5.1)
-is never chosen automatically.
+`economical`, `balanced` and `quality`; the escalation tier is never chosen
+automatically. Which OpenAI and Claude model a tier means today is one file,
+[`model-routing.json`](src/social_video/workflow/model-routing.json);
+`workflow status` prints the names for the current stage.
 
 ```bash
 social-video-agent workflow init interview.mp4 --project-root . --language pl
@@ -376,6 +378,14 @@ cannot use Remotion render with `--renderer ffmpeg`, which still draws rounded
 caption boxes, highlights and emphasis; `workflow renderer remotion` switches an
 existing workspace later.
 
+A Remotion render shows its progress on a terminal (and logs a line per
+quarter without one), and stops with an error after four hours instead of
+waiting on a browser that never answers. The built compositor is kept between
+renders under the cache directory and rebuilt when the compositions, the
+lockfile or a reel's custom components change; that saves the few seconds of
+bundling per render and one copy of the base video. Set
+`SOCIAL_VIDEO_REMOTION_BUNDLE_CACHE=off` to build one per render.
+
 ### Windows media paths
 
 Media may live on Windows drives. Inside WSL both forms are accepted, and a
@@ -410,6 +420,16 @@ social-video-agent deliver edit --output ./delivery --with-captions --srt --vtt 
 social-video-agent export edit --format fcpxml
 ```
 
+Every delivered video is named `NAME-FINAL.mp4` — the name asked for with
+`--name`, else the edit's, else the recording's — with its variant after it
+(`-no-captions`, `-en`, `-1080x1350`). An edit with a music bed is delivered
+twice, as approved and as `NAME-FINAL-no-music.mp4`, because a bed mixed into
+the file and a sound added in an app would play together: the notes printed
+with the delivery say to post the one without music on Instagram Reels and add
+a sound there under the voice, the one with music on TikTok and YouTube
+Shorts, and that the apps' popular music is not licensed for ads, paid
+partnerships and business accounts. The tool never sources or clears music.
+
 `delivery-manifest.json` records every file with its hash and the identical EDL
 hash from before and after delivery. `export` writes FCPXML, Premiere/FCP7 XML,
 OpenTimelineIO and CMX 3600, and lists what a timeline cannot carry.
@@ -426,11 +446,13 @@ energy level:
 | `lively` | 1.18 | ~4/min | ~10/min | `pop` |
 | `bold` | 1.25 | ~8/min | ~16/min | `box` |
 
-**Accents from what is said.** `motion suggest` finds the hook (the first line,
-as a full-frame hook card), figures (a counting stat), enumerations (numbered
-steps), questions (a callout), punchlines and turns (“ale”, “instead”: a
-push-in) and jumping cuts (a transition). Each has an id and a confidence,
-spaced to the energy level and snapped to the beats of a licensed music bed.
+**Accents from what is said.** `motion suggest` finds figures (a counting
+stat), enumerations (numbered steps), questions (a callout), punchlines and
+turns (“ale”, “instead”: a push-in) and jumping cuts (a transition). The first
+line becomes a full-frame hook card only under `opening_policy: free`; content
+first, the default, keeps frame 0 on the scene. Each candidate has an id and a
+confidence, spaced to the energy level and snapped to the beats of the music
+bed.
 Nothing changes until the agent accepts it:
 
 ```bash
@@ -438,16 +460,18 @@ social-video-agent motion suggest interview.mp4 -w edit
 social-video-agent motion accept -w edit acc-001 acc-003 --kind transition
 ```
 
-**Graphics.** Fifteen types, each with a timeline interval and a reason:
-`hook_card`, `hook`, `lower_third`, `callout`, `quote`, `stat`, `chart`,
-`compare`, `list`, `steps`, `chapter`, `cta`, `progress`, `logo_reveal` and
-`end_card`. `style_pack` — `editorial`, `bold-social` or `tech-minimal` — sets
-their look in the brand's colours and font. Graphics on the spoken word —
-`strike`, `bubble`, `icon`, `process`, `kinetic_word`, `inset` and `custom` —
-are anchored to caption words and sit over the speaker's head; list points
-can enter on their words too. Transitions (`zoom`, `slide`,
-`flash`, `light_leak`) sit on cuts; punch-ins move the picture while captions and graphics
-stay put.
+**Graphics.** Each has a timeline interval and a reason: `hook_card`, `hook`,
+`lower_third`, `callout`, `quote`, `stat`, `chart`, `compare`, `list`, `steps`,
+`chapter`, `cta`, `progress`, `logo_reveal` and `end_card`. `style_pack` —
+`editorial`, `bold-social` or `tech-minimal` — sets their look in the brand's
+colours and font. Graphics on the spoken word — `strike`, `bubble`, `icon`,
+`process`, `kinetic_word`, `inset` and `custom` — are anchored to caption words
+and sit over the speaker's head; list points can enter on their words too.
+Over the speaker without covering the scene: `label`, `sticker`, `hook_title`,
+`end_teaser`, `insert` and `prop`. The whole vocabulary is the
+`MotionElementType` enum in `schemas/motion.py`, which a test holds equal to
+the compositor's types. Transitions (`zoom`, `slide`, `flash`, `light_leak`)
+sit on cuts; punch-ins move the picture while captions and graphics stay put.
 
 **Sound, b-roll and review.**
 
@@ -496,22 +520,24 @@ that reports information supports `--json`.
 |---|---|
 | Setup | `doctor`, `version`, `profiles`, `config init/validate/migrate`, `remotion-license`, `context inspect/refresh` |
 | Workflow | `workflow init/batch/status/resume/complete/renderer/brief` |
-| Source | `inspect`, `fetch URL --rights "..."`, `transcribe [--diarize]`, `pack` |
-| Editing | `plan`, `cuts find/accept`, `compile`, `shorts list/create`, `apply-editorial-qa` |
-| Motion | `motion suggest/accept/sfx/variants/sheet/qa`, `motion film spec/import/remove/status`, `broll suggest/accept`, `style analyze` |
-| Render and check | `render`, `edit`, `qa`, `platforms` |
+| Source | `inspect`, `fetch URL --rights "..."`, `sources add/list`, `transcribe [--diarize]`, `pack` |
+| Editing | `plan`, `brief story/import/show`, `cuts find/accept`, `compile`, `shorts list/create`, `apply-editorial-qa` |
+| Motion | `motion suggest/accept/sfx/variants/sheet/qa`, `motion film spec/import/remove/status`, `motion custom init/check`, `broll suggest/accept`, `style analyze/check-analysis` |
+| Render and check | `render`, `edit`, `qa`, `hook check`, `opening-qa`, `reel-check`, `platforms` |
 | Images | `image status/prompt/register/capabilities/plate`, `cover` |
-| Output | `deliver`, `export`, `captions translate/apply/fix`, `brief import/show`, `opening-qa`, `reel-check` |
+| Output | `deliver`, `export`, `captions translate/apply/fix` |
 | Agents | `mcp serve`, `mcp tools` |
 
 Run `social-video-agent COMMAND --help` for options.
 
 ### MCP server
 
-`social-video-agent mcp serve` offers the workflow stages as MCP tools over
-stdio, for any agent that speaks MCP. Each tool runs the matching command with
-`--json`, so the gates and QA are the CLI's own. Declaring the Remotion licence
-and every consent stay commands the user runs.
+`social-video-agent mcp serve` offers the commands as MCP tools over stdio, for
+any agent that speaks MCP. Each tool runs the matching command with `--json`,
+so the gates and QA are the CLI's own. Declaring the Remotion licence, every
+consent and installing software stay commands the user runs; a test keeps the
+tools level with the CLI, so a new command or option is either offered or
+listed with the reason it is not (`social-video-agent mcp tools`).
 
 ```bash
 pip install 'social-video-agent[mcp]'
@@ -530,7 +556,7 @@ args = ["mcp", "serve"]
 
 ```bash
 uv sync --extra dev
-uv run pytest
+uv run pytest                 # everything; `-m remotion` selects the compositor tests
 uv run ruff check . && uv run ruff format --check .
 uv run mypy
 uv run python scripts/validate_distribution.py

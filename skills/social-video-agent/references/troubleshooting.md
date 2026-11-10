@@ -68,6 +68,22 @@ after a revocation, a change of terms URL, a new release line, or a year;
 `remotion-license refresh --accept-terms` re-confirms the same statement. A
 `--remotion-license` flag always wins for that one edit.
 
+**A workspace says it was created with another version.** A patch release
+resumes a workspace; another release line (2.10 to 2.11) does not. Start a new
+one with `workflow init`, copying a hand-corrected `transcripts/<id>.json`
+across first, or install the older release to finish the edit. See
+`docs/migrations/2.x-defaults-and-workspaces.md` in the repository.
+
+**The render stops: this ffmpeg has no libass.** It cannot burn captions in,
+and no longer renders without them. Run `social-video-agent doctor
+--install-ffmpeg`, or install an ffmpeg built with libass.
+
+**A Remotion render looks stuck.** Without a terminal it logs a line at each
+quarter; with one it shows a bar. It is stopped after four hours with the last
+lines Chrome printed. If a render is wrong only after the compositions were
+edited by hand, set `SOCIAL_VIDEO_REMOTION_BUNDLE_CACHE=off` once to rule the
+kept compositor out; it is rebuilt on its own whenever its sources change.
+
 **Remotion says `motion-plan.json` is missing.** Stage 2 has not completed its
 visual plan. Create the validated artifact described in `artifacts.md`; do not
 replace it with ad-hoc React edits or random effects.

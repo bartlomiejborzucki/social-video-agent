@@ -16,7 +16,7 @@
 - Model code uses conceptual tiers. The only tier-to-name mapping is `src/social_video/workflow/model-routing.json`; do not duplicate it in Python or contributor docs.
 - Keep `SKILL.md` concise and route detailed behavior to `references/` through progressive disclosure.
 - Invoke subprocesses with argument arrays. Never use `shell=True` or `os.system` with media paths.
-- Before handoff run `uv run pytest`, `uv run ruff check .`, `social-video-agent doctor`, and `./scripts/release-check.sh` when preparing a release.
+- Before handoff run `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `social-video-agent doctor`, and `./scripts/release-check.sh` when preparing a release.
 - Validate the Codex manifest, marketplace, and skill with `uv run python scripts/validate_distribution.py`.
 - Run context/workflow regressions when changing discovery, stage schemas, or handoffs: `uv run pytest tests/unit/test_project_context.py tests/unit/test_workflow.py`.
 - Openings are content first by default: no title card, cover, logo or still at the start of the timeline, the first caption from 0.0 s, the cover only as `cover.jpg`. The render refuses a card opening and delivery measures the rest; never weaken either to pass a test.

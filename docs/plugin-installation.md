@@ -1,6 +1,8 @@
 # Codex plugin installation
 
-Codex discovers repository plugins through `.agents/plugins/marketplace.json`. The marketplace entry points to `plugins/social-video-agent`, whose `skills` link resolves to the one canonical implementation at `skills/social-video-agent`.
+Codex discovers repository plugins through `.agents/plugins/marketplace.json`. The marketplace entry points to `plugins/social-video-agent`, whose `skills` entry is a symbolic link to the repository's `skills/` directory, so the one canonical implementation at `skills/social-video-agent` is what Codex loads.
+
+On a Windows checkout git only creates that link with `core.symlinks=true` and Developer Mode (or an elevated shell); otherwise it becomes a text file and `social-video-agent doctor` reports that the skills path does not exist. Clone inside WSL2, which is the supported layout, or re-clone with `git clone -c core.symlinks=true`.
 
 ## Install from GitHub
 

@@ -1,6 +1,6 @@
 # Roadmap
 
-Reviewed **2026-10-13** against 1.5.0. This is a direction, not a commitment:
+Reviewed **2026-11-11** against 2.11.0. This is a direction, not a commitment:
 items move when evidence changes. The rules in [AGENTS.md](../AGENTS.md) hold
 for every item — candidate selection stays editorial, sources stay immutable,
 music is never sourced or cleared by the tool, and CI downloads no models.
@@ -28,7 +28,7 @@ highlight, `cuts find/accept`, `compile`, WhisperX alignment, punch-ins);
 framing and layout (diarization, speaker framing on diarized turns,
 `split_stack`); integration (NLE export, `fetch --rights`, trusted
 publishing); motion energy (`calm`/`lively`/`bold`, transitions, word
-animation, style packs, fifteen graphics); motion from the transcript
+animation, style packs, the first fifteen graphics); motion from the transcript
 (`motion suggest/accept`, beat snapping, sound effects, b-roll, hook variants,
 the motion sheet); reference rhythm and transcript trust (`style analyze`, a
 transcript unfit to cut on reported with the model to retry); covers, timings
@@ -139,6 +139,53 @@ through pauses, and safer setup: `config init` writes every style decision,
 `config validate` names the defaults and writes nothing without a workspace,
 a local YuNet model and the brand font checked by `doctor`.
 
+## 2.4 – 2.6 — what editing by hand still needed (done)
+
+- **2.4:** cuts on acoustic word edges, `transcribe --refine`, `sources
+  add/list`, colour grades, `deliver --max-size-mb`; the transcript file became
+  the source of truth, so stages no longer transcribe again.
+- **2.5:** a livelier opening inside the brand — stickers, shakes, `hook check`,
+  a b-roll library.
+- **2.6:** more of Remotion in the reel — `rounded_lines` captions, emphasis
+  marks, a built-in CC0 sound set, animated emoji, `light_leak`. Music and
+  sound effects no longer need a rights declaration.
+
+## 2.7 – 2.8 — references and the spoken word (done)
+
+- **2.7:** an editorial read of a reference video, and opening variants that
+  change one thing at a time; 2.7.1 fixed what the first manual run found.
+- **2.8:** graphics on the spoken word — `strike`, `bubble`, `icon`, `process`,
+  `kinetic_word`, `inset`, and `custom` components written for one reel and
+  checked before they are bundled.
+
+## 2.9 – 2.10 — forms of a talking head (done)
+
+- **2.9:** fixes from editing with 2.7.1 and 2.8: a Claude Motion end card,
+  caption fixes that survive a recompile, a sequence of held end cards.
+- **2.10:** opt-in forms of a restless talking head — `hook_title`,
+  `end_teaser`, phrase captions, picture effects, `insert`, `prop`, and text
+  stories without speech; 2.10.1 fixed what a review before release found.
+
+## 2.11 — trust in the tool itself, and a delivery that names itself (done)
+
+From a review of 2.10.1 (lint, types and 1572 tests were clean; these were the
+gaps they do not see):
+
+- A workspace resumes across patch releases; only another release line is
+  refused.
+- A renderer that cannot burn captions fails instead of recording a video as
+  captioned; state and deliverables are written atomically; every ffmpeg call
+  has a time limit.
+- Remotion renders report progress and have a time limit. They also reuse a
+  compositor bundle between renders and variants, which measured smaller than
+  hoped: 2-3 s per render, because webpack's own cache was already warm.
+- The MCP tools cover the CLI, with a test that fails when a command or an
+  option is added without a decision about its tool.
+- The compositor's TypeScript types and the Python schemas are held equal by a
+  test.
+- Delivered videos are `NAME-FINAL.mp4`; an edit with a music bed is delivered
+  with it and without it, with notes on which goes to which platform.
+
 ## Under consideration
 
 - **Skill files that describe judgement only** (moved from 2.0), once every
@@ -157,6 +204,11 @@ a local YuNet model and the brand font checked by `doctor`.
   locally. Its own ADR before any code.
 - Neural active-speaker detection (LR-ASD, MIT), behind an optional extra. It
   needs a PyTorch port, its weights and a labelled clip set CI cannot carry.
-- Direct, opt-in upload to platforms using the user's own credentials, after
-  the 2.0 tool surface exists.
+- Direct, opt-in upload to platforms using the user's own credentials. The 2.0
+  tool surface it waited for exists; what it still needs is a credential and
+  consent policy of its own, written as an ADR first.
+- **The MCP server registered by the plugin manifests**, so a host gets the
+  tools on install. It needs the `mcp` extra to be present wherever the plugin
+  is, which the manifests cannot promise today.
+- **Actions in CI pinned by commit**, once Dependabot keeps the pins current.
 - Automated WSL2 acceptance on a self-hosted Windows runner.

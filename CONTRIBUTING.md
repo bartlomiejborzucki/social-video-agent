@@ -7,6 +7,7 @@ Use Linux, macOS, or WSL2. For Windows development, clone into the WSL filesyste
 uv sync --extra dev
 uv run pytest
 uv run ruff check .
+uv run ruff format --check .
 uv run mypy
 uv run python scripts/validate_distribution.py
 ```
