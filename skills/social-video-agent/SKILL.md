@@ -3,7 +3,7 @@ name: social-video-agent
 description: Create project-aware Reels and Shorts from recordings with local transcription, an explicit plan and EDL, persistent stages, rendering, and QA. Use when asked to edit, trim, caption, reframe, review or resume a preview, or create delivery variants. Do not use for generated video or simple conversion.
 license: Apache-2.0
 metadata:
-  version: "2.11.0"
+  version: "2.12.0"
   last_updated: "2026-11-11"
 ---
 
@@ -64,6 +64,12 @@ mistake this installed skill's directory for the user's project.
    Always tell the user what was changed and that `--no-audio-cleanup` or
    `audio_cleanup_policy: none` renders the audio as recorded. Never describe
    it as enhancement, and never claim clipping can be repaired.
+
+   Picture: `picture_policy` defaults to `measured` on the same terms: a dark
+   recording is lifted, an enlarged one sharpened, a heavily compressed one
+   lightly denoised, each inside a ceiling and each reported. A recording too
+   small or too compressed to fill the frame is named when it is added; relay
+   that and ask for the original file. See [picture.md](references/picture.md).
 
 5. Read [workflow.md](references/workflow.md) plus only the active stage's
    relevant reference below. Use [model-routing.md](references/model-routing.md)
@@ -266,7 +272,8 @@ tier/name mapping is `src/social_video/workflow/model-routing.json`.
 | Model tiers and handoff copy | [model-routing.md](references/model-routing.md) |
 | Artifact fields and endings | [artifacts.md](references/artifacts.md) |
 | Captions, framing, brand style | [style.md](references/style.md) |
-| Music, ducking, sound effects | [audio.md](references/audio.md) |
+| Music, ducking, sound effects, one level for every speaker | [audio.md](references/audio.md) |
+| Picture correction, weak sources | [picture.md](references/picture.md) |
 | Cover, end card, generated plates | [generated-visuals.md](references/generated-visuals.md) |
 | Platform safe zones and publish copy | [publishing.md](references/publishing.md) |
 | Several clips from long video | [shorts.md](references/shorts.md) |

@@ -4,6 +4,74 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-11-11
+
+What measuring finished reels showed the tool left alone: a dark, small or
+heavily compressed recording next to a good one, cuts that removed nothing,
+two speakers at two volumes, captions that stopped on a preposition, and a
+face model that could not be downloaded in a cloud session.
+
+### Added
+
+- Measured picture correction, `picture_policy: measured | none | required`,
+  on by default. Each recording is measured where the edit shows it; a dark
+  one is lifted toward the well-lit recordings of the same edit (gamma 1.35
+  at most), a lift or a flat picture gets its contrast back (1.10), a
+  recording the edit enlarges is sharpened after the scale (0.8), and one
+  under 0.05 bits per pixel is lightly denoised. A good recording is left as
+  recorded, a well-lit one is never darkened, and a colour cast is reported,
+  never corrected. The render prints what it changed and how to undo it
+  (`render --no-picture-correction`), the manifest records the measurements,
+  steps and ceilings per recording, and brand QA checks them. See
+  [picture.md](skills/social-video-agent/references/picture.md).
+- A weak source says so: `inspect`, `sources add` and `workflow init` name a
+  recording that will be enlarged 1.5x or more to fill the output, or that
+  carries under 0.05 bits per pixel, and QA repeats it per recording as a
+  warning with the real enlargement. It never blocks; the remedy is the
+  original file.
+- Each recording's speech at one level. Under `audio_cleanup_policy:
+  measured` the speech of every recording in an edit is measured on its own
+  and moved toward the level they share, weighted by how long each is heard,
+  6 dB at most. The gains are applied at render and recorded in the manifest;
+  the EDL is not changed.
+- `min_cut_gap` (0.25 s) in an output profile: passages of one recording
+  closer together than this are not cut apart.
+- `reel-check`: "captions end on whole phrases".
+- `doctor` reports the `face model`.
+
+### Changed
+
+- The face detection model (YuNet, 233 KB, MIT) ships with the package and is
+  no longer downloaded on first use, so face framing and the face checks of
+  `motion qa` work in a session that cannot reach the network.
+  `SOCIAL_VIDEO_YUNET_MODEL` still overrides it. The notices recorded its
+  licence as Apache-2.0; its directory upstream is MIT.
+- `compile` no longer cuts where nothing is removed. Two kept passages of one
+  recording with less than `min_cut_gap` between them meet at one moment in
+  the pause, and the second range is `transition_in: continuous` (no seam) or
+  `punch` (only its framing differs). The render puts such a seam on the frame
+  grid and does not fade the sound across it; cut QA, `reel-check` and `motion
+  suggest` no longer treat it as a cut. Beats, and so labels, stay per range.
+- `motion suggest` proposes a change of framing for a cut inside one take
+  that removes 0.25 s or more while the speaker keeps talking; it started at
+  1 s.
+- Loudness is normalised with one gain. Where that gain does not fit under
+  the true-peak ceiling, `loudnorm` used to fall back to its dynamic mode and
+  ride the level over time, so the first seconds came out louder than the
+  rest. Now the gain is applied as it is, a limiter catches the peaks above
+  the ceiling, and the gain makes up what the limiter took off (3 dB at most).
+- A phrase caption never ends on a preposition, a conjunction or a negation:
+  the word opens the next cue. A word followed by a comma or a full stop
+  stays where the speaker stopped.
+- Delivery renders its variants the way the approved final was rendered: a
+  final made with `--no-audio-cleanup` or `--no-picture-correction` keeps
+  that in every variant.
+
+### Fixed
+
+- Two ranges padded into the same short pause overlapped, so the sound in it
+  played twice.
+
 ## [2.11.0] - 2026-11-11
 
 From a review of 2.10.1: what lint, types and the test suite did not see. And
