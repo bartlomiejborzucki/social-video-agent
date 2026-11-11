@@ -7,17 +7,17 @@
     "remotion:smoke": "uv run --no-sync pytest tests/integration/test_remotion.py -q"
   },
   "dependencies": {
-    "@remotion/animated-emoji": "4.0.538",
-    "@remotion/bundler": "4.0.538",
-    "@remotion/cli": "4.0.538",
-    "@remotion/effects": "4.0.538",
-    "@remotion/media": "4.0.538",
-    "@remotion/renderer": "4.0.538",
-    "@remotion/rough-notation": "4.0.538",
-    "@remotion/rounded-text-box": "4.0.538",
+    "@remotion/animated-emoji": "4.0.541",
+    "@remotion/bundler": "4.0.541",
+    "@remotion/cli": "4.0.541",
+    "@remotion/effects": "4.0.541",
+    "@remotion/media": "4.0.541",
+    "@remotion/renderer": "4.0.541",
+    "@remotion/rough-notation": "4.0.541",
+    "@remotion/rounded-text-box": "4.0.541",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "remotion": "4.0.538"
+    "remotion": "4.0.541"
   },
   "devDependencies": {
     "@types/react": "19.3.0",
