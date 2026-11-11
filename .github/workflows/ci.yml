@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
       - run: uv sync --frozen --extra dev
@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg fontconfig fonts-noto-core
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
       - run: uv sync --frozen --extra dev --python ${{ matrix.python }}
@@ -84,7 +84,7 @@ jobs:
       # user, which git reads as dubious ownership and refuses with exit 128.
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
       - run: ffmpeg -version | head -1
@@ -103,7 +103,7 @@ jobs:
       PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
       - run: uv sync --frozen --extra dev --python 3.12
@@ -127,7 +127,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@v10.3.3
       - run: uv build
       - run: uvx twine check dist/*.whl dist/*.tar.gz
       - run: ./scripts/build-skill.sh
@@ -155,7 +155,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
       - run: uv sync --frozen --extra dev --python 3.12
