@@ -4,6 +4,56 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-11-11
+
+Framing, graphics and the work a series needed by hand: output times worked
+out in a script, a music bed typed into `edl.json`, an outro built outside the
+tool.
+
+### Added
+
+- Framing on the eye line. Where a crop has room vertically, the speaker's
+  eyes go at 30 % of the frame height, from the detector's eye landmarks.
+  Every face-framed range records where the eyes are and how tall the face is
+  (`reframe.focus_x`, `focus_y`, `face_height`), a recording shown whole
+  included, and says so in its reason.
+- QA check "framing between ranges": a warning when faces differ in size by
+  more than 1.35x or eye lines by more than 8 % of the frame height, with the
+  `zoom` that evens them.
+- `at_source: {source, time}` on motion elements, punch-ins, shakes and
+  picture effects starts them at a moment of a recording; `until_source` ends
+  an element at one. `compile` and the render map the moment through the edit
+  as it is, so a plan survives a recompile; a moment the edit cut out is an
+  error that names it.
+- `motion labels -w WS`: one label per scene of the edit, from the `beat` of
+  its ranges, timed by the compiled edit.
+- `audio bed FILE -w WS`: writes the music bed into `edl.json` after checking
+  that the file has sound and covers the edit; `--remove` takes it out.
+- An end card with `layout: profiles`: a kicker with the series part, the
+  title, one to three people (a round portrait or initials, a name, a handle),
+  what comes next in an accent box and a closing line, in the brand's colours.
+  Portraits reach the compositor under staged names, never a local path.
+- `caption_style.scene_frame_fill_pct` (0-100, default 30): how opaque the
+  scene frame's fill is; 0 keeps the outline and the title only.
+- MCP tools `audio_bed` and `motion_labels`.
+
+### Changed
+
+- A range's `zoom` pushes in on the speaker's eyes where the reframe plan
+  measured them, and they stay where they were on screen; it used to push in
+  on the middle of the frame, which moved the head up and out. Without a
+  measured face it is centred as before.
+- The vertical placement of a face crop: by the eyes on the upper third
+  instead of by the middle of the face box at 42 %. Only crops with vertical
+  room move (a tall recording cropped to a wider frame); the common 16:9 to
+  9:16 crop has none.
+- A card in the top zone (`process`, `bubble`, `strike`, `list`, `steps`,
+  `cta`, `kinetic_word`) that would reach the speaker's forehead is drawn
+  smaller, toward its top edge, never under 70 %. `motion qa` measures it as
+  drawn.
+- A recompile keeps the music bed the replaced `edl.json` had, and warns when
+  the rebuilt edit has outgrown it.
+
 ## [2.12.0] - 2026-11-11
 
 What measuring finished reels showed the tool left alone: a dark, small or
