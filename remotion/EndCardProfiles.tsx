@@ -25,9 +25,11 @@ const initials = (name: string): string =>
  *
  * From the top: a kicker pill (a series name and part), the title, one to
  * three round portraits with a name and a handle each, a box with what comes
- * next, and a closing line. The title and the closing line arrive measured
- * from Python (`fitted`), like every end card; the rest is short by schema.
- * A person without a picture gets their initials in the brand's second colour.
+ * next, and a closing line. Every size and every line break arrives measured
+ * from Python (`fitted`), like every end card: the card fills the frame, and
+ * a long name or handle shrinks all of them together rather than wrapping in
+ * the browser. A person without a picture gets their initials in the brand's
+ * second colour.
  */
 export const ProfilesEndCard: React.FC<{
   element: MotionElement;
@@ -44,7 +46,11 @@ export const ProfilesEndCard: React.FC<{
   const {fps, height} = useVideoConfig();
   const u = height / 1920;
   const people = element.people ?? [];
-  const portrait = (people.length <= 1 ? 380 : people.length === 2 ? 320 : 250) * u;
+  const row = fitted.people;
+  if (!row) {
+    return null;
+  }
+  const portrait = row.portrait;
   const lines = (block: FittedBlock, weight: number, lineHeight: number) =>
     block.lines.map((line, index) => (
       <div
@@ -67,7 +73,7 @@ export const ProfilesEndCard: React.FC<{
         color: text,
         alignItems: 'center',
         justifyContent: 'center',
-        padding: `${150 * u}px ${80 * u}px`,
+        padding: `${120 * u}px ${80 * u}px`,
         textAlign: 'center',
       }}
     >
@@ -76,26 +82,27 @@ export const ProfilesEndCard: React.FC<{
           style={{
             background: secondary,
             color: inkOn(secondary),
-            fontSize: 30 * u,
+            fontSize: 32 * u,
             fontWeight: 700,
             letterSpacing: 4 * u,
             textTransform: 'uppercase',
-            padding: `${12 * u}px ${30 * u}px`,
+            padding: `${13 * u}px ${32 * u}px`,
             borderRadius: 999,
-            marginBottom: 44 * u,
+            marginBottom: 40 * u,
             whiteSpace: 'nowrap',
           }}
         >
           {element.kicker}
         </div>
       ) : null}
-      <div style={{maxWidth: fitted.max_width}}>{lines(fitted.title, 800, 1.1)}</div>
+      <div style={{maxWidth: fitted.max_width}}>{lines(fitted.title, 800, 1.08)}</div>
       <div
         style={{
           display: 'flex',
           justifyContent: 'center',
-          gap: (people.length === 3 ? 30 : 50) * u,
-          marginTop: 70 * u,
+          alignItems: 'flex-start',
+          gap: row.gap,
+          marginTop: 64 * u,
         }}
       >
         {people.map((person, index) => {
@@ -106,7 +113,7 @@ export const ProfilesEndCard: React.FC<{
             config: {damping: 13, stiffness: 180},
           });
           return (
-            <div key={index} style={{width: portrait + 30 * u}}>
+            <div key={index} style={{width: row.column}}>
               <div
                 style={{
                   width: portrait,
@@ -137,49 +144,63 @@ export const ProfilesEndCard: React.FC<{
                   initials(person.name)
                 )}
               </div>
-              <div style={{fontSize: 38 * u, fontWeight: 700, marginTop: 22 * u, lineHeight: 1.15}}>
-                {person.name}
+              <div
+                style={{fontSize: row.name_px, fontWeight: 700, marginTop: 24 * u, lineHeight: 1.15}}
+              >
+                {(row.names[index] ?? [person.name]).map((line, at) => (
+                  <div key={at} style={{whiteSpace: 'nowrap'}}>
+                    {line}
+                  </div>
+                ))}
               </div>
               {person.handle ? (
-                <div style={{fontSize: 27 * u, opacity: 0.72, marginTop: 6 * u}}>{person.handle}</div>
+                <div
+                  style={{
+                    fontSize: row.handle_px,
+                    opacity: 0.78,
+                    marginTop: 8 * u,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {person.handle}
+                </div>
               ) : null}
             </div>
           );
         })}
       </div>
-      {element.next_text ? (
+      {fitted.next ? (
         <div
           style={{
             background: accent,
             color: inkOn(accent),
-            borderRadius: 28 * u,
-            padding: `${26 * u}px ${44 * u}px`,
-            marginTop: 80 * u,
-            maxWidth: 880 * u,
-            boxShadow: `0 ${10 * u}px ${30 * u}px ${rgba(accent, 0.35)}`,
+            borderRadius: 36 * u,
+            padding: `${30 * u}px ${48 * u}px`,
+            marginTop: 72 * u,
+            width: fitted.max_width,
+            boxSizing: 'border-box',
+            boxShadow: `0 ${12 * u}px ${36 * u}px ${rgba(accent, 0.35)}`,
           }}
         >
           {element.next_label ? (
             <div
               style={{
-                fontSize: 25 * u,
+                fontSize: 31 * u,
                 fontWeight: 700,
-                letterSpacing: 4 * u,
+                letterSpacing: 3 * u,
                 textTransform: 'uppercase',
-                opacity: 0.85,
+                opacity: 0.88,
                 marginBottom: 8 * u,
               }}
             >
               {element.next_label}
             </div>
           ) : null}
-          <div style={{fontSize: 44 * u, fontWeight: 800, lineHeight: 1.15, textWrap: 'balance'}}>
-            {element.next_text}
-          </div>
+          {lines(fitted.next, 800, 1.12)}
         </div>
       ) : null}
       {fitted.secondary ? (
-        <div style={{marginTop: 56 * u, opacity: 0.8}}>{lines(fitted.secondary, 500, 1.25)}</div>
+        <div style={{marginTop: 56 * u, opacity: 0.85}}>{lines(fitted.secondary, 600, 1.25)}</div>
       ) : null}
     </AbsoluteFill>
   );

@@ -119,7 +119,7 @@ def anchor_to_sources(plan: MotionPlan, edl: EDL) -> tuple[MotionPlan, list[str]
                 f"{what}: {anchor.time:g}s of {anchor.source!r} is not in the edit; the cut "
                 "removed it, or the source id is not one the EDL uses"
             )
-        return round(hits[0], 3)
+        return max(0.0, round(hits[0] - anchor.lead, 3))
 
     def moved(item, what: str):
         if item.at_source is None:

@@ -314,6 +314,10 @@ class SourceAnchor(BaseModel):
 
     source: str = Field(min_length=1, max_length=120)
     time: float = Field(ge=0.0)
+    #: Seconds before that moment, on the output timeline: an effect across a
+    #: cut starts a beat before the first frame of the recording it leads into,
+    #: a moment that recording does not have.
+    lead: float = Field(default=0.0, ge=0.0, le=2.0)
 
 
 def check_one_anchor(at_word: str | None, at_source: SourceAnchor | None) -> None:

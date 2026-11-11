@@ -484,26 +484,98 @@ def _stage_custom(directory: Path, components: dict[str, Path]) -> Path:
     return registry
 
 
+#: The profiles end card, in pixels of a 1920-high frame, by how many people
+#: it shows: the portrait's diameter, the width of a person's column (the
+#: portrait, the name and the handle under it) and the gap between columns.
+#: Each row is as wide as the card's text allows (900), no wider.
+PROFILE_SIZES = {1: (460, 900, 0), 2: (400, 425, 50), 3: (264, 280, 30)}
+
+
 def end_card_text(item, *, width: int, height: int, font: Path | None) -> dict:
     """The end card's lines and sizes, measured, with links kept whole."""
-    from social_video.motion.text_fit import fit_text
+    from social_video.motion.text_fit import fit_in_few_lines, fit_text
 
     u = height / 1920
     max_width = min(900 * u, width - 180 * u)
-    # With people on the card the title shares the frame with their portraits.
+    # With people on the card the title is a heading over their portraits:
+    # large, in few lines, and never ending on one stranded word.
     crowded = bool(item.people)
-    title = fit_text(
-        item.text, max_width=max_width, base_px=round((60 if crowded else 72) * u),
-        min_px=round(30 * u), font_file=font, max_lines=3 if crowded else 4,
-    )  # fmt: skip
+    if crowded:
+        title = fit_in_few_lines(
+            item.text, max_width=max_width, base_px=round(96 * u), floor_px=round(76 * u),
+            min_px=round(30 * u), font_file=font, max_lines=3,
+        )  # fmt: skip
+    else:
+        title = fit_text(
+            item.text, max_width=max_width, base_px=round(72 * u), min_px=round(30 * u),
+            font_file=font, max_lines=4,
+        )  # fmt: skip
     fitted = {"title": title.payload(), "max_width": round(max_width, 1)}
     if item.secondary_text:
         secondary = fit_text(
-            item.secondary_text, max_width=max_width, base_px=round(34 * u),
+            item.secondary_text, max_width=max_width, base_px=round((38 if crowded else 34) * u),
             min_px=round(20 * u), font_file=font, max_lines=6,
         )  # fmt: skip
         fitted["secondary"] = secondary.payload()
+    if crowded:
+        fitted["people"] = _people_sizes(item, u=u, max_width=max_width, font=font)
+        if item.next_text:
+            # The box is as wide as the card's text; its own padding comes off.
+            fitted["next"] = fit_in_few_lines(
+                item.next_text, max_width=max_width - 96 * u, base_px=round(62 * u),
+                floor_px=round(50 * u), min_px=round(34 * u), font_file=font, max_lines=3,
+            ).payload()  # fmt: skip
     return fitted
+
+
+def _people_sizes(item, *, u: float, max_width: float, font: Path | None) -> dict:
+    """Portraits, names and handles of a profiles card, sized to their columns.
+
+    Everybody gets the same sizes, the ones the longest name and the longest
+    handle need: two people in two sizes read as a headliner and a guest.
+    """
+    from social_video.motion.text_fit import fit_in_few_lines, fit_text
+
+    portrait, column, gap = (value * u for value in PROFILE_SIZES[len(item.people)])
+    # A narrow frame (a square, a landscape cut) has less room than the 900.
+    row = len(item.people) * column + (len(item.people) - 1) * gap
+    shrink = min(1.0, max_width / row)
+    portrait, column, gap = portrait * shrink, column * shrink, gap * shrink
+    # The names are drawn bold, wider than the regular cut they are measured in.
+    room = column * 0.92
+    names = [
+        fit_in_few_lines(person.name, max_width=room, base_px=round(46 * u),
+                         floor_px=round(38 * u), min_px=round(22 * u), font_file=font,
+                         max_lines=2)
+        for person in item.people
+    ]  # fmt: skip
+    name_px = min(name.font_px for name in names)
+    handles = [
+        fit_text(person.handle, max_width=room, base_px=round(31 * u), min_px=round(14 * u),
+                 font_file=font, max_lines=1)
+        for person in item.people
+        if person.handle
+    ]  # fmt: skip
+    return {
+        "portrait": round(portrait, 1),
+        "column": round(column, 1),
+        "gap": round(gap, 1),
+        "name_px": name_px,
+        "handle_px": min((handle.font_px for handle in handles), default=round(31 * u)),
+        # Wrapped again at the shared size, so every name breaks where it fits.
+        "names": [
+            fit_in_few_lines(
+                person.name,
+                max_width=room,
+                base_px=name_px,
+                floor_px=name_px,
+                min_px=name_px,
+                font_file=font,
+                max_lines=2,
+            ).lines
+            for person in item.people
+        ],
+    }
 
 
 def title_payload(

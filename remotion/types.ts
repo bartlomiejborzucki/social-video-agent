@@ -132,7 +132,25 @@ export type Shake = {start: number; end: number; amplitude_pct: number; frequenc
 
 export type FittedBlock = {font_px: number; lines: string[]};
 
-export type FittedCard = {title: FittedBlock; secondary?: FittedBlock; max_width: number};
+/** A profiles card's people row, sized in Python to the longest name and handle. */
+export type FittedPeople = {
+  portrait: number;
+  column: number;
+  gap: number;
+  name_px: number;
+  handle_px: number;
+  /** Each person's name as the lines to draw, in the order of `people`. */
+  names: string[][];
+};
+
+export type FittedCard = {
+  title: FittedBlock;
+  secondary?: FittedBlock;
+  max_width: number;
+  /** `layout: profiles` only. */
+  people?: FittedPeople;
+  next?: FittedBlock;
+};
 
 /** The scene frame in output pixels, computed in Python (motion/layout.py). */
 export type SceneFrameGeometry = {

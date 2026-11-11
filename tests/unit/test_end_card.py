@@ -179,3 +179,34 @@ def test_held_end_cards_longer_than_the_hold_allows_are_refused() -> None:
     cards = [_card(start=30.0, end=36.0, hold=True), _card(start=36.0, end=41.0, hold=True)]
     with pytest.raises(ValueError, match=r"last 11\.00s together"):
         held_end_card(MotionPlan(rationale="r", elements=cards), edl)
+
+
+def test_balanced_lines_do_not_end_on_one_stranded_word() -> None:
+    text = "Dwa głosy o jednym temacie"
+    greedy = fit_text(text, max_width=640, base_px=60, min_px=60, font_file=None)
+    even = fit_text(text, max_width=640, base_px=60, min_px=60, font_file=None, balanced=True)
+
+    assert len(even.lines) == len(greedy.lines) == 2
+    assert " ".join(even.lines) == text
+    assert len(greedy.lines[-1].split()) == 1, "the plain wrap leaves the last word alone"
+    assert len(even.lines[-1].split()) >= 2
+
+
+def test_a_line_fewer_is_worth_a_somewhat_smaller_size() -> None:
+    from social_video.motion.text_fit import fit_in_few_lines
+
+    def fit(text: str, floor_px: int):
+        return fit_in_few_lines(
+            text, max_width=400, base_px=46, floor_px=floor_px, min_px=22, font_file=None,
+            max_lines=2,
+        )  # fmt: skip
+
+    name = "Anna Przykładowska"
+    wrapped = fit_text(name, max_width=400, base_px=46, min_px=22, font_file=None, max_lines=2)
+    assert wrapped.font_px == 46 and len(wrapped.lines) == 2, "the largest size, in two lines"
+    one_line = fit(name, 36)
+    assert len(one_line.lines) == 1 and 36 <= one_line.font_px < 46
+    # Not at any price: under the floor the name takes its two lines instead.
+    assert len(fit(name, 45).lines) == 2
+    with pytest.raises(ValueError, match="does not fit"):
+        fit("Bardzo-długie-nazwisko-bez-żadnej-przerwy-do-złamania", 36)

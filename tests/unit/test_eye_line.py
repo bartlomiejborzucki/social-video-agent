@@ -144,3 +144,45 @@ def test_qa_says_when_two_ranges_frame_the_speaker_differently() -> None:
     assert evened[0].passed, "a zoom enlarges the face and keeps the eyes where they were"
     assert _framing_checks(EDL(ranges=[_framed(0.3, 0.2)])) == []
     assert _framing_checks(EDL(ranges=[EDLRange(source="kamera", start=0, end=2)] * 2)) == []
+
+
+def _other(focus_y: float, face: float, zoom: float = 1.0) -> EDLRange:
+    plan = ReframePlan(mode=ReframeMode.FIT, focus_x=0.5, focus_y=focus_y, face_height=face)
+    return EDLRange(source="druga", start=0, end=2, zoom=zoom, reframe=plan)
+
+
+def test_a_punch_on_one_recording_is_not_a_framing_fault() -> None:
+    from social_video.pipeline import _framing_checks
+    from social_video.schemas.edl import EDL
+
+    # The alternation that hides a jump cut: 1.0, 1.4, 1.0 on one recording.
+    punched = _framing_checks(
+        EDL(ranges=[_framed(0.3, 0.2), _framed(0.3, 0.2, zoom=1.4), _framed(0.3, 0.2)])
+    )
+    # The same enlargement across a cut to another recording is a real jump.
+    across = _framing_checks(EDL(ranges=[_other(0.3, 0.2), _framed(0.3, 0.2, zoom=1.4)]))
+
+    assert punched[0].passed
+    assert not across[0].passed
+    assert "`zoom: 1.40` on the plan item of range 0" in across[0].message
+    assert "the picture softens" in across[0].message
+
+
+def test_only_the_two_sides_of_a_cut_are_compared() -> None:
+    from social_video.pipeline import _framing_checks
+    from social_video.schemas.edl import EDL
+
+    # The first and the last differ a lot; every cut between them is gentle.
+    gradual = _framing_checks(
+        EDL(ranges=[_framed(0.24, 0.16), _other(0.30, 0.20), _framed(0.36, 0.25)])
+    )
+    # A range without a measured face between two that have one: no cut to judge.
+    unmeasured = EDLRange(source="kamera", start=0, end=2)
+    apart = _framing_checks(EDL(ranges=[_framed(0.2, 0.1), unmeasured, _framed(0.5, 0.3)]))
+    jump = _framing_checks(EDL(ranges=[_framed(0.34, 0.21), _other(0.2, 0.17)]))
+
+    assert gradual[0].passed and "eyes at 24%-36%" in gradual[0].message
+    assert apart == []
+    assert not jump[0].passed
+    assert "20% of the frame height in range 1 and at 34% in range 0" in jump[0].message
+    assert "zoom" not in jump[0].message, "the faces are close enough in size"

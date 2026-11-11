@@ -1039,50 +1039,84 @@ FACE_SIZE_RATIO = 1.35
 #: Eye lines further apart than this, as a share of the frame height, make
 #: the viewer's eyes jump at the cut.
 EYE_LINE_SPREAD = 0.08
+#: A zoom past this softens a recording that is no larger than the output.
+SOFTENING_ZOOM = 1.3
 
 
 def _framing_checks(edl: EDL) -> list[QACheck]:
-    """Whether the speakers sit alike from range to range; advice, never a failure.
+    """Whether the speakers sit alike across each cut; advice, never a failure.
 
     Uses what the reframe plans measured: where the eyes are and how tall the
     face is. A range's ``zoom`` enlarges the face and leaves the eyes where
     they were, since it pushes in on them.
+
+    A viewer compares the two sides of a cut, so that is what is compared:
+    each range with the one after it, never the two extremes of the edit.
+    Between two ranges of one recording a different ``zoom`` is a punch
+    somebody chose (the alternation that hides a jump cut), not a framing
+    fault, so their face sizes are not held against each other.
     """
-    seen = [
-        (index, rng.reframe.focus_y, rng.reframe.face_height * rng.zoom)
+    seen = {
+        index: (rng.reframe.focus_y, rng.reframe.face_height * rng.zoom)
         for index, rng in enumerate(edl.ranges)
         if rng.reframe is not None
         and rng.reframe.focus_y is not None
         and rng.reframe.face_height is not None
         and rng.reframe.face_height > 0
-    ]
-    if len(seen) < 2:
+    }
+    cuts = [(index, index + 1) for index in seen if index + 1 in seen]
+    if not cuts:
         return []
-    small = min(seen, key=lambda item: item[2])
-    large = max(seen, key=lambda item: item[2])
-    high = min(seen, key=lambda item: item[1])
-    low = max(seen, key=lambda item: item[1])
-    problems = []
-    if large[2] / small[2] > FACE_SIZE_RATIO:
-        wanted = min(2.0, edl.ranges[small[0]].zoom * large[2] / small[2])
-        problems.append(
-            f"the face fills {small[2]:.0%} of the frame height in range {small[0]} and "
-            f"{large[2]:.0%} in range {large[0]}; `zoom: {wanted:.2f}` on the plan item of "
-            f"range {small[0]} brings them together (a zoom pushes in on the eyes)"
+
+    def chosen_punch(a: int, b: int) -> bool:
+        before, after = edl.ranges[a], edl.ranges[b]
+        return (
+            before.effective_video_source == after.effective_video_source
+            and abs(before.zoom - after.zoom) > 1e-6
         )
-    if low[1] - high[1] > EYE_LINE_SPREAD:
+
+    def size_ratio(cut: tuple[int, int]) -> float:
+        sizes = sorted(seen[index][1] for index in cut)
+        return sizes[1] / sizes[0]
+
+    def eye_gap(cut: tuple[int, int]) -> float:
+        return abs(seen[cut[0]][0] - seen[cut[1]][0])
+
+    problems = []
+    sized = [cut for cut in cuts if not chosen_punch(*cut)]
+    widest = max(sized, key=size_ratio, default=None)
+    if widest is not None and size_ratio(widest) > FACE_SIZE_RATIO:
+        small, large = sorted(widest, key=lambda index: seen[index][1])
+        wanted = min(2.0, edl.ranges[small].zoom * size_ratio(widest))
+        softens = (
+            f"; past {SOFTENING_ZOOM:g} the picture softens unless the recording is larger "
+            "than the output"
+            if wanted > SOFTENING_ZOOM
+            else ""
+        )
         problems.append(
-            f"the eyes sit at {high[1]:.0%} of the frame height in range {high[0]} and at "
-            f"{low[1]:.0%} in range {low[0]}, so they jump at the cut"
+            f"the face fills {seen[small][1]:.0%} of the frame height in range {small} and "
+            f"{seen[large][1]:.0%} in range {large}, the next one over the cut; "
+            f"`zoom: {wanted:.2f}` on the plan item of range {small} brings them together "
+            f"(a zoom pushes in on the eyes{softens})"
+        )
+    furthest = max(cuts, key=eye_gap)
+    if eye_gap(furthest) > EYE_LINE_SPREAD:
+        high, low = sorted(furthest, key=lambda index: seen[index][0])
+        problems.append(
+            f"the eyes sit at {seen[high][0]:.0%} of the frame height in range {high} and at "
+            f"{seen[low][0]:.0%} in range {low}, so they jump at the cut"
         )
     if not problems:
+        faces = [size for _eyes, size in seen.values()]
+        eyes = [line for line, _size in seen.values()]
         return [
             QACheck(
                 name="framing between ranges",
                 severity=QASeverity.INFO,
                 passed=True,
-                message=f"faces {small[2]:.0%}-{large[2]:.0%} of the frame height, eyes at "
-                f"{high[1]:.0%}-{low[1]:.0%}",
+                message=f"faces {min(faces):.0%}-{max(faces):.0%} of the frame height, eyes at "
+                f"{min(eyes):.0%}-{max(eyes):.0%}",
             )
         ]
     return [

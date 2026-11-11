@@ -92,6 +92,22 @@ def test_the_same_plan_follows_the_edit_after_a_recompile() -> None:
     assert anchor_to_sources(plan, shorter)[0].elements[0].start == 1.0
 
 
+def test_an_effect_across_a_cut_leads_into_the_recording_it_opens() -> None:
+    blur = Effect(type="whip_blur", start=5.0, end=5.35, reason="Zmiana osoby.",
+                  at_source={"source": "rozmowa", "time": 10.0, "lead": 0.15})  # fmt: skip
+    # A lead never reaches before the first frame of the edit.
+    first = _label("Od początku", at_source={"source": "wstep", "time": 1.2, "lead": 0.5})
+    plan = MotionPlan(rationale="Przejście na cięciu.", elements=[first], effects=[blur])
+
+    placed, _notes = anchor_to_sources(plan, _edl())
+
+    # "rozmowa" starts at 3.0 s of the edit; 0.15 s earlier "wstep" is still on.
+    assert [(e.start, e.end) for e in placed.effects] == [(2.85, 3.2)]
+    assert (placed.elements[0].start, placed.elements[0].end) == (0.0, 2.0)
+    with pytest.raises(PydanticValidationError):
+        SourceAnchor(source="rozmowa", time=10.0, lead=-0.1)
+
+
 def test_a_moment_the_edit_cut_out_is_named_not_guessed() -> None:
     plan = MotionPlan(
         rationale="Wycięte.",
