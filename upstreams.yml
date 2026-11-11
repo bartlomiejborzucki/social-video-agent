@@ -5,6 +5,7 @@
 #
 # integration values:
 #   adapted     - code from this project exists here, modified, with attribution
+#   vendored    - a file from this project ships here unmodified, with its licence
 #   design      - concepts adopted, no code copied
 #   dependency  - consumed as a package, no code copied
 #   reference   - read for current best practice, nothing taken
@@ -125,13 +126,16 @@ upstreams:
 
   - repository: opencv/opencv_zoo
     url: https://github.com/opencv/opencv_zoo
-    purpose: YuNet face detection model.
-    license: Apache-2.0
-    reviewed_sha: main@2026-09-15
-    reviewed_on: 2026-09-15
-    integration: dependency
+    purpose: YuNet face detection model, shipped unmodified with the package.
+    # The repository is Apache-2.0; the model's own directory is MIT.
+    license: MIT
+    reviewed_sha: f12e12798e8314f7c074a6656816c048dcc95b7a
+    reviewed_on: 2026-11-11
+    integration: vendored
     components:
       - src/social_video/reframe/detect.py
+      - src/social_video/reframe/data/face_detection_yunet_2023mar.onnx
+      - src/social_video/reframe/data/LICENSE.yunet
 
   - repository: WyattBlue/auto-editor
     url: https://github.com/WyattBlue/auto-editor

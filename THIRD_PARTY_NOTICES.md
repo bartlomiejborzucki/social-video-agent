@@ -87,7 +87,7 @@ distinction is frequently blurred; it is stated explicitly here.
 | model | licence | gated? |
 |---|---|---|
 | Whisper (faster-whisper CTranslate2 conversions) | MIT | No. Downloaded on first use. |
-| YuNet face detection (OpenCV Zoo) | Apache-2.0 | No. 233 KB, fetched on first use. |
+| YuNet face detection (OpenCV Zoo, `models/face_detection_yunet`) | MIT, Copyright (c) 2020 Shiqi Yu | Yes: `src/social_video/reframe/data/`, 233 KB, unmodified, with its licence beside it. |
 | Silero VAD (bundled with faster-whisper) | MIT | No. |
 | wav2vec2 alignment models (WhisperX) | varies by model; the torchaudio defaults are permissive | No token required. |
 | `pyannote/speaker-diarization-community-1` | **Gated** | **Yes.** Requires a Hugging Face account, acceptance of the model's user conditions, and a personal read token. We cannot redistribute these weights or supply a token. |

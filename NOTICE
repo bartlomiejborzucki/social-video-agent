@@ -8,3 +8,8 @@ licensed under the MIT License.
 Specific functions ported from that project, the extent of modification, and
 attribution for every other adapted source are recorded in
 docs/research/provenance.md and THIRD_PARTY_NOTICES.md.
+
+This product ships the YuNet face detection model from OpenCV Zoo
+(https://github.com/opencv/opencv_zoo, models/face_detection_yunet),
+Copyright (c) 2020 Shiqi Yu, licensed under the MIT License. The file is
+unmodified; its licence is src/social_video/reframe/data/LICENSE.yunet.

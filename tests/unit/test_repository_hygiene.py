@@ -39,6 +39,10 @@ FORBIDDEN = (
     ),
 )
 
+#: Licence texts of files shipped from other projects. A licence is reproduced
+#: as its authors wrote it, and theirs names a contact address.
+THIRD_PARTY_LICENCES = {"src/social_video/reframe/data/LICENSE.yunet"}
+
 #: Windows user paths are allowed only with a placeholder user name. The user
 #: segment has to look like a directory name: prose that merely mentions
 #: ``C:\\Users\\...`` is not a path.
@@ -76,7 +80,9 @@ def tracked_text_files() -> list[Path]:
         if not name:
             continue
         path = ROOT / name
-        if not path.is_file() or path.suffix.casefold() in {".png", ".jpg", ".ttf", ".ico"}:
+        if not path.is_file() or path.suffix.casefold() in {
+            ".png", ".jpg", ".ttf", ".ico", ".onnx",
+        }:  # fmt: skip
             continue
         files.append(path)
     return files
@@ -91,7 +97,7 @@ def test_no_private_reference_is_committed(path: Path) -> None:
     relative = path.relative_to(ROOT).as_posix()
     if relative == Path(__file__).relative_to(ROOT).as_posix():
         pytest.skip("this file names the patterns it forbids")
-    for pattern, why in FORBIDDEN:
+    for pattern, why in () if relative in THIRD_PARTY_LICENCES else FORBIDDEN:
         found = pattern.search(text)
         assert found is None, f"{relative} contains {found.group(0)!r}: {why}"
     for pattern in USER_DIRECTORY:

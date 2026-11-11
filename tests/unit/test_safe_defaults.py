@@ -115,3 +115,31 @@ def test_the_face_model_can_come_from_a_local_file(
     monkeypatch.setenv(detect.MODEL_ENV, str(tmp_path / "missing.onnx"))
     with pytest.raises(SocialVideoError, match="SOCIAL_VIDEO_YUNET_MODEL points at"):
         detect.ensure_model()
+
+
+def test_the_face_model_ships_with_the_package_and_needs_no_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cloud session that cannot reach GitHub still frames on faces."""
+    import hashlib
+
+    monkeypatch.delenv(detect.MODEL_ENV, raising=False)
+    monkeypatch.setattr(
+        detect.urllib.request, "urlopen", lambda *a, **k: pytest.fail("must not download")
+    )
+
+    model = detect.ensure_model()
+
+    assert model == detect.BUNDLED_MODEL
+    assert hashlib.sha256(model.read_bytes()).hexdigest() == detect.MODEL_SHA256
+    assert (model.parent / "LICENSE.yunet").read_text(encoding="utf-8").startswith("MIT License")
+
+
+def test_doctor_reports_the_face_model() -> None:
+    from social_video.doctor import _check_face_model
+
+    report = DoctorReport()
+    _check_face_model(report)
+
+    (check,) = [c for c in report.checks if c.name == "face model"]
+    assert check.ok and "YuNet" in check.detail

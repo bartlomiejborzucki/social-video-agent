@@ -317,6 +317,28 @@ def _check_packages(report: DoctorReport) -> None:
         report.add(Check(f"optional: {module}", found, False, purpose, "" if found else how))
 
 
+def _check_face_model(report: DoctorReport) -> None:
+    """Face framing and the face checks of motion QA need the detection model."""
+    from social_video.reframe.detect import MODEL_ENV, ensure_model
+
+    try:
+        model = ensure_model()
+    except SocialVideoError as exc:
+        report.add(
+            Check(
+                "face model",
+                False,
+                False,
+                "not available",
+                f"{str(exc).splitlines()[0]}. Reinstall the package, or set {MODEL_ENV} "
+                "to a copy of the model. Without it reframing uses a centre crop and "
+                "motion QA cannot measure graphics against faces.",
+            )
+        )
+        return
+    report.add(Check("face model", True, False, f"YuNet at {model}", ""))
+
+
 def _check_fonts(report: DoctorReport) -> None:
     font = default_caption_font()
     if font is None:
@@ -748,6 +770,7 @@ def run_doctor() -> DoctorReport:
     _check_encoding(report)
     _check_ffmpeg(report)
     _check_packages(report)
+    _check_face_model(report)
     _check_fonts(report)
     _check_brand_font(report)
     _check_gpu(report)

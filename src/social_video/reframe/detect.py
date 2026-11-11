@@ -30,6 +30,12 @@ _MODEL_URL = (
     "face_detection_yunet/face_detection_yunet_2023mar.onnx"
 )
 _MODEL_NAME = "face_detection_yunet_2023mar.onnx"
+#: The model ships with the package (233 KB, MIT; see data/LICENSE.yunet), so a
+#: session that cannot reach GitHub -- a cloud sandbox answering 403 -- still
+#: frames on faces and measures graphics against them.
+BUNDLED_MODEL = Path(__file__).with_name("data") / _MODEL_NAME
+#: The file's SHA-256, as upstream's LFS pointer records it.
+MODEL_SHA256 = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
 
 
 @dataclass(frozen=True)
@@ -84,7 +90,11 @@ MODEL_ENV = "SOCIAL_VIDEO_YUNET_MODEL"
 
 
 def ensure_model() -> Path:
-    """The YuNet model: ``SOCIAL_VIDEO_YUNET_MODEL`` if set, else downloaded once."""
+    """The YuNet model: ``SOCIAL_VIDEO_YUNET_MODEL`` if set, else the bundled file.
+
+    A download is only the last resort, for an install that lost the bundled
+    file.
+    """
     configured = os.environ.get(MODEL_ENV, "").strip()
     if configured:
         local = Path(configured).expanduser()
@@ -94,6 +104,8 @@ def ensure_model() -> Path:
                 f"({_MODEL_NAME}, about 233 KB)"
             )
         return local
+    if BUNDLED_MODEL.is_file() and BUNDLED_MODEL.stat().st_size > 1000:
+        return BUNDLED_MODEL
     path = ensure_dir(models_dir() / "yunet") / _MODEL_NAME
     if path.is_file() and path.stat().st_size > 1000:
         return path
