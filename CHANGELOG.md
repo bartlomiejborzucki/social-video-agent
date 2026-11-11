@@ -4,6 +4,32 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+Found by putting 2.13 to work on a finished edit.
+
+### Added
+
+- `lead` on `at_source` / `until_source`: seconds before the named moment, so
+  an effect across a cut can start a beat before the first frame of the
+  recording it leads into (`{source, time, lead: 0.15}`).
+
+### Changed
+
+- The `layout: profiles` end card fills the frame: a larger heading, larger
+  portraits, a next-up box as wide as the card. Every size and line break on
+  it is now measured in Python, like the rest of an end card. A name stays on
+  one line where a slightly smaller size allows it, everybody is drawn at the
+  size the longest name and handle need, and the heading no longer ends on one
+  stranded word.
+
+### Fixed
+
+- QA check "framing between ranges" compared the two most different ranges of
+  the whole edit, so the zoom that hides a jump cut (1.0, 1.15, 1.0 on one
+  recording) was reported as a framing fault against another speaker, with a
+  large `zoom` named to "fix" it. It now compares the two sides of each cut, does
+  not hold a chosen zoom on one recording against itself, and says when the
+  zoom it names is past what a recording no larger than the output takes.
+
 ## [2.13.0] - 2026-11-11
 
 Framing, graphics and the work a series needed by hand: output times worked

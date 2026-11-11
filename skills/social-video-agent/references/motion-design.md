@@ -223,7 +223,10 @@ that reaches the final frame never fades out over it.
   initials without one -- then what comes next (`next_label`, `next_text`)
   in an accent box, and `secondary_text` as the closing line. It draws its
   own background in the brand's colours, so it takes no plate. Portraits are
-  the people's own pictures; say whose they are in the `reason`.
+  the people's own pictures; say whose they are in the `reason`. The card
+  fills the frame and sizes itself: a name stays on one line where it can,
+  everybody is drawn at the size the longest name and handle need, and
+  `next_text` takes up to three lines. Square portraits crop best.
 
 ```json
 {"type": "end_card", "start": 0, "end": 2.6, "hold": true,
@@ -317,7 +320,10 @@ keeping its length; `until_source` names the moment it ends. Punch-ins, shakes
 and picture effects take `at_source` as well. `compile` and the render map
 each moment through the edit as it is now, so the plan survives a recompile;
 a moment the edit cut out is an error that names it. Give `at_word` or
-`at_source`, not both.
+`at_source`, not both. `lead` starts that many seconds earlier, for what has
+to begin before the moment itself: a whip blur across a change of speaker is
+`{"source": "rozmowa", "time": 10.0, "lead": 0.15}`, the first frame of the
+recording it leads into, less a beat.
 
 ```json
 {"type": "list", "start": 3.0, "end": 9.0, "text": "Spróbuj tak",

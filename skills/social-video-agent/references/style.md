@@ -205,9 +205,13 @@ face is (`reframe.focus_x`, `focus_y`, `face_height`, and in its `reason`),
 including a recording shown whole. A range's `zoom` pushes in on that point,
 so a punch-in goes toward the face and the eyes stay where they were on
 screen; without a measured face it pushes in on the centre, as before. QA
-warns under "framing between ranges" when faces differ in size by more than
-1.35x or eye lines by more than 8 % of the frame height, and names the `zoom`
-that evens them.
+warns under "framing between ranges" when, across a cut, faces differ in size
+by more than 1.35x or eye lines by more than 8 % of the frame height, and
+names the `zoom` that evens the sizes. It compares each range with the next
+one, not the extremes of the edit, and a different `zoom` on two ranges of
+one recording (the punch that hides a jump cut) is not counted. A recording
+shown whole has no picture above the frame, so eyes that sit too high stay a
+warning: leave room above the head when recording.
 
 The crop is deliberately lazy. It holds still inside a dead zone, moves
 gradually when it moves, and only jumps at a scene cut. If the result looks
