@@ -221,6 +221,12 @@ class ProjectVideoConfig(BaseModel):
     #: audio exactly as recorded; `required` fails an edit it cannot measure.
     #: Every render reports what it changed and how to turn it off.
     audio_cleanup_policy: Literal["none", "measured", "required"] = "measured"
+    #: Picture correction, on the same terms as the voice: `measured` lifts a
+    #: dark recording, restores contrast, sharpens an enlarged one and lightly
+    #: denoises a heavily compressed one, each only when measured and each
+    #: under a ceiling. `none` leaves the picture as recorded; `required`
+    #: fails an edit whose picture cannot be measured or corrected.
+    picture_policy: Literal["none", "measured", "required"] = "measured"
     #: Whether this project permits sending a text prompt to a cloud image model
     #: for cover and end-card plates. Media is never uploaded either way.
     #: `ask` (the default): each image needs the user's yes for that image.
@@ -430,6 +436,9 @@ class BrandContract(Artifact):
     #: Compiled from the project config. `measured` cleans only what this
     #: recording measures as broken; `none` renders the audio as recorded.
     audio_cleanup_policy: Literal["none", "measured", "required"] = "measured"
+    #: Compiled from the project config. `measured` corrects only what each
+    #: recording measures as needing it; `none` renders the picture as recorded.
+    picture_policy: Literal["none", "measured", "required"] = "measured"
     #: Compiled from the project config: how the reel is expected to end.
     end_style: Literal["none", "overlay", "end_card", "both"] = "none"
     #: Compiled from the project config; see `ProjectVideoConfig`.

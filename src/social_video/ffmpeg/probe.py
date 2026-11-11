@@ -40,6 +40,8 @@ class VideoStream:
     nb_frames: int | None
     duration: float | None = None
     time_base: str = ""
+    #: The stream's bit rate in bits per second, when the container states it.
+    bit_rate: int | None = None
 
     @property
     def display_size(self) -> tuple[int, int]:
@@ -173,6 +175,14 @@ def _pick_frame_rate(stream: dict[str, Any]) -> str:
     return "30/1"
 
 
+def _bit_rate(value: object) -> int | None:
+    try:
+        rate = int(str(value))
+    except (TypeError, ValueError):
+        return None
+    return rate if rate > 0 else None
+
+
 @functools.lru_cache(maxsize=128)
 def _probe_cached(resolved: str, mtime_ns: int, size: int) -> MediaInfo:
     """Memoised probe.
@@ -214,6 +224,7 @@ def _probe_cached(resolved: str, mtime_ns: int, size: int) -> MediaInfo:
                 nb_frames=int(nb) if nb and str(nb).isdigit() else None,
                 duration=stream_duration,
                 time_base=str(stream.get("time_base") or ""),
+                bit_rate=_bit_rate(stream.get("bit_rate")),
             )
         elif kind == "audio":
             tags = stream.get("tags") or {}

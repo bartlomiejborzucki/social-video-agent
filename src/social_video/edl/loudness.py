@@ -97,24 +97,51 @@ def measure_loudness(
         return None
 
 
-def loudnorm_filter(measurement: LoudnessMeasurement | None) -> str | None:
+#: The most the gain is raised to make up for what the limiter took off.
+MAX_MAKEUP_DB = 3.0
+
+
+def is_limited_gain(normaliser: str | None) -> bool:
+    """Whether a normaliser is the gain-and-limiter form rather than ``loudnorm``."""
+    return bool(normaliser) and not str(normaliser).startswith("loudnorm")
+
+
+def loudnorm_filter(
+    measurement: LoudnessMeasurement | None, *, makeup_db: float = 0.0
+) -> str | None:
     """Build the normalisation filter, or ``None`` to skip it.
 
-    With a measurement, ``loudnorm`` runs in its accurate linear mode. Without
-    one, it falls back to a single dynamic pass, which is approximate but
-    better than nothing.
+    With a measurement the whole mix gets one gain. Where that gain fits under
+    the true-peak ceiling, ``loudnorm`` applies it in its linear mode. Where
+    it does not -- speech recorded hot, a quiet edit that needs lifting --
+    ``loudnorm`` would silently switch to its dynamic mode and ride the gain
+    over time: the first seconds come out louder than the rest, and two
+    speakers levelled a moment ago drift apart again. So there the gain is
+    applied as it is and a limiter catches only the peaks above the ceiling.
+
+    ``makeup_db`` raises that gain by what the limiter was measured to take
+    off the loudness, up to ``MAX_MAKEUP_DB``, so the mix still reaches its
+    target.
+
+    Without a measurement it falls back to a single dynamic pass, which is
+    approximate but better than nothing.
     """
     base = f"loudnorm=I={LOUDNORM_I}:TP={LOUDNORM_TP}:LRA={LOUDNORM_LRA}"
     if measurement is None:
         return base
     if measurement.is_silent:
         return None
-    return (
-        f"{base}"
-        f":measured_I={measurement.input_i:.2f}"
-        f":measured_TP={measurement.input_tp:.2f}"
-        f":measured_LRA={measurement.input_lra:.2f}"
-        f":measured_thresh={measurement.input_thresh:.2f}"
-        f":offset={measurement.target_offset:.2f}"
-        f":linear=true"
-    )
+    gain = LOUDNORM_I - measurement.input_i
+    if measurement.input_tp + gain <= LOUDNORM_TP and measurement.input_lra <= LOUDNORM_LRA:
+        return (
+            f"{base}"
+            f":measured_I={measurement.input_i:.2f}"
+            f":measured_TP={measurement.input_tp:.2f}"
+            f":measured_LRA={measurement.input_lra:.2f}"
+            f":measured_thresh={measurement.input_thresh:.2f}"
+            f":offset={measurement.target_offset:.2f}"
+            f":linear=true"
+        )
+    ceiling = 10 ** (LOUDNORM_TP / 20.0)
+    gain += min(MAX_MAKEUP_DB, max(0.0, makeup_db))
+    return f"volume={gain:.2f}dB,alimiter=limit={ceiling:.4f}:attack=5:release=50:level=false"

@@ -128,6 +128,7 @@ class ProjectConfig(BaseModel):
     music_policy: str | None = None
     sfx_policy: str | None = None
     audio_cleanup_policy: str | None = None
+    picture_policy: str | None = None
     image_generation_policy: str | None = None
     brand_asset_upload: str | None = None
     label_style: str | None = None

@@ -131,6 +131,7 @@ def deliver_workspace(
         load_artifact(MotionPlan, workspace.motion_plan) if renderer is Renderer.REMOTION else None
     )
     attestation = workflow.remotion_license_attestation if workflow else None
+    keep_audio, keep_picture = _approved_switches(workspace)
 
     if with_captions:
         source = workspace.final / "final.mp4"
@@ -154,6 +155,8 @@ def deliver_workspace(
                 renderer=renderer,
                 motion_plan=motion_plan,
                 remotion_license_attestation=attestation,
+                audio_cleanup=keep_audio,
+                picture_correction=keep_picture,
                 persist_artifacts=False,
                 base_name="no-music",
             )
@@ -174,6 +177,8 @@ def deliver_workspace(
             renderer=renderer,
             motion_plan=motion_plan,
             remotion_license_attestation=attestation,
+            audio_cleanup=keep_audio,
+            picture_correction=keep_picture,
         )
         items.append(_video_item(target, clean_edl, None, destination, specs, contract, limit))
     for resolution in resolutions or []:
@@ -192,6 +197,8 @@ def deliver_workspace(
             renderer=renderer,
             motion_plan=motion_plan,
             remotion_license_attestation=attestation,
+            audio_cleanup=keep_audio,
+            picture_correction=keep_picture,
         )
         items.append(
             _video_item(target, variant_edl, caption_track, destination, specs, contract, limit)
@@ -221,6 +228,8 @@ def deliver_workspace(
             renderer=renderer,
             motion_plan=motion_plan,
             remotion_license_attestation=attestation,
+            audio_cleanup=keep_audio,
+            picture_correction=keep_picture,
         )
         items.append(_video_item(target, edl, translated, destination, specs, contract, limit))
         if srt:
@@ -370,6 +379,26 @@ def _hook_variant_items(
             )
         )
     return items
+
+
+def _approved_switches(workspace: Workspace) -> tuple[bool, bool]:
+    """Whether the approved final had its voice cleaned and its picture corrected.
+
+    Variants are rendered the same way: a final rendered with
+    `--no-audio-cleanup` or `--no-picture-correction` was approved like that,
+    and a variant that put the correction back would not be the video that
+    was reviewed.
+    """
+    from social_video.schemas.qa import RenderManifest
+
+    path = workspace.renders / "final.manifest.json"
+    if not path.is_file():
+        return True, True
+    try:
+        approved = load_artifact(RenderManifest, path)
+    except ValidationError:
+        return True, True
+    return approved.audio_cleanup_policy != "none", approved.picture_policy != "none"
 
 
 def posting_notes(items: list[DeliveryItem], main: Path, *, has_bed: bool) -> list[str]:

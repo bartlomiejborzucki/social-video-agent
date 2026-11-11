@@ -75,8 +75,15 @@ TONEMAP_CHAIN = (
 CUT_FADE_S = 0.030
 
 
-def audio_cut_fades(duration: float, fade: float = CUT_FADE_S) -> str:
+def audio_cut_fades(
+    duration: float, fade: float = CUT_FADE_S, *, at_start: bool = True, at_end: bool = True
+) -> str:
     """Short fades at both edges of a segment, to prevent pops at the splice.
+
+    ``at_start`` / ``at_end`` switch one off where the segment runs on from, or
+    into, its neighbour with nothing removed between them: there is no splice
+    there, and a fade would dip continuous sound. With both off the result is
+    ``anull``, so the chain keeps its shape.
 
     Concept from browser-use/video-use ``helpers/render.py:270-272`` (MIT).
     Modified: upstream hard-codes 0.03 and, for a segment shorter than twice
@@ -87,7 +94,12 @@ def audio_cut_fades(duration: float, fade: float = CUT_FADE_S) -> str:
         raise ValueError(f"segment duration must be positive, got {duration}")
     f = min(fade, duration / 3.0)
     out_start = max(0.0, duration - f)
-    return f"afade=t=in:st=0:d={f:.4f},afade=t=out:st={out_start:.4f}:d={f:.4f}"
+    fades = []
+    if at_start:
+        fades.append(f"afade=t=in:st=0:d={f:.4f}")
+    if at_end:
+        fades.append(f"afade=t=out:st={out_start:.4f}:d={f:.4f}")
+    return ",".join(fades) or "anull"
 
 
 #: Loudness targets. -14 LUFS / -1 dBTP is the streaming and social norm.

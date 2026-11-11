@@ -100,5 +100,6 @@ class Timeline:
         """Output times where one range gives way to the next.
 
         These are the moments QA inspects: a bad splice shows up here or nowhere.
+        A range that simply runs on from the one before is not a splice.
         """
-        return [s.output_start for s in self.slices[1:]]
+        return [s.output_start for s in self.slices[1:] if not s.range.runs_on]

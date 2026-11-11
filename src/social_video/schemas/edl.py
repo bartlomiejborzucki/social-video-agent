@@ -138,6 +138,12 @@ class Overlay(Artifact):
         return self.start_in_output + self.duration
 
 
+#: Values of `EDLRange.transition_in` for a range that follows on from the one
+#: before it in the same recording (see the field).
+CONTINUOUS = "continuous"
+PUNCH = "punch"
+
+
 class EDLRange(Artifact):
     """One cut: a span of one source, placed in output order."""
 
@@ -178,7 +184,16 @@ class EDLRange(Artifact):
         default="",
         description="Named look: mono, mono_contrast, shake; combine with +, e.g. mono+shake.",
     )
+    #: How this range follows the one before. ``cut``: a cut. ``continuous``:
+    #: the recording simply runs on -- nothing was removed between the two, so
+    #: neither the picture nor the sound has a seam. ``punch``: the recording
+    #: runs on and only the framing changes, so the sound has no seam.
     transition_in: str = "cut"
+
+    @property
+    def runs_on(self) -> bool:
+        """The sound continues from the range before: no cut to fade across."""
+        return self.transition_in in (CONTINUOUS, PUNCH)
 
     # Optional split A/V sources. Existing v1 EDLs keep using source/start/end.
     video_source: str | None = None

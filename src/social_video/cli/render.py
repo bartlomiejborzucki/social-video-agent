@@ -150,6 +150,12 @@ def render(
         "--audio-cleanup/--no-audio-cleanup",
         help="Apply the project's measured voice cleanup. Off renders the audio as recorded.",
     ),
+    picture_correction: bool = typer.Option(
+        True,
+        "--picture-correction/--no-picture-correction",
+        help="Apply the project's measured picture correction. Off renders the picture "
+        "as recorded.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Render the EDL already in a workspace. Deterministic and repeatable."""
@@ -228,10 +234,12 @@ def render(
             motion_plan=motion_plan,
             remotion_license_attestation=attestation,
             audio_cleanup=audio_cleanup,
+            picture_correction=picture_correction,
         )
     )
     elapsed = time.monotonic() - started
     cleanup = _rendered_audio_cleanup(ws, rendered)
+    picture = _rendered_picture(ws, rendered)
     if as_json:
         console.print_json(
             json.dumps(
@@ -242,6 +250,7 @@ def render(
                     "seconds": round(elapsed, 1),
                     "estimate": estimate.to_dict() if estimate else None,
                     "audio_cleanup": cleanup,
+                    "picture": picture,
                 },
                 ensure_ascii=False,
             )
@@ -249,6 +258,51 @@ def render(
         return
     console.print(f"[green]rendered[/green] {rendered} in {elapsed:.0f} s", soft_wrap=True)
     _print_audio_cleanup(cleanup)
+    _print_picture(picture)
+
+
+def _rendered_picture(workspace, rendered: Path) -> dict:
+    """Read back what the render recorded about the picture, if anything."""
+    from social_video.schemas.base import load_artifact
+    from social_video.schemas.qa import RenderManifest
+
+    path = workspace.renders / f"{rendered.stem}.manifest.json"
+    if not path.is_file():
+        return {}
+    try:
+        manifest = load_artifact(RenderManifest, path)
+    except SocialVideoError:
+        return {}
+    return {"policy": manifest.picture_policy, **manifest.picture_applied}
+
+
+def _print_picture(picture: dict) -> None:
+    """Say plainly whether the picture was changed, per recording, and how to undo it."""
+    if not picture or picture.get("policy") in (None, "none"):
+        return
+    sources = picture.get("sources") or {}
+    changed = {name: item for name, item in sources.items() if item.get("applied")}
+    if not changed:
+        console.print("[dim]picture: left as recorded; nothing measured above its threshold[/dim]")
+    else:
+        console.print("[yellow]picture was changed[/yellow] by measured correction:")
+        for name, item in changed.items():
+            reasons = "; ".join(
+                str(step.get("reason", step.get("name", ""))) for step in item["applied"]
+            )
+            console.print(f"  - {escape(name)}: {escape(reasons)}", soft_wrap=True)
+        console.print(
+            "[dim]  to undo: re-render with --no-picture-correction, or set "
+            "picture_policy: none in .social-video/config.yaml[/dim]",
+            soft_wrap=True,
+        )
+    for name, item in sources.items():
+        for step in item.get("skipped") or []:
+            if step.get("name") == "colour cast" and step.get("reason") != "neutral":
+                console.print(
+                    f"  [yellow]![/yellow] {escape(name)}: {escape(str(step['reason']))}",
+                    soft_wrap=True,
+                )
 
 
 def _rendered_audio_cleanup(workspace, rendered: Path) -> dict:

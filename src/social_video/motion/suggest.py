@@ -917,6 +917,9 @@ def _props(words: list[Word], library, duration: float) -> list[AccentCandidate]
 
 #: Silence at a cut up to this long still counts as talking through it.
 TALKING_GAP = 0.3
+#: From how much removed, mid-speech, a cut inside one take reads as a jump
+#: and gets a change of framing. Under it `compile` leaves no cut at all.
+SHORT_JUMP_S = 0.25
 #: The framing a sharp jump goes to, inside the 1.08-1.12 band that reads as a
 #: deliberate second camera without losing the face.
 JUMP_ZOOM = 1.1
@@ -975,9 +978,12 @@ def _transitions(
     ):
         jump = after.range.effective_video_start - before.range.visual_content_end
         different = after.range.effective_video_source != before.range.effective_video_source
-        if not different and abs(jump) < 1.0:
+        if after.range.runs_on:
+            continue  # the recording runs on: there is no cut here to dress
+        talking = not different and talking_across(before.range, after.range, transcripts or {})
+        if not different and abs(jump) < 1.0 and not (talking and abs(jump) >= SHORT_JUMP_S):
             continue  # a tight cut inside one take reads better as a plain cut
-        if not different and talking_across(before.range, after.range, transcripts or {}):
+        if talking:
             # A zoom or blur over a mouth that is still moving reads as audio
             # out of sync. Jump the framing instead, on the cut, fully sharp.
             zoom = JUMP_ZOOM if before.range.zoom < 1.05 else 1.0

@@ -22,10 +22,13 @@ def inspect(
     as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
     """Probe a source file and report what it actually is."""
+    from social_video.edl.picture import bits_per_pixel, weak_source_notes
     from social_video.ffmpeg.probe import probe
 
     info = _guard(lambda: probe(source))
     video = info.video
+    notes = weak_source_notes(info)
+    density = bits_per_pixel(info)
     payload = {
         "path": str(info.path),
         "duration": round(info.duration, 3),
@@ -43,7 +46,10 @@ def inspect(
             "pix_fmt": video.pix_fmt,
             "is_portrait": video.is_portrait,
             "is_hdr": video.is_hdr,
+            "bit_rate": video.bit_rate,
+            "bits_per_pixel": None if density is None else round(density, 3),
         },
+        "picture_notes": notes,
         "audio_tracks": [
             {
                 "index": a.index,
@@ -72,6 +78,8 @@ def inspect(
         console.print(f"  orientation  {'portrait' if video.is_portrait else 'landscape'}")
         if video.is_hdr:
             console.print(f"  [yellow]HDR[/yellow]        {video.color_transfer}")
+        for note in notes:
+            console.print(f"  [yellow]picture[/yellow]      {note}", soft_wrap=True)
     if not info.audio:
         console.print("  [red]audio        none - this cannot be transcribed[/red]")
     for a in info.audio:

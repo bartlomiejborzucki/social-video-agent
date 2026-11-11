@@ -68,6 +68,23 @@ def conjunctions(language: str | None) -> frozenset[str]:
     return frozenset(_key(str(w)) for w in words)
 
 
+def leaning_words(language: str | None) -> frozenset[str]:
+    """Words that belong to what follows them: a phrase caption does not end on one."""
+    words = _for_language(_phrases().get("leaning", {}), language)
+    return frozenset(_key(str(w)) for w in words)
+
+
+def leans_forward(text: str, leaning: frozenset[str]) -> bool:
+    """Whether a word as captioned leans on the next: listed, and with no mark after it.
+
+    "do" leans; "do," and "do." do not -- the speaker stopped there.
+    """
+    stripped = text.rstrip("\"')]}")
+    if not stripped or stripped[-1] in SENTENCE_END or stripped[-1] in CLAUSE_END:
+        return False
+    return _key(text) in leaning
+
+
 def step_number(text: str, language: str | None) -> int | None:
     """The step a cue starts ("Po drugie, ..." is 2), or ``None``."""
     steps = _for_language(_phrases().get("steps", {}), language)
@@ -131,6 +148,7 @@ def build_caption_track(
     full_first = cfg.first_cue_full_sentence and not opening_text
     phrase = cfg.mode == "phrase"
     breaks_before = conjunctions(transcripts[0].language) if phrase else frozenset()
+    leaning = leaning_words(transcripts[0].language) if phrase else frozenset()
     cues: list[CaptionCue] = []
     index = 1
 
@@ -200,7 +218,16 @@ def build_caption_track(
             if out_end - current[0].start > PHRASE_MAX_SECONDS:
                 over_limit = True
         if current and over_limit:
+            # A limit closes the cue wherever it falls. A word left hanging at
+            # its end ("...razem do") belongs to what comes next, so it goes
+            # there: the cue ends a word early rather than mid-phrase.
+            carried: list[CaptionWord] = []
+            while (
+                len(current) > 1 and len(carried) < 2 and leans_forward(current[-1].text, leaning)
+            ):
+                carried.insert(0, current.pop())
             flush()
+            current = carried
             current_speaker = token.speaker
             opening = full_first and not cues
 

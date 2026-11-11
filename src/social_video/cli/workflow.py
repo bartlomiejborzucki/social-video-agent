@@ -108,7 +108,17 @@ def workflow_init(
     )
     _guard(lambda: stage_ingest(normalized_source, workspace, source_id=source_id))
     payload = workflow_status(state, language=language)
+    # Said at the start, while the original file can still be asked for.
+    from social_video.edl.picture import weak_source_notes
+    from social_video.ffmpeg.probe import probe
+
+    notes = _guard(lambda: weak_source_notes(probe(normalized_source)))
+    if notes:
+        payload["picture_notes"] = notes
     _print_workflow(payload, as_json=as_json)
+    if not as_json:
+        for note in notes:
+            console.print(f"[yellow]picture[/yellow] {escape(note)}", soft_wrap=True)
 
 
 @workflow_app.command("batch")

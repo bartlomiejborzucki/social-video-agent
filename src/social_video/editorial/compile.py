@@ -10,7 +10,14 @@ from __future__ import annotations
 from social_video.editorial.acoustic import AcousticEdges
 from social_video.editorial.boundaries import snap_range, text_in
 from social_video.schemas.brand import OutputProfile
-from social_video.schemas.edl import EDL, EDLRange, ReframeMode, VisualFillStrategy
+from social_video.schemas.edl import (
+    CONTINUOUS,
+    EDL,
+    PUNCH,
+    EDLRange,
+    ReframeMode,
+    VisualFillStrategy,
+)
 from social_video.schemas.plan import EditPlan, PlanAction, PlanItem
 from social_video.schemas.transcript import Transcript
 
@@ -137,6 +144,7 @@ def compile_plan(
             "Check the drop spans in edit-plan.json."
         )
 
+    ranges = join_seams(ranges, profile.min_cut_gap)
     _check_tail(edges, {sid: transcript}, ranges)
     mode = reframe_mode or ReframeMode(profile.default_reframe)
     return EDL(
@@ -243,6 +251,7 @@ def _compile_items(
             "the plan removes everything; nothing would be left to render. "
             "Check the kept items in edit-plan.json."
         )
+    ranges = join_seams(ranges, profile.min_cut_gap)
     _check_tail(edges, transcripts, ranges)
     mode = reframe_mode or ReframeMode(profile.default_reframe)
     return EDL(
@@ -252,6 +261,64 @@ def _compile_items(
         output_height=profile.height,
         default_reframe=mode,
     )
+
+
+def join_seams(ranges: list[EDLRange], min_gap: float) -> list[EDLRange]:
+    """Close the cuts that remove nothing.
+
+    A plan names its passages one by one -- a beat each -- and two that follow
+    each other in the recording were compiled as two ranges with a sliver
+    between them, or overlapping where both were padded into the same pause.
+    Either is a jump in the picture and a dip in the sound for no gain. Here
+    such a pair meets at one moment in the middle of that pause and the second
+    range is marked as running on: ``continuous`` when it looks the same,
+    ``punch`` when only its framing differs. Beats, quotes and looks stay per
+    range, so labels and zooms still land where the plan put them.
+    """
+    joined = list(ranges)
+    for index in range(1, len(joined)):
+        before, after = joined[index - 1], joined[index]
+        if not _same_take(before, after):
+            continue
+        gap = after.start - before.end
+        if gap >= min_gap or after.start <= before.start or after.end <= before.end:
+            continue
+        seam = round((before.end + after.start) / 2.0, 4)
+        if seam - before.start < 0.08 or after.end - seam < 0.08:
+            continue
+        same_look = (before.zoom, before.grade, before.reframe) == (
+            after.zoom,
+            after.grade,
+            after.reframe,
+        )
+        note = (
+            f"; runs on from the range before ({gap * 1000:+.0f} ms apart, so no cut)"
+            if same_look
+            else f"; the recording runs on from the range before ({gap * 1000:+.0f} ms "
+            "apart), only the framing changes"
+        )
+        joined[index - 1] = before.model_copy(update={"end": seam})
+        joined[index] = after.model_copy(
+            update={
+                "start": seam,
+                "transition_in": CONTINUOUS if same_look else PUNCH,
+                "reason": after.reason + note,
+            }
+        )
+    return joined
+
+
+def _same_take(before: EDLRange, after: EDLRange) -> bool:
+    """Two plain ranges of one recording, one track, at normal speed."""
+    plain = all(
+        r.audio_source is None
+        and r.video_source is None
+        and r.speed == 1.0
+        and not r.muted
+        and r.freeze_at is None
+        for r in (before, after)
+    )
+    return plain and before.source == after.source and before.audio_track == after.audio_track
 
 
 def _subtract(

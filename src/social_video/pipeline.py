@@ -551,6 +551,7 @@ def stage_render(
     motion_plan: MotionPlan | None = None,
     remotion_license_attestation: RemotionLicenseAttestation | None = None,
     audio_cleanup: bool = True,
+    picture_correction: bool = True,
     persist_artifacts: bool = True,
     base_name: str | None = None,
     voice_reference: EDL | None = None,
@@ -722,6 +723,10 @@ def stage_render(
     cleanup_policy = (
         contract.audio_cleanup_policy if contract is not None and audio_cleanup else "none"
     )
+    # The same for the picture: the contract decides, one render can opt out.
+    picture_policy = (
+        contract.picture_policy if contract is not None and picture_correction else "none"
+    )
     # A Motion segment cannot be re-exported from the workspace, so a missing
     # or altered one stops the render rather than being dropped or trusted.
     from social_video.motion.film import segment_evidence
@@ -737,6 +742,7 @@ def stage_render(
         caption_fonts_dir=caption_fonts_dir,
         shakes=ffmpeg_shakes,
         voice_reference=voice_reference,
+        picture_policy=picture_policy,
     )
     if renderer is Renderer.REMOTION:
         from social_video.remotion import render_motion_design
@@ -1027,6 +1033,33 @@ def _check_remotion_only(contract: BrandContract, renderer: Renderer, *, caption
         )
 
 
+def _source_picture_checks(edl: EDL, workspace: Workspace) -> list[QACheck]:
+    """A warning per recording too small or too compressed to fill the output well.
+
+    Advice for the next recording, never a failure: the picture is as good as
+    its source, and the remedy is the original file, not a filter.
+    """
+    from social_video.edl.picture import edit_source_notes
+    from social_video.errors import SocialVideoError
+
+    if not workspace.source_manifest.is_file():
+        return []
+    try:
+        sources = load_artifact(SourceManifest, workspace.source_manifest)
+        infos = [probe(sources.by_id(r.effective_video_source).resolved_path()) for r in edl.ranges]
+    except (SocialVideoError, OSError, KeyError):
+        return []  # a missing recording is reported by the checks that need it
+    return [
+        QACheck(
+            name=f"source picture: {name}",
+            severity=QASeverity.WARNING,
+            passed=False,
+            message="; ".join(notes),
+        )
+        for name, notes in sorted(edit_source_notes(edl, infos).items())
+    ]
+
+
 def stage_qa(
     output: Path,
     edl: EDL,
@@ -1044,6 +1077,7 @@ def stage_qa(
     sync = _sync_against_base(output, workspace)
     if sync is not None:
         report.checks.append(sync)
+    report.checks.extend(_source_picture_checks(edl, workspace))
     if caption_problem:
         report.checks.append(
             QACheck(

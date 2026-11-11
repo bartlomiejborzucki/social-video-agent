@@ -16,6 +16,8 @@ from social_video.captions.features import (
     STEP_NUMBERS,
     UPCOMING_WORDS_DIMMED,
 )
+from social_video.edl.levels import LEVEL_TOLERANCE_LU, MAX_LEVEL_GAIN_DB
+from social_video.edl.picture import DENOISE_STRENGTH, MAX_CONTRAST, MAX_GAMMA, MAX_SHARPEN
 from social_video.edl.voice import (
     DEESSER_MAX,
     MAX_COMPRESSION_RATIO,
@@ -216,6 +218,7 @@ def check_brand(
             warning=True,
         )
     _check_audio_cleanup(add, contract, render)
+    _check_picture(add, contract, render)
     background_required = style.background_style.value != "none"
     add(
         "caption background present",
@@ -358,6 +361,95 @@ def _check_film_segments(add: _Add, contract: BrandContract, render: RenderManif
         )
 
 
+def _check_picture(add: _Add, contract: BrandContract, render: RenderManifest) -> None:
+    """Check the picture correction that happened against the policy and the ceilings.
+
+    The failure this guards against is a "beautified" picture: a correction
+    that ran harder than the recording warranted, or with nothing measured
+    behind it. Both are visible in the evidence.
+    """
+    policy = contract.picture_policy
+    recorded = render.picture_policy
+    evidence = render.picture_applied
+    add(
+        "picture correction policy",
+        recorded == policy or (policy != "none" and recorded == "none"),
+        f"render used {recorded!r}, contract says {policy!r}"
+        + (
+            "; this render was asked for the picture as recorded"
+            if policy != "none" and recorded == "none"
+            else ""
+        ),
+    )
+    sources = dict(evidence.get("sources") or {})
+    if recorded == "none":
+        add(
+            "picture left as recorded",
+            not any(item.get("applied") for item in sources.values()),
+            "no picture correction was applied",
+        )
+        return
+    limits = dict(evidence.get("limits") or {})
+    ceilings = {
+        "gamma": float(limits.get("max_gamma", MAX_GAMMA)),
+        "contrast": float(limits.get("max_contrast", MAX_CONTRAST)),
+        "sharpen": float(limits.get("max_sharpen", MAX_SHARPEN)),
+        "denoise": float(limits.get("max_denoise", DENOISE_STRENGTH)),
+    }
+    over: list[str] = []
+    unmeasured: list[str] = []
+    changed: list[str] = []
+    for name, item in sorted(sources.items()):
+        applied = list(item.get("applied") or [])
+        if applied and not item.get("measured"):
+            unmeasured.append(name)
+        for step in applied:
+            for key, ceiling in ceilings.items():
+                value = step.get(key)
+                if value is not None and float(value) > ceiling + 1e-6:
+                    over.append(f"{name}: {key} {value} (ceiling {ceiling})")
+        if applied:
+            changed.append(
+                f"{name}: "
+                + ", ".join(str(step.get("reason", step.get("name"))) for step in applied)
+            )
+    add(
+        "picture correction was measured",
+        not unmeasured,
+        "every corrected recording was measured first"
+        if not unmeasured
+        else f"corrected with no measurement recorded: {', '.join(unmeasured)}",
+    )
+    add(
+        "picture not over-processed",
+        not over,
+        "every applied step is inside its ceiling"
+        if not over
+        else f"beyond the ceiling: {'; '.join(over)}; this is where a correction stops "
+        "being a repair and starts being a different picture",
+    )
+    if policy == "required":
+        add(
+            "required picture correction ran",
+            bool(sources),
+            f"{len(sources)} recording(s) measured"
+            if sources
+            else "the policy requires a measured correction and none is recorded",
+        )
+    add(
+        "picture change is disclosed",
+        True,
+        (
+            "picture was changed: "
+            + "; ".join(changed)
+            + ". Undo with --no-picture-correction or picture_policy: none."
+            if changed
+            else "picture was left as recorded; nothing measured above its threshold"
+        ),
+        warning=bool(changed),
+    )
+
+
 def _check_audio_cleanup(add: _Add, contract: BrandContract, render: RenderManifest) -> None:
     """Check the repair that happened against the project's policy and the ceilings.
 
@@ -388,11 +480,14 @@ def _check_audio_cleanup(add: _Add, contract: BrandContract, render: RenderManif
     applied = list(evidence.get("applied") or [])
     limits = dict(evidence.get("limits") or {})
     measured = dict(evidence.get("measured") or {})
+    # Levelling between recordings is measured on its own; either record counts.
     add(
         "audio cleanup was measured",
-        bool(measured),
+        bool(measured) or bool(evidence.get("levels")),
         f"measured {len(measured)} value(s) before deciding"
         if measured
+        else "each recording's speech level was measured"
+        if evidence.get("levels")
         else "no measurement was recorded, so no repair can be justified",
     )
     # One explicit check per ceiling rather than a generic loop: there are
@@ -431,6 +526,28 @@ def _check_audio_cleanup(add: _Add, contract: BrandContract, render: RenderManif
             else "nothing needed repair, which the measurement confirms"
             if measured
             else "the policy requires a measured repair and none is recorded",
+        )
+    levels = dict(evidence.get("levels") or {})
+    if levels:
+        gains = dict(levels.get("gain_db") or {})
+        ceiling = float(levels.get("max_gain_db", MAX_LEVEL_GAIN_DB))
+        beyond = [f"{name} {gain:+.1f} dB" for name, gain in gains.items() if abs(gain) > ceiling]
+        add(
+            "speech level moved within its ceiling",
+            not beyond,
+            f"every recording moved by at most {ceiling:g} dB"
+            if not beyond
+            else f"beyond the ceiling: {', '.join(beyond)}",
+        )
+        spread = float(levels.get("spread_after_lu") or 0.0)
+        add(
+            "recordings at one speech level",
+            spread <= LEVEL_TOLERANCE_LU,
+            f"the recordings' speech is within {spread:.1f} LU of each other"
+            if spread <= LEVEL_TOLERANCE_LU
+            else f"the recordings' speech still differs by {spread:.1f} LU after the largest "
+            "move allowed; record them closer in level, or set audio_gain_db on the ranges",
+            warning=True,
         )
     clipped = bool(measured.get("clipped"))
     add(

@@ -140,3 +140,63 @@ def test_reel_check_measures_what_is_said_after_the_opening_cue() -> None:
     report = QAReport(output="x", edl="main")
     _phrase_cues(report, track)
     assert report.checks[0].passed
+
+
+@pytest.mark.parametrize(
+    ("spoken", "hanging"),
+    [
+        # Four words to a cue used to cut each of these before the noun.
+        ("Rano wychodzimy razem na spacer nad rzekę.", "na"),
+        ("Potem wszyscy idziemy powoli do parku za mostem.", "do"),
+        ("Wczoraj kupiliśmy nowy stolik dla sąsiada z góry.", "dla"),
+        ("Pracujemy długo razem i odpoczywamy w górach latem.", "i"),
+    ],
+)
+def test_a_phrase_cue_never_ends_on_a_word_that_belongs_to_the_next(spoken, hanging) -> None:
+    from social_video.captions.chunk import leaning_words, leans_forward
+
+    style = CaptionStyle(mode="phrase", max_words_per_cue=4, max_chars_per_cue=32)
+    track = build_caption_track(_spoken(spoken), _timeline(), style=style)
+
+    leaning = leaning_words("pl")
+    endings = [cue.text.split()[-1] for cue in track.cues[:-1]]
+    assert not [word for word in endings if leans_forward(word, leaning)], [
+        c.text for c in track.cues
+    ]
+    assert any(cue.text.split()[0] == hanging for cue in track.cues[1:]), "it opens the next cue"
+    assert " ".join(c.text for c in track.cues) == spoken, "no word is lost or repeated"
+
+
+def test_a_word_the_speaker_stopped_on_stays_where_it_was_said() -> None:
+    from social_video.captions.chunk import leaning_words, leans_forward
+
+    leaning = leaning_words("pl")
+    assert leans_forward("do", leaning) and leans_forward("Na", leaning)
+    assert not leans_forward("do,", leaning), "a comma ends the phrase there"
+    assert not leans_forward("nie.", leaning)
+    assert not leans_forward("parku", leaning)
+    assert leans_forward("the", leaning_words("en")) and not leans_forward("the", leaning)
+
+
+def test_reel_check_counts_cues_that_stop_mid_phrase() -> None:
+    from social_video.qa.reel import _whole_phrases
+    from social_video.schemas.captions import CaptionCue, CaptionTrack
+    from social_video.schemas.qa import QAReport
+
+    track = CaptionTrack(
+        language="pl",
+        mode="phrase",
+        cues=[
+            CaptionCue(index=1, start=0.0, end=1.0, text="wszyscy idziemy do"),
+            CaptionCue(index=2, start=1.0, end=2.0, text="parku za mostem."),
+        ],
+    )
+    report = QAReport(output="final.mp4")
+    _whole_phrases(report, track)
+    (check,) = report.checks
+    assert not check.passed and "1 of 2 cue(s)" in check.message and check.measured == 1
+
+    track.cues[0].text, track.cues[1].text = "wszyscy idziemy", "do parku za mostem."
+    clean = QAReport(output="final.mp4")
+    _whole_phrases(clean, track)
+    assert clean.checks[0].passed

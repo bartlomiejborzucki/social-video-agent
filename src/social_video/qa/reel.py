@@ -33,7 +33,7 @@ from social_video.ffmpeg.run import run_ffmpeg
 from social_video.fsutil import atomic_write_text
 from social_video.schemas.base import Artifact, save_artifact
 from social_video.schemas.captions import CaptionTrack
-from social_video.schemas.edl import EDL
+from social_video.schemas.edl import CONTINUOUS, EDL
 from social_video.schemas.motion import MotionElementType, MotionPlan
 from social_video.schemas.platform import PlatformSpec
 from social_video.schemas.publish import PublishMetadata
@@ -100,6 +100,7 @@ def check_reel(
     _coverage(report, captions, words)
     if captions is not None and captions.mode == "phrase":
         _phrase_cues(report, captions)
+        _whole_phrases(report, captions)
     if captions is not None and captions.origin == "story":
         _story_question(report, captions)
     if publish is not None:
@@ -212,7 +213,10 @@ def _tail(report: QAReport, words, duration: float) -> None:
 def _holds(report: QAReport, edl: EDL, plan: MotionPlan | None) -> None:
     total = edl.total_duration
     changes = {0.0, total}
-    changes.update(s.output_start for s in Timeline(edl).slices)
+    # A range that runs on from the one before, looking the same, changes nothing.
+    changes.update(
+        s.output_start for s in Timeline(edl).slices if s.range.transition_in != CONTINUOUS
+    )
     changes.update(o.start_in_output for o in edl.overlays)
     changes.update(o.end_in_output for o in edl.overlays)
     if plan is not None:
@@ -298,6 +302,30 @@ def _phrase_cues(report: QAReport, captions: CaptionTrack) -> None:
         at=round(worst.start, 3) if worst else None,
         measured=round(_spoken_span(worst), 2) if worst else None,
         expected=PHRASE_CUE_SECONDS,
+    )
+
+
+def _whole_phrases(report: QAReport, captions: CaptionTrack) -> None:
+    """A cue that ends on a preposition or a conjunction stops mid-phrase."""
+    from social_video.captions.chunk import leaning_words, leans_forward
+
+    leaning = leaning_words(captions.language)
+    cues = sorted(captions.cues, key=lambda c: c.start)
+    hanging = [
+        c for c in cues[:-1] if c.text.split() and leans_forward(c.text.split()[-1], leaning)
+    ]
+    first = hanging[0] if hanging else None
+    _add(
+        report,
+        "captions end on whole phrases",
+        not hanging,
+        f"{len(hanging)} of {len(cues)} cue(s) end on a word that belongs to the next, "
+        f"the first {first.text!r} at {first.start:.1f}s; rebuild the captions"
+        if first
+        else "no cue ends on a preposition or a conjunction",
+        at=round(first.start, 3) if first else None,
+        measured=len(hanging),
+        expected=0,
     )
 
 

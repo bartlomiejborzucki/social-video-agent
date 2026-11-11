@@ -25,6 +25,8 @@ def sources_add(
     Probes and fingerprints each file. Transcripts, plans and workflow state
     are left as they are; transcribe a new recording with `transcribe -w`.
     """
+    from social_video.edl.picture import weak_source_notes
+    from social_video.ffmpeg.probe import probe
     from social_video.paths import normalize_user_path
     from social_video.schemas.base import load_artifact, save_artifact
     from social_video.schemas.source import SourceManifest
@@ -47,7 +49,7 @@ def sources_add(
         for file in files:
             path = normalize_user_path(file, must_exist=True)
             manifest, entry, status = add_source(manifest, path, source_id=source_id)
-            results.append((entry, status))
+            results.append((entry, status, weak_source_notes(probe(path))))
         save_artifact(manifest, ws.source_manifest)
         return results
 
@@ -57,14 +59,22 @@ def sources_add(
             data={
                 "manifest": str(ws.source_manifest),
                 "sources": [
-                    {"id": e.id, "path": e.path, "status": status, "fingerprint": e.fingerprint}
-                    for e, status in results
+                    {
+                        "id": e.id,
+                        "path": e.path,
+                        "status": status,
+                        "fingerprint": e.fingerprint,
+                        "picture_notes": notes,
+                    }
+                    for e, status, notes in results
                 ],
             }
         )
         return
-    for entry, status in results:
+    for entry, status, notes in results:
         console.print(f"[green]{status}[/green] {escape(entry.id)}  {escape(entry.path)}")
+        for note in notes:
+            console.print(f"  [yellow]picture[/yellow] {escape(note)}", soft_wrap=True)
     console.print(f"written {ws.source_manifest}", soft_wrap=True)
 
 

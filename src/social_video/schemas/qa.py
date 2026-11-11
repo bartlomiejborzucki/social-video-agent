@@ -129,6 +129,11 @@ class RenderManifest(Artifact):
     #: QA can check the repair against its ceilings rather than against intent.
     audio_cleanup_policy: str = "none"
     audio_cleanup_applied: dict = Field(default_factory=dict)
+    #: The picture correction policy this render ran under, and what it did to
+    #: each recording: the measurements, the steps applied and skipped, and
+    #: the ceilings in force (`edl/picture.py`).
+    picture_policy: str = "none"
+    picture_applied: dict = Field(default_factory=dict)
     brand_safe_margins: dict[str, float] = Field(default_factory=dict)
     #: Claude Motion segments composited into this render, as found on disk
     #: at render time: film, scene, file hash, and the brand facts recorded

@@ -188,6 +188,10 @@ class OutputProfile(Artifact):
     min_pause: float = Field(default=0.18, ge=0.0)
     #: Padding kept either side of a cut so words are not clipped.
     cut_padding: float = Field(default=0.08, ge=0.0)
+    #: Two kept passages of one recording closer together than this are not
+    #: cut apart: a cut that removes a twentieth of a second saves nothing and
+    #: costs a visible jump, so the recording runs on between them.
+    min_cut_gap: float = Field(default=0.25, ge=0.0, le=2.0)
 
     captions_enabled: bool = True
     punch_ins_enabled: bool = False

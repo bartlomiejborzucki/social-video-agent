@@ -23,7 +23,15 @@ from fractions import Fraction
 from pathlib import Path
 from uuid import uuid4
 
-from social_video.edl.loudness import loudnorm_filter, measure_loudness
+from social_video.edl.levels import MIN_SPEECH_S, NO_LEVELS, SpeechLevels, plan_levels
+from social_video.edl.loudness import is_limited_gain, loudnorm_filter, measure_loudness
+from social_video.edl.picture import (
+    NO_CORRECTION,
+    PictureCorrection,
+    measure_sources,
+    plan_correction,
+    unavailable_filters,
+)
 from social_video.edl.timeline import Timeline
 from social_video.edl.validate import validate_edl
 from social_video.edl.voice import NO_CLEANUP, VoiceCleanup, measure_voice, plan_cleanup
@@ -189,10 +197,13 @@ def _reframe_filter(
     *,
     force_fit: bool = False,
     label: str = "r",
+    post_scale: str = "",
 ) -> str:
     """Geometry for one range: crop if asked, then fit onto the canvas.
 
     ``label`` keeps a split layout's internal pad names unique in the graph.
+    ``post_scale`` is a filter for the scaled picture alone (sharpening an
+    enlarged recording): it runs before the padding, so bars stay clean.
     """
     out_w, out_h = canvas
     plan = None if force_fit else rng.reframe
@@ -200,7 +211,7 @@ def _reframe_filter(
 
     src_w, src_h = info.video.display_size if info.video else (out_w, out_h)
     if mode is ReframeMode.SPLIT_STACK and plan and plan.panes:
-        return _stack_filter(plan.panes, (src_w, src_h), canvas, label)
+        return _stack_filter(plan.panes, (src_w, src_h), canvas, label, post_scale)
     parts: list[str] = []
 
     if mode is not ReframeMode.FIT and plan and plan.crop_width and plan.crop_height:
@@ -233,13 +244,19 @@ def _reframe_filter(
         parts.append(f"crop=iw/{z:.4f}:ih/{z:.4f}:(iw-iw/{z:.4f})/2:(ih-ih/{z:.4f})/2")
 
     parts.append(f"scale={out_w}:{out_h}:force_original_aspect_ratio=decrease:flags=lanczos")
+    if post_scale:
+        parts.append(post_scale)
     parts.append(f"pad={out_w}:{out_h}:(ow-iw)/2:(oh-ih)/2:color=black")
     parts.append("setsar=1")
     return ",".join(parts)
 
 
 def _stack_filter(
-    panes: list[Pane], source: tuple[int, int], canvas: tuple[int, int], label: str
+    panes: list[Pane],
+    source: tuple[int, int],
+    canvas: tuple[int, int],
+    label: str,
+    post_scale: str = "",
 ) -> str:
     """Split the picture, frame each region as one band, and stack the bands.
 
@@ -264,11 +281,13 @@ def _stack_filter(
         if pane.fit is PaneFit.COVER:
             chain += [
                 f"scale={out_w}:{band_h}:force_original_aspect_ratio=increase:flags=lanczos",
+                *([post_scale] if post_scale else []),
                 f"crop={out_w}:{band_h}",
             ]
         else:
             chain += [
                 f"scale={out_w}:{band_h}:force_original_aspect_ratio=decrease:flags=lanczos",
+                *([post_scale] if post_scale else []),
                 f"pad={out_w}:{band_h}:(ow-iw)/2:(oh-ih)/2:color=black",
             ]
         chain.append("setsar=1")
@@ -299,7 +318,7 @@ def build_speech_graph(edl: EDL, ranges: list[RenderRange]) -> tuple[str, str]:
     parts: list[str] = []
     labels: list[str] = []
     for index, (rng, media) in enumerate(zip(edl.ranges, ranges, strict=True)):
-        parts.append(_audio_chain(index, rng, media))
+        parts.append(_audio_chain(index, rng, media, runs_into_next=_runs_into_next(edl, index)))
         labels.append(f"[a{index}]")
     parts.append(f"{''.join(labels)}concat=n={len(edl.ranges)}:v=0:a=1[ca]")
     total = sum(media.target_duration for media in ranges)
@@ -411,8 +430,14 @@ def _mix_music_and_effects(
     return "[amixout]"
 
 
-def _audio_chain(index: int, rng: EDLRange, media: RenderRange) -> str:
-    """The per-range audio chain, shared by the measurement and render passes."""
+def _audio_chain(
+    index: int, rng: EDLRange, media: RenderRange, *, runs_into_next: bool = False
+) -> str:
+    """The per-range audio chain, shared by the measurement and render passes.
+
+    ``runs_into_next``: the next range carries on from this one with nothing
+    removed, so this one's tail is not a splice and is not faded.
+    """
     target = media.target_duration
     if rng.muted or media.audio_input is None or not media.audio_info.has_audio:
         # A silent range still needs an audio stream or concat refuses. The
@@ -443,7 +468,7 @@ def _audio_chain(index: int, rng: EDLRange, media: RenderRange) -> str:
         [
             f"apad=whole_dur={target:.9f}",
             f"atrim=duration={target:.9f}",
-            audio_cut_fades(target),
+            audio_cut_fades(target, at_start=not rng.runs_on, at_end=not runs_into_next),
             "aresample=48000:async=1:first_pts=0",
             "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo",
             "asettb=1/48000",
@@ -451,6 +476,36 @@ def _audio_chain(index: int, rng: EDLRange, media: RenderRange) -> str:
         ]
     )
     return f"[{media.audio_input}:a:{track}]{','.join(chain)}[a{index}]"
+
+
+def _runs_into_next(edl: EDL, index: int) -> bool:
+    return index + 1 < len(edl.ranges) and edl.ranges[index + 1].runs_on
+
+
+def align_running_seams(edl: EDL, fps: str) -> EDL:
+    """Put every seam the recording runs on across exactly on the frame grid.
+
+    Each range is rendered to a whole number of frames. A seam between two
+    ranges that are one stretch of the recording would otherwise lose or
+    repeat up to half a frame of sound there; moving the seam by that much --
+    it sits in a pause -- makes the two halves meet exactly. The total length
+    and every real cut stay where they were.
+    """
+    if not any(rng.runs_on for rng in edl.ranges[1:]):
+        return edl
+    rate = float(Fraction(fps))
+    counts = allocate_range_frames(edl, fps)
+    ranges = list(edl.ranges)
+    for index in range(1, len(ranges)):
+        before, after = ranges[index - 1], ranges[index]
+        if not after.runs_on or before.speed != 1.0:
+            continue
+        seam = round(before.start + counts[index - 1] / rate, 6)
+        if abs(seam - after.start) > 1.0 / rate or seam >= after.end - 0.04:
+            continue  # not one stretch after all: leave it as written
+        ranges[index - 1] = before.model_copy(update={"end": seam})
+        ranges[index] = after.model_copy(update={"start": seam})
+    return edl.model_copy(update={"ranges": ranges})
 
 
 def _final_audio_chain(duration: float) -> str:
@@ -498,11 +553,14 @@ def build_filtergraph(
     caption_fonts_dir: Path | None = None,
     hold_frames: int = 0,
     shakes: list[ShakeWindow] | None = None,
+    picture: PictureCorrection | None = None,
 ) -> tuple[str, str, str]:
     """Build the whole filter graph. Returns (graph, video_label, audio_label).
 
     ``hold_frames`` holds the last picture after the last range, in silence,
-    for an end card drawn over it.
+    for an end card drawn over it. ``picture`` is each recording's measured
+    correction: applied to its own pixels before the reframe, and its
+    sharpening after the scale, both before any creative grade.
     """
     video_labels: list[str] = []
     audio_labels: list[str] = []
@@ -517,8 +575,18 @@ def build_filtergraph(
         visual_duration = rng.visual_content_end - rng.effective_video_start
         vchain.append(f"trim=duration={visual_duration:.9f}")
         vchain.append("setpts=PTS-STARTPTS")
+        fix = (picture or NO_CORRECTION).of(rng.effective_video_source)
+        if fix.pre:
+            vchain.append(fix.pre)
         vchain.append(
-            _reframe_filter(rng, media.video_info, canvas, edl.default_reframe, label=f"r{index}")
+            _reframe_filter(
+                rng,
+                media.video_info,
+                canvas,
+                edl.default_reframe,
+                label=f"r{index}",
+                post_scale=fix.post_scale,
+            )
         )
         look = "+".join(g for g in (edl.grade, rng.grade) if g)
         if graded := grade_filter(look, canvas):
@@ -576,7 +644,7 @@ def build_filtergraph(
             )
         video_labels.append(f"[v{index}]")
 
-        parts.append(_audio_chain(index, rng, media))
+        parts.append(_audio_chain(index, rng, media, runs_into_next=_runs_into_next(edl, index)))
         audio_labels.append(f"[a{index}]")
 
     pairs = "".join(v + a for v, a in zip(video_labels, audio_labels, strict=True))
@@ -690,6 +758,7 @@ def render_edl(
     caption_fonts_dir: Path | None = None,
     shakes: list[ShakeWindow] | None = None,
     voice_reference: EDL | None = None,
+    picture_policy: str = "none",
 ) -> RenderManifest:
     """Render an EDL to a file. Returns a manifest describing what was made.
 
@@ -709,6 +778,7 @@ def render_edl(
     canvas = _canvas_for(edl, quality)
     fps = resolve_output_fps(video_infos, edl.output_fps)
     source_fps = resolve_output_fps(video_infos, None)
+    edl = align_running_seams(edl, fps)
     frame_counts = allocate_range_frames(edl, fps)
     hold_frames = end_hold_frames(edl, fps)
     rate = float(Fraction(fps))
@@ -746,7 +816,14 @@ def render_edl(
         cleanup = _plan_voice_cleanup(
             edl, render_ranges, inputs, policy=audio_cleanup_policy, quality=quality
         )
+    # Each recording's speech at one level, before the mix is normalised as a
+    # whole. Applied to this render's copy of the edit; the EDL stays as written.
+    levels = _plan_levels(edl, render_ranges, inputs, policy=audio_cleanup_policy)
+    edl = levels.applied_to(edl)
     loudnorm = _plan_loudness(edl, render_ranges, inputs, mix, cleanup, quality)
+    # Measured on the whole edit an excerpt comes from, like the voice: a 6 s
+    # preview must look like the render it previews.
+    picture = _plan_picture(voice_reference or edl, manifest, policy=picture_policy)
 
     graph, vlabel, alabel = build_filtergraph(
         edl,
@@ -760,6 +837,7 @@ def render_edl(
         caption_fonts_dir=caption_fonts_dir,
         hold_frames=hold_frames,
         shakes=shakes,
+        picture=picture,
     )
 
     output = output.resolve()
@@ -810,7 +888,9 @@ def render_edl(
         audio_bed_applied=_audio_bed_evidence(edl, mix),
         sound_effects_applied=len(mix.sfx_inputs),
         audio_cleanup_policy=audio_cleanup_policy,
-        audio_cleanup_applied=cleanup.evidence(),
+        audio_cleanup_applied=_audio_evidence(cleanup, levels),
+        picture_policy=picture_policy,
+        picture_applied=picture.evidence(),
     )
 
 
@@ -917,6 +997,12 @@ def _plan_loudness(
     loudnorm = loudnorm_filter(measured)
     if loudnorm is None:
         log.info("selected audio is silent; skipping loudness normalisation")
+    elif is_limited_gain(loudnorm) and measured is not None:
+        # The limiter takes some loudness off with the peaks. Measure what is
+        # left and raise the gain by the shortfall, so the target is still met.
+        heard = measure_loudness(inputs, f"{audio_graph};{audio_label}{loudnorm}[heard]", "[heard]")
+        if heard is not None and not heard.is_silent:
+            loudnorm = loudnorm_filter(measured, makeup_db=LOUDNORM_I - heard.input_i)
     return loudnorm
 
 
@@ -1022,6 +1108,98 @@ def _plan_voice_cleanup(
         log.info("voice could not be measured; leaving the audio as recorded")
         return NO_CLEANUP
     plan = plan_cleanup(measurement)
+    log.info("%s", plan.summary())
+    return plan
+
+
+def _plan_levels(
+    edl: EDL, render_ranges: list[RenderRange], inputs: list[str], *, policy: str
+) -> SpeechLevels:
+    """Measure each recording's speech on its own and decide its gain.
+
+    Part of the voice cleanup policy: `none` leaves every level as recorded.
+    A recording that cannot be measured is left out, never guessed.
+
+    Each recording is measured as the viewer will hear it: through the gain
+    and the limiter the whole mix is about to get (`loudnorm_filter`). A
+    recording with hot peaks loses level to that limiter and a soft one does
+    not, so levels matched before it would come out apart again.
+    """
+    if policy == "none":
+        return NO_LEVELS
+    by_source: dict[str, list[int]] = {}
+    for index, (rng, media) in enumerate(zip(edl.ranges, render_ranges, strict=True)):
+        if rng.muted or media.audio_input is None or not media.audio_info.has_audio:
+            continue
+        by_source.setdefault(rng.effective_audio_source, []).append(index)
+    if len(by_source) < 2:
+        return NO_LEVELS
+    finish = ""
+    if edl.normalize_audio:
+        whole_graph, whole_label = build_speech_graph(edl, render_ranges)
+        whole = measure_loudness(inputs, whole_graph, whole_label)
+        normaliser = loudnorm_filter(whole) if whole is not None else None
+        if normaliser and is_limited_gain(normaliser):
+            finish = normaliser  # one gain and a limiter: measure through it
+    measured: dict[str, float] = {}
+    seconds: dict[str, float] = {}
+    for name, indices in by_source.items():
+        length = sum(render_ranges[i].target_duration for i in indices)
+        if length < MIN_SPEECH_S:
+            continue
+        part = edl.model_copy(update={"ranges": [edl.ranges[i] for i in indices]})
+        graph, label = build_speech_graph(part, [render_ranges[i] for i in indices])
+        if finish:
+            graph, label = f"{graph};{label}{finish}[heard]", "[heard]"
+        loudness = measure_loudness(inputs, graph, label)
+        if loudness is None or loudness.is_silent:
+            continue
+        measured[name], seconds[name] = loudness.input_i, length
+    plan = plan_levels(measured, seconds)
+    if plan.changed:
+        log.info("%s", plan.reason())
+    return plan
+
+
+def _audio_evidence(cleanup: VoiceCleanup, levels: SpeechLevels) -> dict[str, object]:
+    """The voice cleanup's record, with the levelling between recordings in it."""
+    evidence = cleanup.evidence()
+    if not levels.measured:
+        return evidence
+    evidence["levels"] = levels.evidence()
+    if levels.changed:
+        evidence["changed"] = True
+        applied = list(evidence.get("applied") or [])  # type: ignore[call-overload]
+        applied.append({"name": "speech level", "reason": levels.reason(), "filter": "volume"})
+        evidence["applied"] = applied
+    return evidence
+
+
+def _plan_picture(edl: EDL, manifest: SourceManifest, *, policy: str) -> PictureCorrection:
+    """Measure each recording the edit shows and decide its correction.
+
+    Under `required` a recording that cannot be measured, or a correction this
+    ffmpeg cannot draw, stops the render: the project expects it to have
+    happened. Under `measured` both are recorded and the picture is left.
+    """
+    if policy == "none":
+        return NO_CORRECTION
+    infos = [probe(manifest.by_id(r.effective_video_source).resolved_path()) for r in edl.ranges]
+    measurements = measure_sources(edl, infos)
+    missing = sorted({r.effective_video_source for r in edl.ranges} - set(measurements))
+    lacking = unavailable_filters()
+    if policy == "required" and (missing or lacking):
+        what = (
+            f"the picture of {', '.join(missing)} could not be measured"
+            if missing
+            else f"this ffmpeg has no {', '.join(sorted(lacking))} filter"
+        )
+        raise (CapabilityError if lacking and not missing else ValidationError)(
+            f"picture_policy is 'required', but {what}, so no correction can be justified. "
+            "Set picture_policy to 'measured' to continue without the guarantee, or 'none' "
+            "to render the picture exactly as recorded."
+        )
+    plan = plan_correction(measurements, unavailable=lacking)
     log.info("%s", plan.summary())
     return plan
 

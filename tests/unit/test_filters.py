@@ -161,13 +161,13 @@ class TestLoudnessDecision:
     the decision to normalise is made from a measurement.
     """
 
-    def _measurement(self, input_i: float):
+    def _measurement(self, input_i: float, input_tp: float = -8.0, input_lra: float = 5.0):
         from social_video.edl.loudness import LoudnessMeasurement
 
         return LoudnessMeasurement(
             input_i=input_i,
-            input_tp=-3.0,
-            input_lra=5.0,
+            input_tp=input_tp,
+            input_lra=input_lra,
             input_thresh=-30.0,
             target_offset=0.0,
         )
@@ -191,6 +191,31 @@ class TestLoudnessDecision:
         built = loudnorm_filter(self._measurement(-18.0))
         assert "measured_I=-18.00" in built
         assert "linear=true" in built
+
+    def test_a_gain_that_does_not_fit_under_the_peak_ceiling_is_limited_not_ridden(self):
+        """loudnorm would fall back to its dynamic mode and pump the level over time."""
+        from social_video.edl.loudness import loudnorm_filter
+
+        hot = loudnorm_filter(self._measurement(-20.0, input_tp=-0.5))
+        wide = loudnorm_filter(self._measurement(-18.0, input_lra=14.0))
+
+        assert hot == "volume=6.00dB,alimiter=limit=0.8913:attack=5:release=50:level=false"
+        assert wide.startswith("volume=4.00dB,alimiter=")
+        assert "loudnorm" not in hot and "loudnorm" not in wide
+
+    def test_the_gain_makes_up_what_the_limiter_took_off_within_a_ceiling(self):
+        from social_video.edl.loudness import MAX_MAKEUP_DB, is_limited_gain, loudnorm_filter
+
+        hot = self._measurement(-20.0, input_tp=-0.5)
+
+        assert loudnorm_filter(hot, makeup_db=1.2).startswith("volume=7.20dB,")
+        assert loudnorm_filter(hot, makeup_db=9.0).startswith(
+            f"volume={6.0 + MAX_MAKEUP_DB:.2f}dB,"
+        )
+        assert loudnorm_filter(hot, makeup_db=-2.0).startswith("volume=6.00dB,")
+        assert is_limited_gain(loudnorm_filter(hot))
+        assert not is_limited_gain(loudnorm_filter(self._measurement(-18.0)))
+        assert not is_limited_gain(None)
 
     def test_without_a_measurement_it_still_normalises(self):
         from social_video.edl.loudness import loudnorm_filter

@@ -90,6 +90,12 @@ sfx_policy: none
 # render reports what it changed. Set `none` to render the audio as recorded,
 # or pass `--no-audio-cleanup` to one render.
 audio_cleanup_policy: measured
+# Picture correction, on the same terms. `measured` lifts a recording that
+# measures dark (toward the better-lit recordings of the same edit), restores
+# contrast, sharpens one the edit enlarges and lightly denoises a heavily
+# compressed one -- each with a ceiling, none on a good recording. Set `none`
+# to render the picture as recorded, or pass `--no-picture-correction`.
+picture_policy: measured
 # Whether this project permits sending a prompt to an image tool. That covers
 # the agent's own native ImageGen as well as an API: the prompt leaves the
 # machine either way. `ask` (default): the user says yes to each image; `optional`:
@@ -326,6 +332,7 @@ def compile_brand_contract(
         music_policy=config.music_policy,
         sfx_policy=config.sfx_policy,
         audio_cleanup_policy=config.audio_cleanup_policy,
+        picture_policy=config.picture_policy,
         end_style=config.end_style,
         punch_in_words=list(config.punch_in_words),
         motion_effects=config.motion_effects,

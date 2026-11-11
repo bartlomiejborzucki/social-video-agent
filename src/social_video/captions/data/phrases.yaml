@@ -3,6 +3,73 @@
 # Words before which a `phrase` caption may start a new cue, and the phrases
 # that make `step_numbers` put a step number in front. Lower case, no punctuation.
 
+# Słowa, które należą do tego, co po nich: przyimki, spójniki, przeczenie.
+# Napis frazowy nie kończy się na takim słowie -- przechodzi ono do następnego.
+# Words that belong to what follows them: prepositions, conjunctions, negation.
+# A phrase caption never ends on one; it opens the next cue instead.
+leaning:
+  pl:
+    - na
+    - do
+    - dla
+    - w
+    - we
+    - z
+    - ze
+    - o
+    - od
+    - ode
+    - po
+    - przy
+    - za
+    - przez
+    - bez
+    - u
+    - nad
+    - pod
+    - przed
+    - między
+    - ku
+    - obok
+    - podczas
+    - oprócz
+    - wokół
+    - i
+    - a
+    - ale
+    - bo
+    - że
+    - czy
+    - lub
+    - albo
+    - oraz
+    - ani
+    - niż
+    - nie
+  en:
+    - a
+    - an
+    - the
+    - to
+    - of
+    - in
+    - "on"
+    - at
+    - for
+    - with
+    - from
+    - by
+    - and
+    - or
+    - but
+    - as
+    - if
+    - that
+    - my
+    - your
+    - our
+    - their
+
 conjunctions:
   pl:
     - i
