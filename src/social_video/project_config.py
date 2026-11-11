@@ -57,6 +57,9 @@ caption_style:
   highlight_color: "#FFD400"
   # How the spoken word moves: none, pop or box. Empty follows motion_energy.
   animation: ""
+  # With label_style: scene_frame, how opaque the frame's fill is (0-100).
+  # 0 keeps the outline and the title and leaves the picture clear behind it.
+  scene_frame_fill_pct: 30
   # Brand words drawn in their own colour wherever they are spoken. One word
   # per entry; list inflected forms separately.
   emphasis_words: []
@@ -276,6 +279,7 @@ def compile_brand_contract(
             emphasis_mark=style.emphasis_mark,
             animation=style.animation or energy.caption_animation,
             upcoming_word_opacity=style.upcoming_word_opacity,
+            scene_frame_fill_pct=style.scene_frame_fill_pct,
             first_cue_full_sentence=config.first_cue_full_sentence,
             first_cue_max_words=config.first_cue_max_words,
             hold_through_pauses=config.hold_through_pauses,

@@ -67,6 +67,11 @@ class CaptionConfig(BaseModel):
     #: so the eye reads ahead of the voice no further than the voice goes.
     #: 1.0 (the default) draws them like the rest. Drawn by Remotion only.
     upcoming_word_opacity: float = Field(default=1.0, ge=0.3, le=1.0)
+    #: With `label_style: scene_frame`: how opaque the frame's fill is, 0-100.
+    #: The default 30 tints the picture behind the captions in the secondary
+    #: colour; 0 keeps the outline and the title and leaves the picture clear,
+    #: so the caption's own box is the only background behind the words.
+    scene_frame_fill_pct: int = Field(default=30, ge=0, le=100)
     #: Within one scene, keep a caption on screen until the next one starts,
     #: so a pause in the speech never leaves the scene frame empty. A cut to
     #: another range, or a pause of more than two seconds, still clears it.

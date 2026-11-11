@@ -15,14 +15,17 @@ import logging
 from pathlib import Path
 
 from social_video.ffmpeg.probe import probe
-from social_video.reframe.detect import FrameFaces, detect_faces
+from social_video.reframe.detect import Face, FrameFaces, detect_faces
 from social_video.reframe.smooth import SmoothingConfig, dedupe_keyframes, smooth_positions
 from social_video.schemas.edl import CropKeyframe, Pane, PaneFit, ReframeMode, ReframePlan
 
 log = logging.getLogger(__name__)
 
-#: Faces sit better a little above centre than dead centre.
-HEAD_ROOM = 0.42
+#: Where the speaker's eyes go, as a fraction of the frame height from its
+#: top: on the upper third line, with room below for hands and captions. The
+#: crop used to be placed by the middle of the face box, which put the eyes
+#: near 0.40 and left a third of the frame above the head.
+EYE_LINE = 0.30
 
 
 def crop_size_for(src_w: int, src_h: int, out_w: int, out_h: int) -> tuple[int, int]:
@@ -66,10 +69,20 @@ def plan_reframe(
     crop_w, crop_h = crop_size_for(src_w, src_h, out_width, out_height)
 
     if crop_w >= src_w and crop_h >= src_h:
-        return ReframePlan(
-            mode=ReframeMode.FIT,
-            reason="source already matches the output aspect; no crop needed",
-        )
+        reason = "source already matches the output aspect; no crop needed"
+        if mode in (ReframeMode.FACE, ReframeMode.SPEAKER):
+            # Nothing to crop, but where the face is still matters: a zoom on
+            # this range pushes in on it, and QA compares framing between ranges.
+            focus = _measure_focus(source, start, end, (src_w, src_h))
+            if focus is not None:
+                return ReframePlan(
+                    mode=ReframeMode.FIT,
+                    reason=f"{reason}; {_describe_focus(focus)}",
+                    focus_x=focus[0],
+                    focus_y=focus[1],
+                    face_height=focus[2],
+                )
+        return ReframePlan(mode=ReframeMode.FIT, reason=reason)
 
     if mode is ReframeMode.FIT:
         return ReframePlan(
@@ -158,11 +171,13 @@ def plan_reframe(
     for sample in hits:
         face = sample.primary
         assert face is not None
-        cx, cy = face.center
+        cx, _cy = face.center
+        _eye_x, eye_y = face.eyes_center
         # Clamp on both sides. clipsai clamps only the low edge, which lets the
         # crop window run past the right or bottom of the frame.
         raw_x.append(_clamp(cx - crop_w / 2.0, 0, src_w - crop_w))
-        raw_y.append(_clamp(cy - crop_h * HEAD_ROOM, 0, src_h - crop_h))
+        # Vertically the eyes go on the eye line, wherever the crop has room.
+        raw_y.append(_clamp(eye_y - crop_h * EYE_LINE, 0, src_h - crop_h))
 
     cfg = smoothing or SmoothingConfig()
     smooth_x = smooth_positions(raw_x, span=crop_w, config=cfg)
@@ -189,6 +204,14 @@ def plan_reframe(
         keyframes = [CropKeyframe(t=0.0, x=int(smooth_x[0]), y=int(smooth_y[0]))]
 
     coverage = len(hits) / max(1, len(samples))
+    focus = _focus(
+        [
+            (s.primary, x, y)
+            for s, x, y in zip(hits, smooth_x, smooth_y, strict=True)
+            if s.primary is not None
+        ],
+        (crop_w, crop_h),
+    )
     return ReframePlan(
         mode=mode,
         crop_width=crop_w,
@@ -197,11 +220,56 @@ def plan_reframe(
         reason=(
             speaker_note + f"face-aware crop from {src_w}x{src_h}; faces found in "
             f"{coverage:.0%} of {len(samples)} sampled frames; "
-            f"{len(keyframes)} keyframe(s) after smoothing and dead zone"
+            f"{len(keyframes)} keyframe(s) after smoothing and dead zone; " + _describe_focus(focus)
         ),
+        focus_x=focus[0],
+        focus_y=focus[1],
+        face_height=focus[2],
     )
 
 
+def _focus(
+    placed: list[tuple[Face, float, float]], frame: tuple[int, int]
+) -> tuple[float, float, float]:
+    """Where the eyes sit in the framed picture, and how tall the face is in it.
+
+    ``placed`` is each face with the top-left corner of the picture it was
+    framed in; the answer is the middle value over the range, as fractions of
+    the frame's width and height.
+    """
+    width, height = frame
+    xs = sorted((face.eyes_center[0] - left) / width for face, left, _top in placed)
+    ys = sorted((face.eyes_center[1] - top) / height for face, _left, top in placed)
+    faces = sorted(face.height / height for face, _left, _top in placed)
+    middle = len(placed) // 2
+    return (
+        round(_clamp(xs[middle], 0.0, 1.0), 3),
+        round(_clamp(ys[middle], 0.0, 1.0), 3),
+        round(_clamp(faces[middle], 0.0, 1.0), 3),
+    )
+
+
+def _describe_focus(focus: tuple[float, float, float]) -> str:
+    return f"eyes at {focus[1]:.0%} of the frame height, face {focus[2]:.0%} of it"
+
+
+def _measure_focus(
+    source: Path, start: float, end: float, frame: tuple[int, int]
+) -> tuple[float, float, float] | None:
+    """The focus of a range that is shown whole; ``None`` when no face is found."""
+    try:
+        samples = detect_faces(source, start=start, end=end, samples_per_second=1.0)
+    except Exception as exc:  # measuring is best-effort; the framing does not depend on it
+        log.info("faces could not be measured for framing notes: %s", exc)
+        return None
+    placed = [(s.primary, 0.0, 0.0) for s in samples if s.primary is not None]
+    if not placed:
+        return None
+    return _focus(placed, frame)
+
+
+#: In a split pane the middle of the face sits a little above the pane's centre.
+PANE_HEAD_ROOM = 0.42
 #: A person must be found in at least this share of samples to get a pane.
 SPLIT_MIN_COVERAGE = 0.3
 #: A pane shows this many face-heights of picture, so shoulders and gesture
@@ -244,7 +312,7 @@ def split_panes(
         width = min(src_w, round(height * band_aspect))
         height = min(height, round(width / band_aspect))
         x = round(_clamp(cx - width / 2, 0, src_w - width))
-        y = round(_clamp(cy - height * HEAD_ROOM, 0, src_h - height))
+        y = round(_clamp(cy - height * PANE_HEAD_ROOM, 0, src_h - height))
         panes.append(
             Pane(x=x, y=y, width=width, height=height, share=0.5, fit=PaneFit.COVER,
                  label=f"person {len(panes) + 1}")

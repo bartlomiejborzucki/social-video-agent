@@ -104,6 +104,9 @@ class CaptionStyle(Artifact):
     #: Opacity of the cue's words not spoken yet; 1.0 draws them like the
     #: rest. Needs word timings. Drawn by Remotion.
     upcoming_word_opacity: float = Field(default=1.0, ge=0.3, le=1.0)
+    #: How opaque the scene frame's fill is, 0-100. 0 keeps the outline and the
+    #: title tab and draws nothing behind the caption's own box.
+    scene_frame_fill_pct: int = Field(default=30, ge=0, le=100)
     speaker_colours: dict[str, str] = Field(default_factory=dict)
     #: Within one scene a cue stays until the next one starts; see
     #: ``captions.chunk.hold_through_pauses``.

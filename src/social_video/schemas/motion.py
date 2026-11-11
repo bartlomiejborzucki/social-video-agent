@@ -89,6 +89,9 @@ class EndCardLayout(str, Enum):
     OVERLAY = "overlay"
     #: The image whole in the upper part (a book cover), the text below it.
     IMAGE_TOP = "image_top"
+    #: People on the card: a kicker, the title, one to three round portraits
+    #: with names and handles, what comes next, and a closing line.
+    PROFILES = "profiles"
 
 
 class TitleStyle(str, Enum):
@@ -279,6 +282,45 @@ class WordAnchor(BaseModel):
     occurrence: int = Field(default=1, ge=1)
 
 
+class Person(BaseModel):
+    """Someone an end card names: who the viewer watched, and where to find them."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=32)
+    #: An account name, a site, a role -- one short line under the name.
+    handle: str | None = Field(default=None, max_length=32)
+    #: A portrait, cropped to a circle. Without one the card draws initials.
+    image_asset: str | None = None
+
+    @model_validator(mode="after")
+    def _a_picture_file(self) -> Person:
+        if self.image_asset is not None:
+            suffix = Path(self.image_asset).suffix.casefold()
+            if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
+                raise ValueError("a person's image_asset must be a .png, .jpg, .jpeg or .webp file")
+        return self
+
+
+class SourceAnchor(BaseModel):
+    """A moment of a recording: ``{source: kamera, time: 12.4}``.
+
+    Times in a motion plan are on the output timeline, which moves with every
+    cut. A moment named in the recording stays the same moment: it is mapped
+    onto the edit when the plan is anchored, again after every recompile.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str = Field(min_length=1, max_length=120)
+    time: float = Field(ge=0.0)
+
+
+def check_one_anchor(at_word: str | None, at_source: SourceAnchor | None) -> None:
+    if at_word is not None and at_source is not None:
+        raise ValueError("at_word and at_source both set the start; give one of them")
+
+
 #: Types drawn without words of their own.
 TEXTLESS = frozenset(
     {
@@ -340,6 +382,11 @@ class MotionElement(Artifact):
     #: word's ``occurrence``-th appearance in the captions.
     at_word: str | None = Field(default=None, max_length=60)
     occurrence: int = Field(default=1, ge=1)
+    #: Start the element at a moment of a recording instead of at an output
+    #: time: any type, labels included. Its length is kept, unless
+    #: ``until_source`` names the moment it ends.
+    at_source: SourceAnchor | None = None
+    until_source: SourceAnchor | None = None
     animation: StickerAnimation = StickerAnimation.POP
     #: Height of a sticker or icon, as a percentage of the output height (at
     #: most 30); the width of an inset card, as a percentage of its width.
@@ -397,8 +444,16 @@ class MotionElement(Artifact):
     #: start and end are set from it once the edit's length is known.
     from_end: float | None = Field(default=None, ge=1.0, le=6.0)
     #: A hook title or end teaser: the part of a series this reel is, drawn
-    #: after ``secondary_text`` ("Part" + " 2/4").
+    #: after ``secondary_text`` ("Part" + " 2/4"). On an end card with
+    #: ``layout: profiles`` it follows the kicker ("Odcinek" + " 2 / 4").
     series: Series | None = None
+    #: An end card with ``layout: profiles``: the people on it (one to three),
+    #: a kicker above the title, and what comes next -- a small label and the
+    #: line itself. ``text`` is the title and ``secondary_text`` the closing line.
+    people: list[Person] = Field(default_factory=list, max_length=3)
+    kicker: str | None = Field(default=None, max_length=32)
+    next_label: str | None = Field(default=None, max_length=32)
+    next_text: str | None = Field(default=None, max_length=90)
     #: An insert: how it cuts in and out.
     cut_style: InsertCut | None = None
     #: A prop: its id in the project's prop library, and how it is framed.
@@ -508,6 +563,9 @@ class MotionElement(Artifact):
         if self.at_word is not None and self.type not in AT_WORD_TYPES:
             names = ", ".join(sorted(t.value for t in AT_WORD_TYPES))
             raise ValueError(f"at_word places {names} on a word, not a {kind}")
+        check_one_anchor(self.at_word, self.at_source)
+        if self.until_source is not None and self.at_source is None:
+            raise ValueError("until_source ends an element that at_source starts; give both")
         if self.type in PLAYFUL and self.start < PLAYFUL_EARLIEST:
             raise ValueError(
                 f"a {kind} never shares the opening frame: start at {PLAYFUL_EARLIEST} s or later"
@@ -583,6 +641,7 @@ class MotionElement(Artifact):
         self._check_item_anchors()
         if self.layout is EndCardLayout.IMAGE_TOP and self.image_asset is None:
             raise ValueError("layout image_top needs an image_asset to put above the text")
+        self._check_profiles()
         if self.image_asset is not None and self.type not in (
             MotionElementType.STICKER,
             MotionElementType.INSET,
@@ -596,6 +655,25 @@ class MotionElement(Artifact):
             if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
                 raise ValueError("image_asset must be a .png, .jpg, .jpeg or .webp file")
         return self
+
+    def _check_profiles(self) -> None:
+        profiles = self.layout is EndCardLayout.PROFILES
+        given = self.people or self.kicker or self.next_label or self.next_text
+        if not profiles:
+            if given:
+                raise ValueError(
+                    "people, kicker, next_label and next_text are only used by an end_card "
+                    "with layout: profiles"
+                )
+            return
+        if not self.people:
+            raise ValueError("layout profiles shows one to three people; name them in `people`")
+        if self.image_asset is not None:
+            raise ValueError(
+                "layout profiles draws its own background; give each person an image_asset"
+            )
+        if self.next_label and not self.next_text:
+            raise ValueError("next_label names what next_text says comes next; give both")
 
     def _check_inset(self) -> None:
         if (self.image_asset is None) == (self.video_asset is None):
@@ -628,7 +706,12 @@ class MotionElement(Artifact):
     def _check_titles(self) -> None:
         titled = self.type in (MotionElementType.HOOK_TITLE, MotionElementType.END_TEASER)
         if not titled:
-            if self.title_style is not None or self.series is not None or self.emphasis_words:
+            series_here = self.layout is EndCardLayout.PROFILES
+            if (
+                self.title_style is not None
+                or (self.series is not None and not series_here)
+                or self.emphasis_words
+            ):
                 raise ValueError(
                     "title_style, series and emphasis_words are only used by a hook_title "
                     "or an end_teaser"
@@ -851,10 +934,13 @@ class Shake(Artifact):
     frequency_hz: float = Field(default=9.0, ge=2.0, le=20.0)
     at_word: str | None = Field(default=None, max_length=60)
     occurrence: int = Field(default=1, ge=1)
+    #: Start at a moment of a recording instead; see `SourceAnchor`.
+    at_source: SourceAnchor | None = None
     reason: str = Field(min_length=1, max_length=300)
 
     @model_validator(mode="after")
     def _valid(self) -> Shake:
+        check_one_anchor(self.at_word, self.at_source)
         if not 0.15 <= self.end - self.start <= 2.0:
             raise ValueError("a shake lasts 0.15-2 s; a longer one is a grade (`shake`)")
         return self
@@ -933,6 +1019,8 @@ class Effect(Artifact):
     end: float = Field(gt=0)
     at_word: str | None = Field(default=None, max_length=60)
     occurrence: int = Field(default=1, ge=1)
+    #: Start at a moment of a recording instead; see `SourceAnchor`.
+    at_source: SourceAnchor | None = None
     #: A tilt's angle in degrees; negative tilts left.
     tilt_deg: float | None = Field(default=None, ge=-5.0, le=5.0)
     reason: str = Field(min_length=1, max_length=300)
@@ -946,6 +1034,7 @@ class Effect(Artifact):
 
     @model_validator(mode="after")
     def _valid(self) -> Effect:
+        check_one_anchor(self.at_word, self.at_source)
         low, high = EFFECT_LENGTHS[self.type]
         length = self.end - self.start
         if not low - 1e-6 <= length <= high + 1e-6:
@@ -980,10 +1069,13 @@ class PunchIn(Artifact):
     #: start of that word's ``occurrence``-th appearance in the captions.
     at_word: str | None = Field(default=None, max_length=60)
     occurrence: int = Field(default=1, ge=1)
+    #: Start at a moment of a recording instead; see `SourceAnchor`.
+    at_source: SourceAnchor | None = None
     reason: str = Field(min_length=1, max_length=300)
 
     @model_validator(mode="after")
     def _valid_interval(self) -> PunchIn:
+        check_one_anchor(self.at_word, self.at_source)
         if self.end - self.start < 0.4:
             raise ValueError("a punch-in needs at least 0.4 s to ease in and out")
         return self

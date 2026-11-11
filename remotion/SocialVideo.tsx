@@ -32,6 +32,7 @@ import type {
   SocialVideoProps,
 } from './types';
 import {DATA_GRAPHICS, DataGraphic, itemEntryFrame} from './DataGraphics';
+import {ProfilesEndCard} from './EndCardProfiles';
 import {SceneFrame, rgba} from './SceneFrame';
 import {stylePack} from './stylePacks';
 import {leakHueShift, useTransition} from './Transitions';
@@ -333,12 +334,13 @@ const EmphasisMarkOn: React.FC<{
 const MotionGraphic: React.FC<{
   element: MotionElement;
   accent: string;
+  secondary: string;
   text: string;
   background: string;
   font: string;
   durationInFrames: number;
   holdToEnd?: boolean;
-}> = ({element, accent, text, background, font, durationInFrames, holdToEnd = false}) => {
+}> = ({element, accent, secondary, text, background, font, durationInFrames, holdToEnd = false}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const entrance = spring({frame, fps, config: {damping: 20, stiffness: 170}});
@@ -359,6 +361,22 @@ const MotionGraphic: React.FC<{
   const dim = Math.min(90, Math.max(0, element.image_dim_pct ?? 45)) / 100;
   const isLower = element.type === 'lower_third';
   const isCallout = element.type === 'callout';
+
+  if (isEnd && element.fitted && element.layout === 'profiles') {
+    return (
+      <ProfilesEndCard
+        element={element}
+        fitted={element.fitted}
+        accent={accent}
+        secondary={secondary}
+        text={text}
+        background={background}
+        font={font}
+        opacity={opacity}
+        y={y}
+      />
+    );
+  }
 
   if (isEnd && element.fitted) {
     return (
@@ -1069,8 +1087,18 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
         const overlap = chained ? Math.round(props.fps * 0.5) : 0;
         const duration = Math.max(1, Math.round((element.end - element.start) * props.fps)) + overlap;
         const holdToEnd = chained || from + duration >= props.durationInFrames - 1;
+        // A card over the head is drawn smaller, toward its own top edge, when
+        // it would otherwise reach the measured face.
+        const fit = element.fit && element.fit.scale < 1 ? element.fit : null;
         return (
           <Sequence key={`${element.type}-${index}`} from={from} durationInFrames={duration}>
+            <AbsoluteFill
+              style={
+                fit
+                  ? {transform: `scale(${fit.scale})`, transformOrigin: `50% ${fit.origin_y}px`}
+                  : undefined
+              }
+            >
             {element.type === 'sticker' ? (
               <Sticker element={element} durationInFrames={duration} />
             ) : TITLE_TYPES.has(element.type) ? (
@@ -1142,6 +1170,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
               <MotionGraphic
                 element={element}
                 accent={props.accentColor}
+                secondary={props.secondaryColor}
                 text={props.textColor}
                 background={props.backgroundColor}
                 font={props.fontFamily}
@@ -1149,6 +1178,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = (props) => {
                 holdToEnd={holdToEnd}
               />
             )}
+            </AbsoluteFill>
           </Sequence>
         );
       })}

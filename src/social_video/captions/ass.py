@@ -398,7 +398,7 @@ def _scene_frame_events(scene: SceneFrameDrawing, family: str) -> list[str]:
         events.append(
             f"Dialogue: 0,{start},{end},Default,,0,0,0,,"
             f"{{\\an7\\pos({round(g.left)},{round(g.top)})\\p1\\bord{g.border:.1f}\\shad0"
-            f"\\1c{secondary}\\1a&HB3&\\3c{white}\\3a&H0A&{rim}}}"
+            f"\\1c{secondary}\\1a&H{int(255 * (1 - g.fill) + 0.5):02X}&\\3c{white}\\3a&H0A&{rim}}}"
             f"{_rounded_rect(g.width, g.height, g.radius)}"
         )
         titles: list[tuple[str, int, int | None]] = [(label.text, 0, None)]

@@ -589,7 +589,7 @@ def stage_render(
         from social_video.motion.anchors import anchor_to_words
 
         anchored, notes = anchor_to_words(
-            reactive, _caption_json(captions, edl), duration=edl.total_duration
+            reactive, _caption_json(captions, edl), duration=edl.total_duration, edl=edl
         )
         if notes:
             if persist_artifacts:
@@ -815,6 +815,7 @@ def stage_render(
             secondary_colour=contract.brand.secondary_colour if contract else "#1F2430",
             brand_colours=contract.brand.brand_colours if contract else None,
             custom_components=custom_files,
+            edl=edl,
             title_font_path=(
                 Path(contract.resolved_title_font_file)
                 if contract and contract.resolved_title_font_file
@@ -1033,6 +1034,67 @@ def _check_remotion_only(contract: BrandContract, renderer: Renderer, *, caption
         )
 
 
+#: Faces this many times apart in size read as two different shots of people.
+FACE_SIZE_RATIO = 1.35
+#: Eye lines further apart than this, as a share of the frame height, make
+#: the viewer's eyes jump at the cut.
+EYE_LINE_SPREAD = 0.08
+
+
+def _framing_checks(edl: EDL) -> list[QACheck]:
+    """Whether the speakers sit alike from range to range; advice, never a failure.
+
+    Uses what the reframe plans measured: where the eyes are and how tall the
+    face is. A range's ``zoom`` enlarges the face and leaves the eyes where
+    they were, since it pushes in on them.
+    """
+    seen = [
+        (index, rng.reframe.focus_y, rng.reframe.face_height * rng.zoom)
+        for index, rng in enumerate(edl.ranges)
+        if rng.reframe is not None
+        and rng.reframe.focus_y is not None
+        and rng.reframe.face_height is not None
+        and rng.reframe.face_height > 0
+    ]
+    if len(seen) < 2:
+        return []
+    small = min(seen, key=lambda item: item[2])
+    large = max(seen, key=lambda item: item[2])
+    high = min(seen, key=lambda item: item[1])
+    low = max(seen, key=lambda item: item[1])
+    problems = []
+    if large[2] / small[2] > FACE_SIZE_RATIO:
+        wanted = min(2.0, edl.ranges[small[0]].zoom * large[2] / small[2])
+        problems.append(
+            f"the face fills {small[2]:.0%} of the frame height in range {small[0]} and "
+            f"{large[2]:.0%} in range {large[0]}; `zoom: {wanted:.2f}` on the plan item of "
+            f"range {small[0]} brings them together (a zoom pushes in on the eyes)"
+        )
+    if low[1] - high[1] > EYE_LINE_SPREAD:
+        problems.append(
+            f"the eyes sit at {high[1]:.0%} of the frame height in range {high[0]} and at "
+            f"{low[1]:.0%} in range {low[0]}, so they jump at the cut"
+        )
+    if not problems:
+        return [
+            QACheck(
+                name="framing between ranges",
+                severity=QASeverity.INFO,
+                passed=True,
+                message=f"faces {small[2]:.0%}-{large[2]:.0%} of the frame height, eyes at "
+                f"{high[1]:.0%}-{low[1]:.0%}",
+            )
+        ]
+    return [
+        QACheck(
+            name="framing between ranges",
+            severity=QASeverity.WARNING,
+            passed=False,
+            message="; ".join(problems),
+        )
+    ]
+
+
 def _source_picture_checks(edl: EDL, workspace: Workspace) -> list[QACheck]:
     """A warning per recording too small or too compressed to fill the output well.
 
@@ -1078,6 +1140,7 @@ def stage_qa(
     if sync is not None:
         report.checks.append(sync)
     report.checks.extend(_source_picture_checks(edl, workspace))
+    report.checks.extend(_framing_checks(edl))
     if caption_problem:
         report.checks.append(
             QACheck(
@@ -1206,7 +1269,9 @@ def anchor_workspace_reactions(workspace: Workspace, edl: EDL) -> list[str]:
     if not workspace.motion_plan.is_file():
         return []
     plan = load_artifact(MotionPlan, workspace.motion_plan)
-    anchored, notes = anchor_to_words(plan, _caption_json(None, edl), duration=edl.total_duration)
+    anchored, notes = anchor_to_words(
+        plan, _caption_json(None, edl), duration=edl.total_duration, edl=edl
+    )
     if notes:
         save_artifact(anchored, workspace.motion_plan)
     return notes

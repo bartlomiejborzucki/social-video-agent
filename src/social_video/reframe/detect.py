@@ -61,6 +61,15 @@ class Face:
         return self.width * self.height
 
     @property
+    def eyes_center(self) -> tuple[float, float]:
+        """Midpoint of the eyes; estimated from the box when there are no landmarks."""
+        if len(self.landmarks) >= 2:
+            right, left = self.landmarks[0], self.landmarks[1]
+            return (right[0] + left[0]) / 2.0, (right[1] + left[1]) / 2.0
+        # The eyes sit a little above the middle of a face box.
+        return self.x + self.width / 2.0, self.y + self.height * 0.4
+
+    @property
     def mouth_center(self) -> tuple[float, float] | None:
         """Midpoint of the two mouth corners, when landmarks are present."""
         if len(self.landmarks) < 5:

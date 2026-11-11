@@ -344,6 +344,21 @@ def plan(
     console.print(f"\n[green]written[/green] {ws.edit_plan}", soft_wrap=True)
 
 
+def _with_bed(edl, bed, workspace):
+    """The compiled edit with the music bed its predecessor had.
+
+    A bed is set once for the reel (`audio bed`), not for one compile of it, so
+    rebuilding the cut from the plan must not silently drop the music.
+    """
+    if bed is None or edl.audio_bed is not None:
+        return edl
+    from social_video.schemas.base import save_artifact
+
+    edl.audio_bed = bed
+    save_artifact(edl, workspace.edl)
+    return edl
+
+
 @app.command("compile")
 def compile_edl(
     source: Path | None = typer.Argument(
@@ -426,10 +441,12 @@ def compile_edl(
             )
         replaced = 0
         fixes = []
+        bed = None
         if ws.edl.is_file():
             try:
                 old = load_artifact(EDL, ws.edl)
                 replaced = len(old.sound_effects)
+                bed = old.audio_bed
                 if old.captions and Path(old.captions).with_suffix(".json").is_file():
                     track = load_artifact(CaptionTrack, Path(old.captions).with_suffix(".json"))
                     fixes = track.fixes
@@ -453,7 +470,7 @@ def compile_edl(
             edl, _track = stage_story(plan, ws, prof, captions=wanted)
             for note in anchor_workspace_reactions(ws, edl) if wanted else []:
                 err_console.print(f"[green]anchored[/green] {escape(note)}")
-            return edl, None, replaced, [], []
+            return _with_bed(edl, bed, ws), None, replaced, [], []
         transcript, others = compile_transcripts(plan, ws, source, options=options, backend=backend)
         edges = speech_edges(ws, [transcript, *others.values()]) if acoustic_edges else None
         fitted: list[str] = []
@@ -470,11 +487,22 @@ def compile_edl(
             for note in anchor_workspace_reactions(ws, edl):
                 err_console.print(f"[green]anchored[/green] {escape(note)}")
         lost = [f for f in fixes if f not in carried]
-        return edl, edges, replaced, lost, fitted
+        return _with_bed(edl, bed, ws), edges, replaced, lost, fitted
 
     edl, edges, replaced, lost, fitted = _guard(run)
     shifts = [shift.describe() for shift in edges.shifts] if edges else []
     warnings = [*(edges.warnings if edges else []), *fitted]
+    if edl.audio_bed is not None:
+        from social_video.ffmpeg.probe import probe
+
+        track = Path(edl.audio_bed.path).expanduser()
+        covers = probe(track).duration - edl.audio_bed.start_at if track.is_file() else 0.0
+        if not edl.audio_bed.loop and covers + 0.05 < edl.total_duration:
+            warnings.append(
+                f"the music bed kept from the replaced edl.json covers {covers:.2f}s and "
+                f"the edit is now {edl.total_duration:.2f}s; set a longer one with "
+                f"`audio bed FILE -w {ws.root}`, or take it out with `audio bed --remove`"
+            )
     if replaced and not edl.sound_effects:
         warnings.append(
             f"the replaced edl.json had {replaced} sound effect(s), which the plan does not "

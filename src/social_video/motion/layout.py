@@ -60,6 +60,8 @@ class SceneFrameGeometry:
     tab_height: float
     #: Where a framed caption's box is centred, vertically.
     caption_centre: float
+    #: Opacity of the frame's fill, 0-1 (`caption_style.scene_frame_fill_pct`).
+    fill: float = 0.3
 
     @property
     def bottom(self) -> float:
@@ -109,6 +111,7 @@ def scene_frame_geometry(
         tab_top=top - tab_height / 2,
         tab_height=tab_height,
         caption_centre=top + body / 2 + 14 * u,
+        fill=style.scene_frame_fill_pct / 100.0,
     )
 
 
@@ -264,6 +267,75 @@ def element_band(
     return None
 
 
+#: Cards drawn in the top zone, over the head: these are fitted above the face.
+FITTED_TO_FACE = frozenset(
+    {
+        MotionElementType.PROCESS,
+        MotionElementType.BUBBLE,
+        MotionElementType.STRIKE,
+        MotionElementType.LIST,
+        MotionElementType.STEPS,
+        MotionElementType.CTA,
+        MotionElementType.KINETIC_WORD,
+    }
+)
+#: How far above the eyes the forehead ends, in face heights: the detected box
+#: reaches 0.4 above them. A card may sit over the hair above that; with the
+#: eyes on the upper third there is no room to clear the hair as well.
+FOREHEAD_ABOVE_EYES = 0.45
+#: A card is never drawn smaller than this to make room: past it the words
+#: stop being readable, and motion QA says the card does not fit instead.
+MIN_FIT_SCALE = 0.7
+
+
+def face_clear_line(edl: EDL, start: float, end: float, height: int) -> float | None:
+    """The top of the speaker's forehead while ``start``-``end`` is on screen, in pixels.
+
+    From what the reframe plans measured for the ranges shown in that time; a
+    range's zoom enlarges the face and leaves the eyes where they were. The
+    highest face wins. ``None`` when no range in that time has a measured face.
+    """
+    from social_video.edl.timeline import Timeline
+
+    tops = []
+    for piece in Timeline(edl).slices:
+        plan = piece.range.reframe
+        if piece.output_end <= start or piece.output_start >= end or plan is None:
+            continue
+        if plan.focus_y is None or plan.face_height is None:
+            continue
+        head = plan.focus_y - FOREHEAD_ABOVE_EYES * plan.face_height * piece.range.zoom
+        tops.append(max(0.0, head) * height)
+    return min(tops) if tops else None
+
+
+def fit_to_face(
+    element: MotionElement,
+    edl: EDL | None,
+    *,
+    height: int,
+    margins: dict[str, float],
+) -> tuple[float, float] | None:
+    """How much to shrink a top-zone card so it ends above the forehead: (scale, top).
+
+    ``top`` is the card's top edge in pixels, the line it shrinks toward.
+    ``None`` when the card already clears the head, sits elsewhere, or nothing
+    was measured. A card that would need to go under ``MIN_FIT_SCALE`` is
+    drawn at that scale and left for motion QA to name.
+    """
+    if edl is None or element.type not in FITTED_TO_FACE:
+        return None
+    band = element_band(element, height=height, margins=margins)
+    clear = face_clear_line(edl, element.start, element.end, height)
+    if band is None or clear is None:
+        return None
+    top, bottom = band[0] * height, band[1] * height
+    if bottom <= clear or top >= clear:
+        return None
+    scale = max(MIN_FIT_SCALE, (clear - top) / (bottom - top))
+    return round(scale, 3), round(top, 1)
+
+
 def custom_zone(
     element: MotionElement, *, width: int, height: int, margins: dict[str, float] | None = None
 ) -> tuple[float, float, float, float]:
@@ -287,6 +359,51 @@ def custom_zone(
 #: How far a label edge may move to meet a cut. Further than this, the label
 #: was meant to change mid-range and keeps its own time.
 PIN_REACH_S = 1.5
+
+
+#: A scene shorter than this gets no label of its own: a title that flips
+#: faster cannot be read.
+MIN_BEAT_LABEL_S = 0.8
+
+
+def labels_from_beats(edl: EDL) -> tuple[list[MotionElement], list[str]]:
+    """One label per scene of the edit, named by its ranges' ``beat``.
+
+    The plan already names each passage's scene; this turns those names into
+    the labels a scene frame or a chip draws, on the times the compiled edit
+    gives them. Ranges that follow each other with the same beat are one
+    scene. Returns the labels and one line per scene left without one.
+    """
+    from social_video.edl.timeline import Timeline
+
+    scenes: list[tuple[str, float, float]] = []
+    for piece in Timeline(edl).slices:
+        beat = piece.range.beat.strip()
+        if scenes and scenes[-1][0].casefold() == beat.casefold():
+            scenes[-1] = (scenes[-1][0], scenes[-1][1], piece.output_end)
+        else:
+            scenes.append((beat, piece.output_start, piece.output_end))
+    made: list[MotionElement] = []
+    skipped: list[str] = []
+    for beat, start, end in scenes:
+        if not beat:
+            continue
+        if end - start < MIN_BEAT_LABEL_S:
+            skipped.append(f"{beat!r} lasts {end - start:.2f}s, too short for a label")
+            continue
+        if len(beat) > 80:
+            skipped.append(f"{beat[:40]!r}... is longer than a label's 80 characters")
+            continue
+        made.append(
+            MotionElement(
+                type=MotionElementType.LABEL,
+                start=round(start, 3),
+                end=round(end, 3),
+                text=beat,
+                reason="The scene's name, from the beat of its ranges.",
+            )
+        )
+    return made, skipped
 
 
 def pin_labels(elements: list[MotionElement], edl: EDL) -> tuple[list[MotionElement], list[str]]:

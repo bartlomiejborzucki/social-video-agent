@@ -238,10 +238,15 @@ def _reframe_filter(
             parts.append(f"crop={src_w}:{crop_h}:0:(ih-{crop_h})/2")
 
     if rng.zoom > 1.0 and not force_fit:
-        # A punch-in is a centred crop by 1/zoom, applied before the final scale
-        # so it costs no resolution beyond the zoom itself.
+        # A punch-in is a crop by 1/zoom, applied before the final scale so it
+        # costs no resolution beyond the zoom itself. It pushes in on the
+        # speaker's eyes where the reframe plan measured them -- that point
+        # stays where it was on screen -- and on the centre otherwise.
         z = rng.zoom
-        parts.append(f"crop=iw/{z:.4f}:ih/{z:.4f}:(iw-iw/{z:.4f})/2:(ih-ih/{z:.4f})/2")
+        focus_x = plan.focus_x if plan and plan.focus_x is not None else 0.5
+        focus_y = plan.focus_y if plan and plan.focus_y is not None else 0.5
+        keep = 1.0 - 1.0 / z
+        parts.append(f"crop=iw/{z:.4f}:ih/{z:.4f}:iw*{focus_x * keep:.5f}:ih*{focus_y * keep:.5f}")
 
     parts.append(f"scale={out_w}:{out_h}:force_original_aspect_ratio=decrease:flags=lanczos")
     if post_scale:

@@ -30,6 +30,7 @@ TYPES = Path(__file__).resolve().parents[2] / "remotion" / "types.ts"
 #: resolved result (`item_times`, `strike_at`, `image_source`, ...).
 PYTHON_ONLY = {
     "animated_emoji",
+    "at_source",
     "at_word",
     "child_face_visible",
     "emphasis_words",
@@ -40,6 +41,7 @@ PYTHON_ONLY = {
     "replace_at_word",
     "replace_occurrence",
     "series",
+    "until_source",
 }
 
 
@@ -190,7 +192,7 @@ def test_every_element_field_the_compositor_declares_is_sent() -> None:
 )
 def test_timeline_items_carry_exactly_the_declared_fields(ts_type, model) -> None:
     # A word anchor is resolved to `start` and `end` before the compositor runs.
-    assert set(_statements(ts_type)) == _sent(model) - {"at_word", "occurrence"}
+    assert set(_statements(ts_type)) == _sent(model) - {"at_word", "occurrence", "at_source"}
 
 
 def test_a_shake_carries_exactly_the_declared_fields() -> None:

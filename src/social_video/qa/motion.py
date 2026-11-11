@@ -26,6 +26,7 @@ from social_video.motion.energy import EnergyPreset, energy_preset
 from social_video.motion.layout import (
     SceneFrameGeometry,
     element_band,
+    fit_to_face,
     labels,
     scene_frame_geometry,
     tab_font_px,
@@ -114,7 +115,7 @@ def check_motion(
     shown = _shown(plan, film_segments or [])
     margins = contract.safe_margins if contract else {}
     style = contract.brand.captions if contract else None
-    place = _Placement.of(contract, margins)
+    place = _Placement.of(contract, margins, edl)
 
     for item in shown:
         if item.element.type in BOXED:
@@ -504,11 +505,16 @@ class _Placement:
     height: int = 1920
     label_style: str = "chip"
     frame: SceneFrameGeometry | None = None
+    #: The edit, for the faces its reframe plans measured: a card over the
+    #: head is drawn smaller to end above it, and is measured as drawn.
+    edl: EDL | None = None
 
     @classmethod
-    def of(cls, contract: BrandContract | None, margins: dict[str, float]) -> _Placement:
+    def of(
+        cls, contract: BrandContract | None, margins: dict[str, float], edl: EDL | None = None
+    ) -> _Placement:
         if contract is None:
-            return cls(margins=margins)
+            return cls(margins=margins, edl=edl)
         frame = None
         if contract.brand.label_style == "scene_frame":
             frame = scene_frame_geometry(
@@ -522,6 +528,7 @@ class _Placement:
             height=contract.output_height,
             label_style=contract.brand.label_style,
             frame=frame,
+            edl=edl,
         )
 
     def band(self, element: MotionElement) -> tuple[float, float] | None:
@@ -532,7 +539,12 @@ class _Placement:
             label_style=self.label_style,
             frame=self.frame,
         )
-        return placed if placed is not None else graphic_band(element.type, self.margins)
+        if placed is None:
+            return graphic_band(element.type, self.margins)
+        fitted = fit_to_face(element, self.edl, height=self.height, margins=self.margins)
+        if fitted is not None:
+            return placed[0], placed[0] + (placed[1] - placed[0]) * fitted[0]
+        return placed
 
     def framed(self, element: MotionElement) -> bool:
         return self.frame is not None and element.type is MotionElementType.LABEL

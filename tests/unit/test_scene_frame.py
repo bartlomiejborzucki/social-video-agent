@@ -280,3 +280,34 @@ def test_a_long_title_shrinks_to_fit_the_tab_and_a_longer_one_is_refused() -> No
     assert tab_width(title, size, g, text_measurer(path)) <= g.width * TAB_WIDTH_SHARE
     with pytest.raises(ValueError, match="shorten it to about"):
         tab_font_px(title + " i czekamy razem aż minie", g, path)
+
+
+def test_the_frame_fill_is_a_brand_setting_and_zero_leaves_the_picture_clear() -> None:
+    """A tinted frame behind a caption's own box reads as two backgrounds."""
+    track = CaptionTrack(cues=[_cue(1, 0.0, 2.0)])
+    layout = layout_captions(list(track.cues), STYLE, width=1080, height=1920)
+
+    def frame_event(style: CaptionStyle) -> str:
+        geometry = scene_frame_geometry(style, width=1080, height=1920)
+        scene = SceneFrameDrawing(
+            geometry=geometry, labels=[_label("Scena", 0, 3)], accent="#28BCA5",
+            secondary="#394463",
+        )  # fmt: skip
+        document = render_boxed_ass(track, style, layout, width=1080, height=1920, scene=scene)
+        return next(
+            line
+            for line in document.splitlines()
+            if f"\\pos({round(geometry.left)},{round(geometry.top)})" in line
+        )
+
+    clear = STYLE.model_copy(update={"scene_frame_fill_pct": 0})
+    solid = STYLE.model_copy(update={"scene_frame_fill_pct": 100})
+
+    assert scene_frame_geometry(STYLE, width=1080, height=1920).fill == 0.3
+    assert scene_frame_geometry(STYLE, width=1080, height=1920).as_props()["fill"] == 0.3
+    assert "\\1a&HB3&" in frame_event(STYLE), "the default is what it always was"
+    assert "\\1a&HFF&" in frame_event(clear), "fully transparent fill, outline kept"
+    assert "\\3a&H0A&" in frame_event(clear)
+    assert "\\1a&H00&" in frame_event(solid)
+    with pytest.raises(ValueError):
+        CaptionStyle(scene_frame_fill_pct=140)

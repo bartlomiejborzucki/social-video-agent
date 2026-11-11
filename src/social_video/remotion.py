@@ -24,6 +24,7 @@ from social_video.fsutil import atomic_copy
 from social_video.imaging import load_image
 from social_video.motion.layout import (
     continues,
+    fit_to_face,
     framing_label,
     labels,
     scene_frame_geometry,
@@ -33,6 +34,7 @@ from social_video.remotion_node import ensure_bundle, run_node, stage_serve_dir
 from social_video.remotion_runtime import locate_runtime
 from social_video.schemas.brand import CaptionCase, CaptionStyle
 from social_video.schemas.captions import CaptionTrack
+from social_video.schemas.edl import EDL
 from social_video.schemas.motion import MotionElementType, MotionPlan
 
 #: A render that takes longer than this is not going to finish.
@@ -61,6 +63,7 @@ def render_motion_design(
     title_font_path: Path | None = None,
     title_font_family: str | None = None,
     props_library: dict[str, Path] | None = None,
+    edl: EDL | None = None,
 ) -> tuple[Path, list[str], CaptionLayout | None]:
     if base_video.resolve() == output.resolve():
         raise ValidationError("Remotion output must not overwrite its technical base video")
@@ -89,6 +92,11 @@ def render_motion_design(
             else:
                 load_image(plate, label=f"motion element {index} image_asset")
             plates[element.image_asset] = plate
+        for person in element.people:
+            if person.image_asset:
+                portrait = Path(person.image_asset).expanduser().resolve()
+                load_image(portrait, label=f"portrait of {person.name}")
+                plates[person.image_asset] = portrait
     plate_sources = {
         asset: f"motion-plate-{index}{path.suffix.casefold()}"
         for index, (asset, path) in enumerate(sorted(plates.items()))
@@ -284,6 +292,7 @@ def render_motion_design(
                     captions=captions,
                     title_font=title_font or font,
                     props_library=props_library,
+                    edl=edl,
                 )
                 for item in plan.elements
             ],
@@ -371,11 +380,16 @@ def _element_payload(
     captions: CaptionTrack | None = None,
     title_font: Path | None = None,
     props_library: dict[str, Path] | None = None,
+    edl: EDL | None = None,
 ) -> dict:
     """One element as the compositor reads it, its placement resolved."""
     payload = item.model_dump(
         mode="json", exclude={"schema_version", "image_asset", "video_asset", "rights"}
     )
+    # A card over the head ends above it: shrunk toward its own top edge by as
+    # much as the measured face asks, never below what stays readable.
+    fitted = fit_to_face(item, edl, height=height, margins=margins or {})
+    payload["fit"] = {"scale": fitted[0], "origin_y": fitted[1]} if fitted else None
     payload["image_source"] = plate_sources.get(item.image_asset or "")
     if item.animated_emoji and item.emoji:
         from social_video.motion.animated_emoji import require_name
@@ -390,6 +404,18 @@ def _element_payload(
         payload["continues_font_px"] = sizes.get(previous.text) if previous is not None else None
     if item.type is MotionElementType.END_CARD:
         payload["fitted"] = end_card_text(item, width=width, height=height, font=font)
+    if item.people:
+        # Staged file names only: a portrait's path on this machine stays here.
+        payload["people"] = [
+            {
+                "name": person.name,
+                "handle": person.handle,
+                "image_source": plate_sources.get(person.image_asset or ""),
+            }
+            for person in item.people
+        ]
+        part = item.series.label.replace("/", " / ") if item.series else ""
+        payload["kicker"] = " ".join(piece for piece in (item.kicker, part) if piece) or None
     if item.type is MotionElementType.STRIKE:
         payload["strike_at"], payload["replace_at"] = item.strike_moments
     if item.type in (MotionElementType.HOOK_TITLE, MotionElementType.END_TEASER):
@@ -464,9 +490,11 @@ def end_card_text(item, *, width: int, height: int, font: Path | None) -> dict:
 
     u = height / 1920
     max_width = min(900 * u, width - 180 * u)
+    # With people on the card the title shares the frame with their portraits.
+    crowded = bool(item.people)
     title = fit_text(
-        item.text, max_width=max_width, base_px=round(72 * u), min_px=round(30 * u),
-        font_file=font, max_lines=4,
+        item.text, max_width=max_width, base_px=round((60 if crowded else 72) * u),
+        min_px=round(30 * u), font_file=font, max_lines=3 if crowded else 4,
     )  # fmt: skip
     fitted = {"title": title.payload(), "max_width": round(max_width, 1)}
     if item.secondary_text:

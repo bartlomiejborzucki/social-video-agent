@@ -453,6 +453,75 @@ def motion_review_sheet(
     console.print(f"[green]written[/green] {path}", soft_wrap=True)
 
 
+@motion_app.command("labels")
+def motion_labels(
+    workspace_dir: Path = typer.Option(..., "--workspace", "-w"),
+    replace: bool = typer.Option(
+        False, "--replace", help="Drop every label the plan has, not only the scenes' own."
+    ),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Write one label per scene of the edit, from the `beat` of its ranges.
+
+    The edit plan names each passage's scene. This puts those names into
+    motion-plan.json as labels, timed by the compiled edit, so nobody works
+    the output times out by hand. Labels with other texts are kept unless
+    --replace; run it again after a recompile (labels named after a beat are
+    also re-pinned by `compile`).
+    """
+    from social_video.motion.layout import labels_from_beats
+    from social_video.schemas.base import load_artifact, save_artifact
+    from social_video.schemas.edl import EDL
+    from social_video.schemas.motion import MotionElementType, MotionPlan
+    from social_video.workspace.layout import Workspace
+
+    ws = Workspace.at(workspace_dir)
+
+    def run():
+        if not ws.edl.is_file():
+            raise ValueError(f"no edl.json in {ws.root}; compile the edit first")
+        edl = load_artifact(EDL, ws.edl)
+        made, skipped = labels_from_beats(edl)
+        if not made:
+            raise ValueError(
+                "no range of the edit has a beat to name a scene by; give the kept items "
+                "of edit-plan.json a `beat` and compile again"
+            )
+        plan = (
+            load_artifact(MotionPlan, ws.motion_plan)
+            if ws.motion_plan.is_file()
+            else MotionPlan(rationale="Scene labels from the edit's beats.")
+        )
+        named = {label.text.casefold() for label in made}
+        kept = [
+            e
+            for e in plan.elements
+            if e.type is not MotionElementType.LABEL
+            or (not replace and e.text.casefold() not in named)
+        ]
+        updated = plan.model_copy(
+            update={"elements": sorted([*kept, *made], key=lambda e: e.start)}
+        )
+        save_artifact(MotionPlan.model_validate(updated.model_dump()), ws.motion_plan)
+        return made, skipped
+
+    made, skipped = _guard(run)
+    if as_json:
+        console.print_json(
+            data={
+                "motion_plan": str(ws.motion_plan),
+                "labels": [{"text": e.text, "start": e.start, "end": e.end} for e in made],
+                "skipped": skipped,
+            }
+        )
+        return
+    for label in made:
+        console.print(f"  [{label.start:6.2f}-{label.end:6.2f}] {escape(label.text)}")
+    for line in skipped:
+        console.print(f"[yellow]skipped[/yellow] {escape(line)}", soft_wrap=True)
+    console.print(f"{len(made)} label(s) -> [green]{ws.motion_plan}[/green]", soft_wrap=True)
+
+
 @motion_app.command("qa")
 def motion_qa(
     workspace_dir: Path = typer.Option(..., "--workspace", "-w"),
@@ -489,7 +558,7 @@ def motion_qa(
         if plan is not None:
             from social_video.motion.anchors import anchor_to_words
 
-            plan, _notes = anchor_to_words(plan, track, duration=edl.total_duration)
+            plan, _notes = anchor_to_words(plan, track, duration=edl.total_duration, edl=edl)
         # The Remotion base render has no graphics over the faces.
         base = ws.cache / "remotion" / "base-preview.mp4"
         frames = video or (base if base.is_file() else ws.previews / "preview.mp4")

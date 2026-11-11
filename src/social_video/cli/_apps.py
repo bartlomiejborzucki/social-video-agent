@@ -43,6 +43,8 @@ custom_app = typer.Typer(
 motion_app.add_typer(custom_app, name="custom")
 broll_app = typer.Typer(help="Match clips from your own library to what is said, and cut them in.")
 app.add_typer(broll_app, name="broll")
+audio_app = typer.Typer(help="Sound under the edit: put a music bed in, or take it out.")
+app.add_typer(audio_app, name="audio")
 style_app = typer.Typer(
     help="Measure a reference video's rhythm and map it onto this project's settings."
 )

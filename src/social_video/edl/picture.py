@@ -384,8 +384,11 @@ def shown_region(
             height = max(2, round(src_w / target / 2) * 2)
             y = (src_h - height) // 2
     if rng.zoom > 1.0:
+        # The same push-in the render makes: on the measured eyes, else the centre.
+        focus_x = plan.focus_x if plan and plan.focus_x is not None else 0.5
+        focus_y = plan.focus_y if plan and plan.focus_y is not None else 0.5
         zoomed_w, zoomed_h = int(width / rng.zoom), int(height / rng.zoom)
-        x, y = x + (width - zoomed_w) // 2, y + (height - zoomed_h) // 2
+        x, y = x + int((width - zoomed_w) * focus_x), y + int((height - zoomed_h) * focus_y)
         width, height = zoomed_w, zoomed_h
     return max(2, width), max(2, height), x, y
 

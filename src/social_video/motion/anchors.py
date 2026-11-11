@@ -16,12 +16,15 @@ from __future__ import annotations
 import re
 from itertools import pairwise
 
+from social_video.edl.timeline import Timeline
 from social_video.schemas.captions import CaptionTrack
+from social_video.schemas.edl import EDL
 from social_video.schemas.motion import (
     ITEM_ANCHORED,
     MotionElement,
     MotionElementType,
     MotionPlan,
+    SourceAnchor,
 )
 
 #: After the last point of a list enters, it stays at least this long.
@@ -90,15 +93,84 @@ def place_end_teasers(plan: MotionPlan, duration: float | None) -> tuple[MotionP
     return MotionPlan.model_validate(updated.model_dump()), notes
 
 
+def anchor_to_sources(plan: MotionPlan, edl: EDL) -> tuple[MotionPlan, list[str]]:
+    """Move everything anchored to a moment of a recording onto that moment.
+
+    The plan's own times are on the output timeline and go stale with every
+    recompile; a moment named in the recording is mapped through the edit as
+    it is now. A moment the edit cut out is an error that names it: the
+    graphic would otherwise sit where nothing it refers to is shown.
+    """
+    anchored = [
+        *(e for e in plan.elements if e.at_source),
+        *(s for s in plan.shakes if s.at_source),
+        *(p for p in plan.punch_ins if p.at_source),
+        *(f for f in plan.effects if f.at_source),
+    ]
+    if not anchored:
+        return plan, []
+    timeline = Timeline(edl)
+    notes: list[str] = []
+
+    def find(anchor: SourceAnchor, what: str) -> float:
+        hits = timeline.map_to_output(anchor.source, anchor.time)
+        if not hits:
+            raise ValueError(
+                f"{what}: {anchor.time:g}s of {anchor.source!r} is not in the edit; the cut "
+                "removed it, or the source id is not one the EDL uses"
+            )
+        return round(hits[0], 3)
+
+    def moved(item, what: str):
+        if item.at_source is None:
+            return item
+        start = find(item.at_source, what)
+        until = getattr(item, "until_source", None)
+        end = find(until, what) if until is not None else round(start + item.end - item.start, 3)
+        if end <= start:
+            raise ValueError(f"{what}: until_source falls before at_source in the edit")
+        if abs(start - item.start) > 1e-3 or abs(end - item.end) > 1e-3:
+            notes.append(
+                f"{what} placed at {start:.2f}-{end:.2f}s from "
+                f"{item.at_source.source} {item.at_source.time:g}s"
+            )
+        return item.model_copy(update={"start": start, "end": end})
+
+    updated = plan.model_copy(
+        update={
+            "elements": sorted(
+                (moved(e, e.type.value) for e in plan.elements), key=lambda e: e.start
+            ),
+            "shakes": [moved(s, "shake") for s in plan.shakes],
+            "punch_ins": sorted(
+                (moved(p, "punch-in") for p in plan.punch_ins), key=lambda p: p.start
+            ),
+            "effects": sorted(
+                (moved(f, f.type.value) for f in plan.effects), key=lambda f: f.start
+            ),
+        }
+    )
+    return MotionPlan.model_validate(updated.model_dump()), notes
+
+
 def anchor_to_words(
-    plan: MotionPlan, captions: CaptionTrack | None, *, duration: float | None = None
+    plan: MotionPlan,
+    captions: CaptionTrack | None,
+    *,
+    duration: float | None = None,
+    edl: EDL | None = None,
 ) -> tuple[MotionPlan, list[str]]:
     """Move every graphic anchored to a word onto that word. Says what moved.
 
     A list or strike that stays on to show its last point is never held past
-    ``duration``, the edit's length, when it is given.
+    ``duration``, the edit's length, when it is given. With ``edl``, what is
+    anchored to a moment of a recording (`at_source`) is placed first.
     """
+    sourced: list[str] = []
+    if edl is not None:
+        plan, sourced = anchor_to_sources(plan, edl)
     plan, placed = place_end_teasers(plan, duration)
+    placed = [*sourced, *placed]
     if not needs_anchoring(plan):
         return plan, placed
     if captions is None:

@@ -47,7 +47,14 @@ export type MotionElement = {
   /** End card: held after the last word (the timeline was extended for it). */
   hold?: boolean;
   /** End card: text over a dimmed image, or the image above the text. */
-  layout?: 'overlay' | 'image_top';
+  layout?: 'overlay' | 'image_top' | 'profiles';
+  /** End card with people: portraits staged in the public directory, never a local path. */
+  people?: {name: string; handle?: string | null; image_source?: string | null}[] | null;
+  /** End card with people: the pill above the title, with the series part in it. */
+  kicker?: string | null;
+  /** End card with people: what comes next, a small label and the line. */
+  next_label?: string | null;
+  next_text?: string | null;
   /** End card: lines and sizes measured in Python; links are never split. */
   fitted?: FittedCard | null;
   /** Sticker: one emoji (drawn from the emoji font) or image_source. */
@@ -95,6 +102,11 @@ export type MotionElement = {
   cut_style?: 'cut' | 'whoosh' | null;
   /** Prop: how the picture is framed. */
   prop_style?: 'object' | 'screenshot' | null;
+  /**
+   * A card over the head, shrunk toward its top edge (origin_y, pixels) so it
+   * ends above the measured face; computed in Python (motion/layout.py).
+   */
+  fit?: {scale: number; origin_y: number} | null;
 };
 
 /** A change of the whole picture for a moment; see remotion/Effects.tsx. */
@@ -138,6 +150,8 @@ export type SceneFrameGeometry = {
   tab_top: number;
   tab_height: number;
   caption_centre: number;
+  /** Opacity of the frame's fill, 0-1; 0 draws the outline and the title only. */
+  fill: number;
 };
 
 export type SocialVideoProps = {

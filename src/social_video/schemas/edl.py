@@ -84,6 +84,13 @@ class ReframePlan(Artifact):
     panes: list[Pane] = Field(default_factory=list)
     #: Why this framing was chosen, in the agent's own words.
     reason: str = ""
+    #: Where the speaker's eyes are in the framed picture, as fractions of its
+    #: width and height, and how tall the face is in it. Measured when faces
+    #: were found. A range's ``zoom`` pushes in on this point, so a punch-in
+    #: goes toward the face rather than the middle of the frame.
+    focus_x: float | None = Field(default=None, ge=0.0, le=1.0)
+    focus_y: float | None = Field(default=None, ge=0.0, le=1.0)
+    face_height: float | None = Field(default=None, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _needs_geometry(self) -> ReframePlan:
