@@ -161,6 +161,14 @@ is drawn, on both renderers:
   `caption_hold_through_pauses: true` with it, so a pause never leaves the
   frame empty. The FFmpeg route draws the same frame around rounded-box
   captions; with another caption background it draws no labels and says so.
+  `caption_style.scene_frame_fill_pct` (0-100, default 30) is how opaque the
+  frame's fill is; `0` keeps the outline and the title and leaves the picture
+  clear, so the caption's own box is the only background behind the words.
+
+`motion labels -w WORKSPACE` writes one label per scene of the edit, named by
+the `beat` of its ranges and timed by the compiled edit: give each kept item of
+the plan a `beat` and no label time has to be worked out. Labels with other
+texts are kept (`--replace` drops them).
 
 A title is fitted to its tab, measured with the brand font: it keeps the
 frame's size when it fits, shrinks (at most to 60 %) when it does not, and is
@@ -208,12 +216,32 @@ that reaches the final frame never fades out over it.
 - `layout: image_top` draws the `image_asset` whole in the upper half (a book
   cover) and the text below it; the default `overlay` dims the image behind
   the text.
+- `layout: profiles` is a card with people on it, for a series or a
+  conversation: a `kicker` pill above the title (`series` adds the part,
+  "Odcinek 2 / 4"), the title (`text`), one to three `people` -- each a
+  `name`, a `handle` and an `image_asset` portrait drawn in a circle, or
+  initials without one -- then what comes next (`next_label`, `next_text`)
+  in an accent box, and `secondary_text` as the closing line. It draws its
+  own background in the brand's colours, so it takes no plate. Portraits are
+  the people's own pictures; say whose they are in the `reason`.
 
 ```json
 {"type": "end_card", "start": 0, "end": 2.6, "hold": true,
  "text": "Nowy poradnik\nZapisz się na listę\nprzyklad-marki.example/strona-z-zapisami/",
  "secondary_text": "Premiera: wkrótce\nlink także w bio",
  "reason": "The waiting-list link after the last word."}
+```
+
+```json
+{"type": "end_card", "start": 0, "end": 2.5, "hold": true, "layout": "profiles",
+ "kicker": "Odcinek", "series": {"part": 2, "total": 4},
+ "text": "Dwa głosy, jeden temat",
+ "people": [
+   {"name": "Anna Przykładowa", "handle": "@anna.przyklad", "image_asset": "assets/anna.jpg"},
+   {"name": "Ewa Wzorcowa", "handle": "@ewa.wzor", "image_asset": "assets/ewa.jpg"}],
+ "next_label": "W następnym odcinku", "next_text": "Jak zacząć dzień bez pośpiechu?",
+ "secondary_text": "Do zobaczenia za tydzień",
+ "reason": "The series card: both hosts, their own portraits, the next episode."}
 ```
 
 ## Stickers and the shake on a word
@@ -264,6 +292,14 @@ free**. Every word graphic is drawn in the top zone unless the plan puts a
 `strike`, `inset` or `custom` element at `position: center`, and `motion qa` measures it against faces, the
 caption band and the scene frame where it is actually drawn.
 
+A card in the top zone (`process`, `bubble`, `strike`, `list`, `steps`, `cta`,
+`kinetic_word`) that would reach the speaker's forehead is drawn smaller,
+toward its own top edge, by as much as the face the reframe plan measured
+asks -- never under 70 % of its size. It may sit over the hair: with the eyes
+on the upper third there is no room to clear that as well. A card that still
+covers the face at 70 % is named by `motion qa`; shorten it, or move the
+graphic to another moment.
+
 **Anchored to the word.** `at_word` + `occurrence` sets a `bubble`, `icon`,
 `kinetic_word`, `inset` or `custom` element's start, as for a sticker. A
 `strike`'s `at_word` is the moment of the stroke and `replace_at_word` the
@@ -273,6 +309,15 @@ its word; without it the items are revealed evenly, as before. `compile` and
 the render move every anchor to its caption word and print each move; a word
 the captions do not hold is an error. A list or strike stays until its last
 line has been read, but never past the end of the edit.
+
+**Anchored to the recording.** Times in the plan are on the output timeline,
+which moves with every cut. `at_source: {"source": "kamera", "time": 12.4}`
+starts any element -- a label too -- at that moment of a recording instead,
+keeping its length; `until_source` names the moment it ends. Punch-ins, shakes
+and picture effects take `at_source` as well. `compile` and the render map
+each moment through the edit as it is now, so the plan survives a recompile;
+a moment the edit cut out is an error that names it. Give `at_word` or
+`at_source`, not both.
 
 ```json
 {"type": "list", "start": 3.0, "end": 9.0, "text": "Spróbuj tak",

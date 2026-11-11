@@ -64,6 +64,12 @@ cleanup that actually happened against `audio_cleanup_policy`.
 
 ## The bed
 
+`social-video-agent audio bed FILE -w WORKSPACE` writes the bed into
+`edl.json` after checking that the file has sound and covers the edit
+(`--gain-db`, `--no-duck`, `--loop`, `--start-at`, `--reason`,
+`--license-note`; `--remove` takes it out). A recompile keeps the bed, and
+warns when the rebuilt edit has outgrown it. The same fields by hand:
+
 ```json
 "audio_bed": {
   "path": "/abs/project/assets/audio/bed.m4a",

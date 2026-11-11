@@ -85,6 +85,8 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
 - Split layouts: two speakers stacked, or a screen share above the presenter.
 - Passages of one recording that follow each other run on without a cut; a
   short jump mid-speech gets a proposed change of framing instead of a blur.
+- The speaker's eyes on the upper third; a zoom pushes in on the face, and QA
+  says when two ranges frame a speaker differently.
 
 **Picture**
 - Measured picture correction: a dark recording lifted toward the well-lit
@@ -512,6 +514,14 @@ Over the speaker without covering the scene: `label`, `sticker`, `hook_title`,
 the compositor's types. Transitions (`zoom`, `slide`, `flash`, `light_leak`)
 sit on cuts; punch-ins move the picture while captions and graphics stay put.
 
+A plan's times are on the output timeline; `at_word` puts a graphic on a
+spoken word and `at_source: {source, time}` on a moment of a recording, so
+neither has to be worked out by hand or redone after a recompile. `motion
+labels` writes a label per scene from the `beat` of the edit's ranges. A card
+over the head is drawn smaller when it would reach the speaker's forehead.
+An `end_card` with `layout: profiles` names the people in the reel — round
+portraits, names, handles — with what comes next and a closing line.
+
 **Sound, b-roll and review.**
 
 ```bash
@@ -561,7 +571,7 @@ that reports information supports `--json`.
 | Workflow | `workflow init/batch/status/resume/complete/renderer/brief` |
 | Source | `inspect`, `fetch URL --rights "..."`, `sources add/list`, `transcribe [--diarize]`, `pack` |
 | Editing | `plan`, `brief story/import/show`, `cuts find/accept`, `compile`, `shorts list/create`, `apply-editorial-qa` |
-| Motion | `motion suggest/accept/sfx/variants/sheet/qa`, `motion film spec/import/remove/status`, `motion custom init/check`, `broll suggest/accept`, `style analyze/check-analysis` |
+| Motion | `motion suggest/accept/labels/sfx/variants/sheet/qa`, `motion film spec/import/remove/status`, `motion custom init/check`, `broll suggest/accept`, `audio bed`, `style analyze/check-analysis` |
 | Render and check | `render`, `edit`, `qa`, `hook check`, `opening-qa`, `reel-check`, `platforms` |
 | Images | `image status/prompt/register/capabilities/plate`, `cover` |
 | Output | `deliver`, `export`, `captions translate/apply/fix` |

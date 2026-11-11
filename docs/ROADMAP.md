@@ -1,6 +1,6 @@
 # Roadmap
 
-Reviewed **2026-11-11** against 2.12.0. This is a direction, not a commitment:
+Reviewed **2026-11-11** against 2.13.0. This is a direction, not a commitment:
 items move when evidence changes. The rules in [AGENTS.md](../AGENTS.md) hold
 for every item — candidate selection stays editorial, sources stay immutable,
 music is never sourced or cleared by the tool, and CI downloads no models.
@@ -194,14 +194,16 @@ framing proposed for a short jump; every recording's speech at one level and
 one gain for the mix; phrase captions that end on whole phrases; the face
 model shipped with the package.
 
-## 2.13 — framing, graphics and series work (next)
+## 2.13 — framing, graphics and series work (done)
 
-- Framing on the eye line, and `zoom` anchored on the face.
-- Graphics kept clear of the face, now that it is always measured.
-- `scene_frame_fill_pct`, so a brand can keep the frame without a second
-  background behind the caption.
-- `audio bed`, times given from the source (`at_source`), labels from beats.
-- An end card with people on it: photos, names, handles, the next episode.
+- Framing on the eye line, `zoom` anchored on the face, and a QA warning when
+  two ranges frame a speaker differently.
+- Top-zone cards drawn smaller where they would reach the forehead.
+- `caption_style.scene_frame_fill_pct`, so a brand can keep the frame without
+  a second background behind the caption.
+- `audio bed`, times given from the source (`at_source`), `motion labels`
+  from beats.
+- An end card with people on it: portraits, names, handles, the next episode.
 
 ## Under consideration
 
