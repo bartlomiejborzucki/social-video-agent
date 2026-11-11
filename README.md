@@ -83,12 +83,23 @@ recording → local transcript → edit plan → EDL + motion plan → FFmpeg ba
 - Face-aware reframing with smoothing and scene-cut snapping; speaker framing
   that follows diarized turns and cuts between faces.
 - Split layouts: two speakers stacked, or a screen share above the presenter.
+- Passages of one recording that follow each other run on without a cut; a
+  short jump mid-speech gets a proposed change of framing instead of a blur.
+
+**Picture**
+- Measured picture correction: a dark recording lifted toward the well-lit
+  ones of the same edit, an enlarged one sharpened, a heavily compressed one
+  lightly denoised — each with a ceiling, none on a good recording, every
+  change reported.
+- A recording too small or too compressed to fill the frame is named when it
+  is added, so the original can be asked for.
 
 **Audio**
 - Measured voice cleanup: only the repairs a recording needs, each with a
   ceiling, every change reported.
-- Loudness normalisation, licence-gated music beds with ducking, and sound
-  effects.
+- Every recording's speech at one level, so two speakers are not two volumes.
+- Loudness normalisation with one gain rather than a level ridden over time,
+  music beds with ducking, and sound effects.
 
 **Checks before anything ships**
 - Technical QA of every render against its EDL, brand QA against an executable
@@ -315,6 +326,7 @@ style_pack: editorial
 music_policy: none
 sfx_policy: optional
 audio_cleanup_policy: measured
+picture_policy: measured
 default_resolution: "1080x1920"
 delivery_output: exports/social
 ```
@@ -359,6 +371,33 @@ crosses its threshold, each repair capped:
 
 A clean recording comes out untouched. Every render lists what it changed and
 how to undo it (`--no-audio-cleanup` or `audio_cleanup_policy: none`).
+
+Under the same policy the speech of each recording in an edit is measured on
+its own and moved toward the level they share (6 dB at most), so a question
+and an answer recorded on two phones play at one volume. The mix is then
+normalised with a single gain; where that gain does not fit under the
+true-peak ceiling a limiter catches the peaks, instead of the level being
+ridden over time.
+
+### Picture correction
+
+`picture_policy: measured` does for the picture what the voice cleanup does
+for the sound. Each recording is measured where the edit shows it, and only
+what crosses a threshold is corrected, inside a ceiling:
+
+| Measured | Applied | Ceiling |
+|---|---|---|
+| median brightness under 105 of 255 | lift toward the well-lit recordings of the edit | gamma 1.35 |
+| a lift, or a flat picture | contrast | 1.10 |
+| enlarged 1.15× or more | sharpening after the scale | 0.8 |
+| under 0.05 bits per pixel | light denoise | fixed |
+| a colour cast | nothing | reported, never corrected |
+
+A good recording comes out untouched, and a well-lit one is never darkened to
+match. No filter restores what a small file does not hold, so `inspect`,
+`sources add`, `workflow init` and QA name a recording that will be enlarged
+1.5× or more, or is heavily compressed, while the original can still be asked
+for. Undo with `--no-picture-correction` or `picture_policy: none`.
 
 ### Remotion and its licence
 

@@ -122,6 +122,13 @@ Remotion with per-word spans. Either way it needs word timings in the caption
 data, and brand QA fails when the contract asks for it and the renderer did not
 draw it.
 
+A phrase cue never ends on a word that belongs to what follows it -- a
+preposition, a conjunction, a negation (`leaning` in
+`captions/data/phrases.yaml`): when a limit closes the cue there, that word
+opens the next one instead ("...razem" / "do parku"). A word with a comma or
+a full stop after it stays where the speaker stopped. `reel-check` reports
+cues that stop mid-phrase as "captions end on whole phrases".
+
 `caption_style.mode: phrase` cuts cues where the sentence breaks instead of
 by word count: 3 to `max_words_per_cue` words (6 suits it), ending at any
 comma or sentence mark and before a conjunction (`i`, `ale`, `bo`, `że`,
@@ -182,6 +189,8 @@ active-word highlight follows them only approximately. Say so to the user.
   matters more than filling the screen.
 - `center` — fixed centre crop. Predictable, needs no model.
 - `face` — crop follows detected faces. The usual choice for talking heads.
+  The detection model ships with the package, so it works in a session that
+  cannot reach the network; `doctor` reports it as `face model`.
 - `speaker` — for two-person conversations. Tracks each face across sampled
   frames, measures mouth movement, and correlates it with the speech envelope;
   the face that moves when the audio is loud gets the crop. This is a

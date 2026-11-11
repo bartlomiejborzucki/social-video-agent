@@ -140,6 +140,18 @@ moved to the speech" and noted in the range's `reason`. A warning says when
 speech carries on past the final out-point. `--word-edges` keeps the
 transcript's edges.
 
+Passages of one recording that follow each other are not cut apart. A plan
+names them one by one -- a beat each -- but where less than `min_cut_gap`
+(0.25 s, a profile field) lies between two of them, a cut would remove nothing
+and cost a jump in the picture and a dip in the sound. `compile` makes the two
+ranges meet at one moment in the pause and marks the second
+`transition_in: continuous` (it looks the same: no seam at all) or `punch`
+(only its `zoom`, `grade` or `reframe` differs: the sound runs on, the framing
+changes). Each range keeps its own `beat`, so labels still follow the scenes.
+Do not split a take into ranges to "add cuts": a cut that removes between
+0.25 s and 1 s mid-speech is where `motion suggest` proposes a change of
+framing, and that is the tool for pace.
+
 A phone often stops the picture a little before the sound. A range that runs
 past the last frame of its recording holds that frame under the rest of the
 words (up to 0.75 s, as `intentional_hold`); further than that, it ends with

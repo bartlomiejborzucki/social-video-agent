@@ -78,6 +78,17 @@ across first, or install the older release to finish the edit. See
 and no longer renders without them. Run `social-video-agent doctor
 --install-ffmpeg`, or install an ffmpeg built with libass.
 
+**A `picture` note says a recording will be enlarged, or is heavily
+compressed.** The file is small or was sent through a messenger. The edit
+continues and the render sharpens and lightly denoises it, but no filter
+restores the detail: ask the person who recorded it for the original file,
+then `sources add` it under the same id. See `picture.md`.
+
+**The picture looks different after an update.** `picture_policy: measured`
+is the default from 2.12: a dark recording is lifted, an enlarged one
+sharpened. The render prints what it changed; `--no-picture-correction` or
+`picture_policy: none` renders the picture as recorded.
+
 **A Remotion render looks stuck.** Without a terminal it logs a line at each
 quarter; with one it shows a bar. It is stopped after four hours with the last
 lines Chrome printed. If a render is wrong only after the compositions were

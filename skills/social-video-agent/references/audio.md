@@ -108,3 +108,27 @@ The bed and effects are mixed **before** the loudness pass, so normalisation
 measures the finished mix rather than the speech alone. With
 `normalize_audio: false` a limiter is inserted instead, because summing a bed
 and effects is exactly where clipping appears.
+
+The whole mix gets one gain. Where that gain fits under the true-peak ceiling
+it is applied by `loudnorm` in its linear mode. Where it does not -- speech
+recorded hot, a quiet edit that needs lifting -- `loudnorm` would switch to
+its dynamic mode on its own and ride the gain over time, so the first seconds
+came out louder than the rest. There the gain is applied as it is, a limiter
+catches only the peaks above the ceiling, and the gain is raised by what the
+limiter was measured to take off (3 dB at most), so the target is still met.
+
+## One level for every recording
+
+One gain over the mix leaves the recordings as far apart as they were: a
+question recorded close to the microphone and an answer recorded across a room
+stay two levels. Under `audio_cleanup_policy: measured` each recording's
+speech is measured on its own -- through the gain and limiter the mix is about
+to get, since a recording with hot peaks loses level to the limiter and a soft
+one does not -- and moved toward the level they share, weighted by how long
+each is heard, by 6 dB at most. Moves under 0.5 dB are not made; one recording
+alone is not touched.
+
+The gains are applied at render and recorded in the manifest
+(`audio_cleanup_applied.levels`); the EDL is not changed, and `audio_gain_db`
+on a range still adds to them. Brand QA warns when recordings stay more than
+1.5 LU apart after the largest move allowed.

@@ -1,6 +1,6 @@
 # Roadmap
 
-Reviewed **2026-11-11** against 2.11.0. This is a direction, not a commitment:
+Reviewed **2026-11-11** against 2.12.0. This is a direction, not a commitment:
 items move when evidence changes. The rules in [AGENTS.md](../AGENTS.md) hold
 for every item — candidate selection stays editorial, sources stay immutable,
 music is never sourced or cleared by the tool, and CI downloads no models.
@@ -186,7 +186,28 @@ gaps they do not see):
 - Delivered videos are `NAME-FINAL.mp4`; an edit with a music bed is delivered
   with it and without it, with notes on which goes to which platform.
 
+## 2.12 — what is seen and heard most (done)
+
+From measuring finished reels: measured picture correction on by default and
+a warning for a weak source; no cut where nothing is removed, and a change of
+framing proposed for a short jump; every recording's speech at one level and
+one gain for the mix; phrase captions that end on whole phrases; the face
+model shipped with the package.
+
+## 2.13 — framing, graphics and series work (next)
+
+- Framing on the eye line, and `zoom` anchored on the face.
+- Graphics kept clear of the face, now that it is always measured.
+- `scene_frame_fill_pct`, so a brand can keep the frame without a second
+  background behind the caption.
+- `audio bed`, times given from the source (`at_source`), labels from beats.
+- An end card with people on it: photos, names, handles, the next episode.
+
 ## Under consideration
+
+- **J/L cuts**, sound leading the picture across a cut. It needs audio that
+  crosses range boundaries in the EDL; decide once 2.12's seams and levels
+  have been heard on real reels.
 
 - **Skill files that describe judgement only** (moved from 2.0), once every
   supported host reaches the workflow through the MCP tools.
