@@ -4,6 +4,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and s
 
 ## [Unreleased]
 
+## [2.13.1] - 2026-11-11
+
 Found by putting 2.13 to work on a finished edit.
 
 ### Added
